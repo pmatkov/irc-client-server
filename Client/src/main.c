@@ -5,9 +5,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <locale.h>
+#include <signal.h>
 #include <ncursesw/curses.h>            // wide characters support
-
-
 
 /* Todo:
 *  1. setup servera: create socket, bind, listen
@@ -21,25 +20,14 @@
 * leaveok, doupdate
 * Try to avoid using the global variables LINES and COLS. Use getmaxyx() on the stdscr context instead.
 * SELECT !!!
-  A_NORMAL        Normal display (no highlight)
-        A_STANDOUT      Best highlighting mode of the terminal.
-        A_UNDERLINE     Underlining
-        A_REVERSE       Reverse video
-        A_BLINK         Blinking
-        A_DIM           Half bright
-        A_BOLD          Extra bright or bold
-        A_PROTECT       Protected mode
-        A_INVIS         Invisible or blank mode
-        A_ALTCHARSET    Alternate character set
-        A_CHARTEXT      Bit-mask to extract a character
-        COLOR_PAIR(n)   Color-pair number n
+* Free !!! - realloc provjera? 
+* Server - Deamon?? (p. 1240 Kerrisk)
 
-         whline(win, ACS_BLOCK               , ncolumns);
 */
 
 int main(void)
 {
-    
+
      Command cmdLookup[] = {
         {HELP, "/help", {
             "", "", ""}},
@@ -147,7 +135,7 @@ int main(void)
                 }
                 break;
 
-                case KEY_PPAGE:
+            case KEY_PPAGE:
                 if (printData->lnsUpshifted) {
                     int shift = (printData->lnsUpshifted >= AVAILABLE_LNS) ? AVAILABLE_LNS : printData->lnsUpshifted;
                     wscrl(topWin, -shift);
@@ -158,16 +146,16 @@ int main(void)
                 }
                 break;
 
-                case KEY_NPAGE:
-                    if (AVAILABLE_LNS + printData->lnsUpshifted < printData->printedLns) {
-                        int shift = (printData->printedLns - AVAILABLE_LNS - printData->lnsUpshifted >= AVAILABLE_LNS) ? AVAILABLE_LNS : printData->printedLns - AVAILABLE_LNS - printData->lnsUpshifted;
-                        wscrl(topWin, +shift);
-                        for (int i = 0; i < shift; i++) {
-                            println_from_buff(topWin, bottomWin, printData->lastLn - shift + 1 + i, printData->lastLn + printData->lnsUpshifted + 1 + i);
-                        }
-                        printData->lnsUpshifted += shift;
+            case KEY_NPAGE:
+                if (AVAILABLE_LNS + printData->lnsUpshifted < printData->printedLns) {
+                    int shift = (printData->printedLns - AVAILABLE_LNS - printData->lnsUpshifted >= AVAILABLE_LNS) ? AVAILABLE_LNS : printData->printedLns - AVAILABLE_LNS - printData->lnsUpshifted;
+                    wscrl(topWin, +shift);
+                    for (int i = 0; i < shift; i++) {
+                        println_from_buff(topWin, bottomWin, printData->lastLn - shift + 1 + i, printData->lastLn + printData->lnsUpshifted + 1 + i);
                     }
-                    break;
+                    printData->lnsUpshifted += shift;
+                }
+                break;
 
             case KEY_SPACE: 
                 if (x < COLS-1 && charsPrinted < COLS-1)
@@ -203,10 +191,14 @@ int main(void)
             case KEY_NEWLINE:
 
                 input[charsPrinted] = '\0';
-                charsPrinted = 0;
-        
-                validate_input(topWin, bottomWin, printData, input, cmdLookup, NUM_COMMANDS);
+
                 delete_line(bottomWin, y);
+                wrefresh(bottomWin);
+
+                if (charsPrinted)
+                    validate_input(topWin, bottomWin, printData, input, cmdLookup, NUM_COMMANDS);
+
+                charsPrinted = 0;
                 break;
 
             // KEY_RESIZE is returned when the SIGWINCH signal has been detected
@@ -228,7 +220,6 @@ int main(void)
                 }
 
         }
-
     }
 
     endwin();

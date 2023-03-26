@@ -26,13 +26,15 @@
 #define CYAN 4
 #define CYAN_REV 5
 
-#define AVAILABLE_LNS (LINES-3)
+#define AVAILABLE_LNS (LINES-4)
 #define USAGE_LNS 3
 
 #define delete_line(win, y)	(wmove((win),(y),(PROMPT_SIZE)) == ERR ? ERR : wclrtoeol((win)))
+#define delete_infomsg(win) (wmove((win), AVAILABLE_LNS+1, 0) == ERR ? ERR : wclrtoeol((win)))
+
 #define print_empty(topWin, bottomWin, printData) print_text_ext(topWin, bottomWin, printData, "", NULL, NULL, 0, 0, 0);
 
-#define get_cursor(win, lasty, lastx) getyx(win, lasty, lastx)
+#define save_cursor(win, lasty, lastx) getyx(win, lasty, lastx)
 #define restore_cursor(win, lasty, lastx) wmove(win, lasty, lastx)
 
 typedef enum {
@@ -61,7 +63,10 @@ void setup_windows(WINDOW *, WINDOW *, PrintData *);
 void println_from_buff(WINDOW *, WINDOW *, int, int);
 void shift_chars(char *, int, int *);
 void add_space(WINDOW *, char *, int, int, int *);
-void validate_input(WINDOW *, WINDOW *, PrintData *, char *, Command *, int);
+void validate_input(WINDOW *, WINDOW *, PrintData *, const char *, Command *, int);
 void handle_resize(WINDOW *);
+void display_infomsg(WINDOW *, WINDOW *, const char *, ...);
+void failed(const char *, ...);
+
 
 #endif

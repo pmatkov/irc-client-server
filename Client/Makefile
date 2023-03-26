@@ -10,6 +10,10 @@ SRCS = $(wildcard $(SRCDIR)/*.c)
 OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
 DEPS = $(OBJS:.o=.d)
 
+TDIR = tests
+TSRCS = $(wildcard $(TDIR)/*.c)
+TBINS = $(patsubst $(TDIR)/%.c, $(TDIR)/bin/%, $(TSRCS))
+
 all: $(BIN)
 
 $(BIN): $(OBJS)
@@ -22,5 +26,11 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c
 
 -include $(DEPS)
 
+$(TDIR)/bin/%: $(TDIR)/%.c
+	$(CC) $(CFLAGS) $< $(OBJDIR)/tcpclient.o -o $@ -lcheck
+
+test: $(TDIR)/bin $(TBINS)
+	for test in $(TBINS); do ./$$test; done
+
 clean:
-	rm $(BIN) $(OBJDIR)/*
+	rm $(BIN) $(OBJDIR)/* $(TDIR)/bin/*

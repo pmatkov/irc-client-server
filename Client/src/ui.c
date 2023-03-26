@@ -1,5 +1,6 @@
 #define _XOPEN_SOURCE_EXTENDED 1
 #include "ui.h"
+#include "tcpclient.h"
 #include <time.h>
 #include <stdio.h>
 #include <string.h>
@@ -24,11 +25,9 @@ void get_time(char *, int);
 Command * get_command(char *, Command *, int, int);
 void display_commands(WINDOW*, WINDOW*, PrintData *printData, Command *, int);
 void display_usage(WINDOW *, WINDOW*, PrintData *printData, Command);
-void failed(const char *);
 
 static cchar_t **lineBuffer = NULL;
 static wchar_t *msgBuffer = NULL;
-
 
 void setup_windows(WINDOW *topWin, WINDOW *bottomWin, PrintData *printData) {
 
@@ -45,7 +44,7 @@ void setup_windows(WINDOW *topWin, WINDOW *bottomWin, PrintData *printData) {
     mvwhline_set(topWin, LINES-2, 0, &block, COLS);
 
     print_text_std(topWin, 0, 0, " Chat", COLOR_PAIR(CYAN_REV));
-    print_text_ext(topWin, bottomWin, printData, "", " ## ", "Chat v 0.1", 0, MAGENTA, 0);
+    print_text_ext(topWin, bottomWin, printData, "", " ## ", "Chat v0.1", 0, MAGENTA, 0);
     print_empty(topWin, bottomWin, printData);
     print_text_ext(topWin, bottomWin, printData, "", " ## ", "Type /help for a list of available commands.", 0, MAGENTA, 0);
 
@@ -89,14 +88,14 @@ void saveln_to_buff(int line, int column, const char *string, int attribute) {
     attr_t attr = 0;
     int color = 0;
  
-    // this range represents colors from ui.h
+    // this represents a range of colors from ui.h
     if (attribute >= 0 && attribute <= 5) 
         color = attribute;
     else
         attr = attribute;
 
     if ((mbslen = mbstowcs(NULL, string, 0)) == (size_t) -1)
-        failed("Error getting length for wchar");
+        failed("Error getting length for wchar.");
 
     if (mbstowcs(msgBuffer, string, mbslen + 1) == (size_t) -1)
         failed("Error converting char to wchar.");
@@ -105,7 +104,6 @@ void saveln_to_buff(int line, int column, const char *string, int attribute) {
         setcchar(&lineBuffer[line][column++], mPtr++, attr, color, NULL);
     
 }
-
 
 void print_text_ext(WINDOW *topWin, WINDOW *bottomWin, PrintData *printData, const char *time, const char *separator, const char *string, int tmAttribute, int sepAttribute, int strAttribute) {
 
@@ -146,15 +144,13 @@ void print_text_ext(WINDOW *topWin, WINDOW *bottomWin, PrintData *printData, con
         if (printData->printedLns > AVAILABLE_LNS) 
             printData->lnsUpshifted++;
     }
-
 }
-
 
 void println_from_buff(WINDOW *topWin, WINDOW *bottomWin, int y, int line) {
 
     int lastx, lasty;
 
-    get_cursor(bottomWin, lasty, lastx);
+    save_cursor(bottomWin, lasty, lastx);
 
     if (y != -1) {
         wmove(topWin, y, 0);
@@ -208,17 +204,21 @@ void add_space(WINDOW *win, char *input, int y, int x, int *charsPrinted) {
 
 }
 
-void validate_input(WINDOW * topWin, WINDOW *bottomWin, PrintData *printData, char *input, Command *cmdLookup, int numCommands) {
+void validate_input(WINDOW * topWin, WINDOW *bottomWin, PrintData *printData, const char *input, Command *cmdLookup, int numCommands) {
 
-    int argCount = 0, unknownCmd = 0, lastx, lasty;
-    char *inputCopy, *token;
+    int argCount = 0, unknownCmd = 0, validAddr, validPort, lastx, lasty;
+    char *copy, *token;
     char *allTokens[MAX_ARGS] = {NULL};
     Command *command, *argument;
 
-    inputCopy = strdup(input);
+    copy = strdup(input);
 
-    while ((token = strtok_r(inputCopy, " ", &inputCopy)) && argCount < MAX_ARGS)
+    while ((token = strtok_r(copy, " ", &copy)) && argCount < MAX_ARGS)
         allTokens[argCount++] = token;
+
+    save_cursor(topWin, lasty, lastx);
+    delete_infomsg(topWin);
+    restore_cursor(topWin, lasty, lastx);
 
     if ((command = get_command(allTokens[0], cmdLookup, numCommands, 1))) {
 
@@ -233,10 +233,19 @@ void validate_input(WINDOW * topWin, WINDOW *bottomWin, PrintData *printData, ch
                     unknownCmd = 1;
                 break;
             case CONNECT: 
-                // if (argCount == 2 || argCount == 3)
-                //     // validate_address_port(); 
-                // else
-                //     invalidCommand = 1;
+                validAddr = is_valid_addr(allTokens[1]);
+                validPort = is_valid_port(allTokens[2]);
+                if ((argCount == 2 || argCount == 3) && validAddr && validPort)
+                    create_conection(topWin, bottomWin, allTokens[1], allTokens[2]);
+                else
+                    if (!validAddr && !validPort)
+                        display_infomsg(topWin, bottomWin, "Invalid ip address and port: %s: %s", allTokens[1], allTokens[2], PORT_LOW, PORT_HIGH);
+                    else if (!validAddr)
+                        display_infomsg(topWin, bottomWin, "Invalid ip address: %s", allTokens[1]);
+                    else if (!validPort)
+                        display_infomsg(topWin, bottomWin, "Invalid port: %s (allowed range %d - %d)", allTokens[2], PORT_LOW, PORT_HIGH);
+                    else
+                        unknownCmd = 1;
                 break;
             case DISCONNECT: 
             case JOIN: 
@@ -250,17 +259,13 @@ void validate_input(WINDOW * topWin, WINDOW *bottomWin, PrintData *printData, ch
     }
 
     if (unknownCmd) {
-        get_cursor(topWin, lasty, lastx);
-        mvwprintw(topWin, AVAILABLE_LNS, 0, "Unknown command: %s", input);
-        restore_cursor(topWin, lasty, lastx);
-        wrefresh(topWin);
-
+        display_infomsg(topWin, bottomWin, "Unknown command: %s", input);
     }
 }
 
 Command * get_command(char *input, Command *cmdLookup, int numCommands, int lookupType) {
 
-    /* skip inital '/' if a command is argument to /help 
+    /* skip inital '/' when checking arguments to /help 
      * (eg. /help join instead of /help /join) 
      */
     int skip = lookupType == 1 ? 0 : 1;     
@@ -297,6 +302,59 @@ void display_usage(WINDOW *topWin, WINDOW *bottomWin, PrintData *printData, Comm
     wrefresh(topWin);
 }
 
+void display_infomsg(WINDOW *topWin, WINDOW *bottomWin, const char *infomsg, ...) {
+
+    int lastx, lasty;
+
+    int errnosv = errno;
+
+    save_cursor(topWin, lasty, lastx);
+
+    delete_infomsg(topWin);
+
+    if (strchr(infomsg, '%') == NULL)
+        mvwprintw(topWin, AVAILABLE_LNS + 1, 0, "%s", infomsg);
+    else {
+       
+        va_list arglist;
+        va_start(arglist, infomsg);
+        wmove(topWin, AVAILABLE_LNS + 1, 0);
+        vw_printw(topWin, infomsg, arglist);
+        va_end(arglist);
+    }
+
+    if (errnosv) {
+        wprintw(topWin, " (error code = %d: %s)\n", errnosv, strerror(errnosv));
+        errno = 0;
+    }
+
+    restore_cursor(topWin, lasty, lastx);
+    wrefresh(topWin);
+    wrefresh(bottomWin);
+}
+
+void failed(const char *msg, ...) {
+
+    int errnosv = errno;
+
+    endwin();
+
+    if (strchr(msg, '%') == NULL) {
+        fprintf(stderr, msg);
+
+    } else {
+       
+        va_list arglist;
+        va_start(arglist, msg);
+
+        vfprintf(stderr, msg, arglist);
+        va_end(arglist);
+    }
+
+    fprintf(stderr, " (error code = %d: %s)\n", errnosv, strerror(errnosv));
+     
+    exit(EXIT_FAILURE);
+}
 
 void handle_resize(WINDOW *win) {
 
@@ -309,12 +367,3 @@ void handle_resize(WINDOW *win) {
     wrefresh(win);
     
 }
-
-void failed(const char *msg)
-{
-    endwin();
-    fprintf(stderr, "%s (code %s)\n", msg, strerror(errno));
-    exit(EXIT_FAILURE);
-}
-
-
