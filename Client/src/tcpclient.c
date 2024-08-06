@@ -1,79 +1,120 @@
 #include "tcpclient.h"
-#include "ui.h"
+#include "display.h"
+#include "main.h"
 
-#include <stdio.h>
 #include <limits.h>
 #include <string.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <ncursesw/curses.h>
 
-void create_conection(WINDOW * topWin, WINDOW * bottomWin, const char *address, const char *port)
+#define DEFAULT_ADDRESS "127.0.0.1"
+#define DEFAULT_PORT "50100"
+#define PORT_LOW 49152
+#define PORT_HIGH 65535
+
+STATIC int is_ipv4address(const char *address);
+STATIC int is_port(const char *port);
+STATIC int str_to_int(const char *string);
+
+int create_connection(char *address, char *port)
 {
 
-    int clientfd;
-    struct sockaddr_in serveraddr;
+    if (address == NULL) {
+        address = DEFAULT_ADDRESS;
+    }
+    if (port == NULL) {
+        port = DEFAULT_PORT;
+    }
+    if (!is_ipv4address(address)) {
+        return -2;
+    }
+    if (!is_port(port)) {
+        return -3;
+    }
 
-    if ((clientfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+    // create client's TCP socket
+    int clientSockFd = socket(AF_INET, SOCK_STREAM, 0); 
+    if (clientSockFd < 0) {
         failed("Error creating socket.");
+    }
 
-    memset((struct sockaddr_in *) &serveraddr, 0, sizeof(struct sockaddr_in));
+    // initialize socket address structure with server's IP address and port
+    struct sockaddr_in servaddr;
+
+    memset((struct sockaddr_in *) &servaddr, 0, sizeof(struct sockaddr_in));
  
-    int serverport = port == NULL ? SERVER_PORT : atoi(port);
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(str_to_int(port));
 
-    serveraddr.sin_family = AF_INET;
-    serveraddr.sin_port = htons(serverport);
+    int translationStatus = inet_pton(AF_INET, address, &servaddr.sin_addr);
 
-    if (inet_pton(AF_INET, address, &serveraddr.sin_addr) <= 0)
-        failed("Translation failed for address %s", address);
+    if (translationStatus <= 0) {
+        failed("Translation failed for address: %s", address);
+    }
 
-    display_infomsg(topWin, bottomWin, "Trying to connect...");
+    // establish connection with server
+    int connectionStatus = connect(clientSockFd, (struct sockaddr *) &servaddr, sizeof(struct sockaddr_in));
 
-    if (connect(clientfd, (struct sockaddr *) &serveraddr, sizeof(struct sockaddr_in)) == -1)
-        display_infomsg(topWin, bottomWin, "Unable to connect to %s: %d", address, serverport);
-    else
-        display_infomsg(topWin, bottomWin, "Connected to %s: %d", address, serverport);
-
+    return connectionStatus;
 }
 
-int is_valid_addr(const char *address) {
+STATIC int is_ipv4address(const char *address) {
     
-    int nbytes = 0;
-    long n;
-    char *copy, *token;
+    int octets = 0;
+    char *copy, *token, *savePtr;
 
     copy = strdup(address);
 
-    while ((token = strtok_r(copy, ".", &copy))) {
-        if (is_number(token, &n) && n >= 0 && n <= 255)
-            nbytes++;
+    token = strtok_r(copy, ".", &savePtr);
+
+    while (token) {
+
+        long n = str_to_int(token);
+
+        if (n >= 0 && n <= 255) {
+            octets++;
+        }
+        else {
+            break;
+        }
+        token = strtok_r(NULL, ".", &savePtr);
     }
 
-    return nbytes == 4 ? 1: 0;
+    free(copy);
+
+    return octets == 4 && address[strlen(address) - 1] != '.';
 }
 
-int is_valid_port(const char *port) {
+STATIC int is_port(const char *port) {
 
-    long n;
-    
-    return (port == NULL || (is_number(port, &n) && n >= PORT_LOW && n <= PORT_HIGH)) ? 1 : 0;
-}
+    long n = str_to_int(port);
 
-int is_number(const char *string, long *n)
-{
-    char *nextchar;
-
-    if (string != NULL)
-        *n = strtol(string, &nextchar, 10);
-    else
+    if (n >= PORT_LOW && n <= PORT_HIGH) {
+        return 1;
+    }
+    else {
         return 0;
+    }  
+}
 
-    return (nextchar == string || *nextchar != '\0' || ((*n == LONG_MIN || *n == LONG_MAX) && errno == ERANGE)) ? 0 : 1;
+STATIC int str_to_int(const char *string)
+{
+
+    char *end = NULL;
+    errno = 0;
+
+    long n = strtol(string, &end, 0);
+
+    if (string == end || errno == ERANGE || *end != '\0' || n < 0) {
+        return -1;
+    }
+    else {
+        return n;
+    }
 
 }
 

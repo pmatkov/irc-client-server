@@ -6,7 +6,7 @@ LDFLAGS = -lncursesw
 SRCDIR = src
 OBJDIR = obj
 BINDIR = bin
-BIN = $(BINDIR)/client
+BIN = $(BINDIR)/server
 
 SRCS = $(wildcard $(SRCDIR)/*.c)
 OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))

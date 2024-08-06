@@ -1,15 +1,18 @@
 #ifndef TCPCLIENT_H
 #define TCPCLIENT_H
 
-#include <ncursesw/curses.h>
+#ifdef TEST
+#define STATIC
+#else
+#define STATIC static
+#endif
 
-#define SERVER_PORT 50100
-#define PORT_LOW 49152
-#define PORT_HIGH 65535
+int create_connection(char *address, char *port);
 
-void create_conection(WINDOW *, WINDOW *, const char *, const char *);
-int is_valid_addr(const char *);
-int is_valid_port(const char *);
-int is_number(const char *, long *);
+#ifdef TEST
+STATIC int is_ipv4address(const char *address);
+STATIC int is_port(const char *port);
+STATIC int str_to_int(const char *string);
+#endif
 
 #endif

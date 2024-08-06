@@ -1,3 +1,10 @@
 *.png
+.vscode/
+
 Client/bin/
 Client/obj/
+Client/tests/bin/
+
+Server/bin/
+Server/obj/
+Server/tests/bin/
