@@ -1,0 +1,4 @@
+2024-08-17 00:08:54 [Info] (main) Server options: daemon 0, echo 0
+2024-08-17 00:08:54 [Info] (init_server) Server started at 0.0.0.0: 50100
+2024-08-17 00:10:08 [Info] (check_listening_pfd) New connection (#1) from client 127.0.0.1 on port 40226 (fd: 5)
+2024-08-17 00:10:08 [Info] (read_data) Client 127.0.0.1 on port 40226 disconnected (fd: 5)

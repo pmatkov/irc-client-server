@@ -1,0 +1,300 @@
+2024-08-18 00:39:59 [Info] (test_log_message_fn) Test message
+2024-08-18 00:39:59 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 00:39:59 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 00:39:59 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 00:40:55 [Info] (test_log_message_fn) Test message
+2024-08-18 00:40:55 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 00:40:55 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 00:40:55 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:09:40 [Info] (test_log_message_fn) Test message
+2024-08-18 01:09:40 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:09:40 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:09:40 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:10:21 [Info] (test_log_message_fn) Test message
+2024-08-18 01:10:21 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:10:21 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:10:21 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:12:40 [Info] (test_log_message_fn) Test message
+2024-08-18 01:12:40 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:12:40 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:12:40 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:12:49 [Info] (test_log_message_fn) Test message
+2024-08-18 01:12:49 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:12:49 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:12:49 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:22:25 [Info] (test_log_message_fn) Test message
+2024-08-18 01:22:25 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:22:25 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:22:25 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:24:50 [Info] (test_log_message_fn) Test message
+2024-08-18 01:24:50 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:24:50 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:24:50 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:29:16 [Info] (test_log_message_fn) Test message
+2024-08-18 01:29:16 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:29:16 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:29:16 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:34:26 [Info] (test_log_message_fn) Test message
+2024-08-18 01:34:26 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:34:26 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:34:26 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:41:30 [Info] (test_log_message_fn) Test message
+2024-08-18 01:41:30 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:41:30 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:41:30 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:43:38 [Info] (test_log_message_fn) Test message
+2024-08-18 01:43:38 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:43:38 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:43:38 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:44:24 [Info] (test_log_message_fn) Test message
+2024-08-18 01:44:24 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:44:24 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:44:24 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:49:46 [Info] (test_log_message_fn) Test message
+2024-08-18 01:49:46 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:49:46 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:49:46 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:53:00 [Info] (test_log_message_fn) Test message
+2024-08-18 01:53:00 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:53:00 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:53:00 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:53:24 [Info] (test_log_message_fn) Test message
+2024-08-18 01:53:24 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:53:24 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:53:24 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:58:21 [Info] (test_log_message_fn) Test message
+2024-08-18 01:58:21 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:58:21 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:58:21 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 01:59:35 [Info] (test_log_message_fn) Test message
+2024-08-18 01:59:35 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 01:59:35 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 01:59:35 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:01:02 [Info] (test_log_message_fn) Test message
+2024-08-18 02:01:02 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:01:02 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:01:02 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:04:02 [Info] (test_log_message_fn) Test message
+2024-08-18 02:04:02 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:04:02 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:04:02 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:06:38 [Info] (test_log_message_fn) Test message
+2024-08-18 02:06:38 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:06:38 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:06:38 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:28:20 [Info] (test_log_message_fn) Test message
+2024-08-18 02:28:20 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:28:20 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:28:20 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:28:51 [Info] (test_log_message_fn) Test message
+2024-08-18 02:28:51 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:28:51 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:28:51 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:29:57 [Info] (test_log_message_fn) Test message
+2024-08-18 02:29:57 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:29:57 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:29:57 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:31:16 [Info] (test_log_message_fn) Test message
+2024-08-18 02:31:16 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:31:16 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:31:16 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:32:43 [Info] (test_log_message_fn) Test message
+2024-08-18 02:32:43 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:32:43 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:32:43 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:38:35 [Info] (test_log_message_fn) Test message
+2024-08-18 02:38:35 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:38:35 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:38:35 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:41:11 [Info] (test_log_message_fn) Test message
+2024-08-18 02:41:11 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:41:11 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:41:11 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:45:26 [Info] (test_log_message_fn) Test message
+2024-08-18 02:45:26 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:45:26 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:45:26 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:45:58 [Info] (test_log_message_fn) Test message
+2024-08-18 02:45:58 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:45:58 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:45:58 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:47:45 [Info] (test_log_message_fn) Test message
+2024-08-18 02:47:45 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:47:45 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:47:45 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:48:21 [Info] (test_log_message_fn) Test message
+2024-08-18 02:48:21 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:48:21 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:48:21 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:48:40 [Info] (test_log_message_fn) Test message
+2024-08-18 02:48:40 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:48:40 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:48:40 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:53:03 [Info] (test_log_message_fn) Test message
+2024-08-18 02:53:03 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:53:03 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:53:03 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:54:23 [Info] (test_log_message_fn) Test message
+2024-08-18 02:54:23 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:54:23 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:54:23 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 02:54:39 [Info] (test_log_message_fn) Test message
+2024-08-18 02:54:39 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 02:54:39 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 02:54:39 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:01:34 [Info] (test_log_message_fn) Test message
+2024-08-18 11:01:34 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:01:34 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:01:34 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:03:21 [Info] (test_log_message_fn) Test message
+2024-08-18 11:03:21 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:03:21 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:03:21 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:04:29 [Info] (test_log_message_fn) Test message
+2024-08-18 11:04:29 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:04:29 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:04:29 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:04:50 [Info] (test_log_message_fn) Test message
+2024-08-18 11:04:50 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:04:50 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:04:50 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:08:36 [Info] (test_log_message_fn) Test message
+2024-08-18 11:08:36 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:08:36 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:08:36 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:09:25 [Info] (test_log_message_fn) Test message
+2024-08-18 11:09:25 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:09:25 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:09:25 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:29:27 [Info] (test_log_message_fn) Test message
+2024-08-18 11:29:27 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:29:27 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:29:27 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:33:56 [Info] (test_log_message_fn) Test message
+2024-08-18 11:33:56 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:33:56 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:33:56 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:36:46 [Info] (test_log_message_fn) Test message
+2024-08-18 11:36:46 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:36:46 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:36:46 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:38:43 [Info] (test_log_message_fn) Test message
+2024-08-18 11:38:43 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:38:43 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:38:43 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:39:26 [Info] (test_log_message_fn) Test message
+2024-08-18 11:39:26 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:39:26 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:39:26 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:40:17 [Info] (test_log_message_fn) Test message
+2024-08-18 11:40:17 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:40:17 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:40:17 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:40:58 [Info] (test_log_message_fn) Test message
+2024-08-18 11:40:58 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:40:58 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:40:58 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:41:12 [Info] (test_log_message_fn) Test message
+2024-08-18 11:41:12 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:41:12 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:41:12 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:42:14 [Info] (test_log_message_fn) Test message
+2024-08-18 11:42:14 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:42:14 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:42:14 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:42:48 [Info] (test_log_message_fn) Test message
+2024-08-18 11:42:48 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:42:48 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:42:48 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:43:21 [Info] (test_log_message_fn) Test message
+2024-08-18 11:43:21 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:43:21 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:43:21 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:43:39 [Info] (test_log_message_fn) Test message
+2024-08-18 11:43:39 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:43:39 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:43:39 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:47:32 [Info] (test_log_message_fn) Test message
+2024-08-18 11:47:32 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:47:32 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:47:32 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:48:14 [Info] (test_log_message_fn) Test message
+2024-08-18 11:48:14 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:48:14 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:48:14 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:48:30 [Info] (test_log_message_fn) Test message
+2024-08-18 11:48:30 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:48:30 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:48:30 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:49:39 [Info] (test_log_message_fn) Test message
+2024-08-18 11:49:39 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:49:39 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:49:39 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:50:34 [Info] (test_log_message_fn) Test message
+2024-08-18 11:50:34 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:50:34 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:50:34 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:51:31 [Info] (test_log_message_fn) Test message
+2024-08-18 11:51:31 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:51:31 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:51:31 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:51:56 [Info] (test_log_message_fn) Test message
+2024-08-18 11:51:56 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:51:56 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:51:56 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:52:26 [Info] (test_log_message_fn) Test message
+2024-08-18 11:52:26 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:52:26 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:52:26 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:53:09 [Info] (test_log_message_fn) Test message
+2024-08-18 11:53:09 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:53:09 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:53:09 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:53:22 [Info] (test_log_message_fn) Test message
+2024-08-18 11:53:22 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:53:22 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:53:22 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:53:39 [Info] (test_log_message_fn) Test message
+2024-08-18 11:53:39 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:53:39 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:53:39 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:55:01 [Info] (test_log_message_fn) Test message
+2024-08-18 11:55:01 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:55:01 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:55:01 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:57:56 [Info] (test_log_message_fn) Test message
+2024-08-18 11:57:56 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:57:56 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:57:56 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:58:28 [Info] (test_log_message_fn) Test message
+2024-08-18 11:58:28 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:58:28 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:58:28 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 11:59:59 [Info] (test_log_message_fn) Test message
+2024-08-18 11:59:59 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 11:59:59 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 11:59:59 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 12:01:17 [Info] (test_log_message_fn) Test message
+2024-08-18 12:01:17 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 12:01:17 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 12:01:17 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 15:52:22 [Info] (test_log_message_fn) Test message
+2024-08-18 15:52:22 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 15:52:22 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 15:52:22 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 15:52:55 [Info] (test_log_message_fn) Test message
+2024-08-18 15:52:55 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 15:52:55 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 15:52:55 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 15:56:11 [Info] (test_log_message_fn) Test message
+2024-08-18 15:56:11 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 15:56:11 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 15:56:11 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 15:57:28 [Info] (test_log_message_fn) Test message
+2024-08-18 15:57:28 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 15:57:28 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 15:57:28 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
+2024-08-18 15:59:05 [Info] (test_log_message_fn) Test message
+2024-08-18 15:59:05 [Info] (test_log_message_fn) Test message from: john
+2024-08-18 15:59:05 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-18 15:59:05 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)

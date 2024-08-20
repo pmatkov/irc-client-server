@@ -1,0 +1,4 @@
+2024-08-20 01:25:16 [Info] (test_log_message_fn) Test message
+2024-08-20 01:25:16 [Info] (test_log_message_fn) Test message from: john
+2024-08-20 01:25:16 [Error] (test_log_error_fn, file: test_logger.c, ln: 58) Error message
+2024-08-20 01:25:16 [Error] (test_log_error_fn, file: test_logger.c, ln: 59) Invalid argument(s)
