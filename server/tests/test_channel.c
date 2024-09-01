@@ -1,5 +1,4 @@
-#include "../src/channel.h"
-#include "../src/user.h"
+#include "../src/test_channel.h"
 
 #include <check.h>
 
@@ -12,19 +11,6 @@ START_TEST(test_create_channel_list) {
     ck_assert_int_eq(cl->channelCount, 0);
 
     delete_channel_list(cl);
-}
-END_TEST
-
-START_TEST(test_create_channel) {
-
-    Channel *channel = create_channel("general", PERSISTENT);
-
-    ck_assert_ptr_ne(channel, NULL);
-    ck_assert_str_eq(channel->name, "general");
-    ck_assert_int_eq(channel->channelType, PERSISTENT);
-    ck_assert_int_eq(channel->usersCount, 0);
-    
-    delete_channel(channel);
 }
 END_TEST
 
@@ -52,13 +38,16 @@ START_TEST(test_is_channel_list_full) {
 }
 END_TEST
 
-START_TEST(test_is_valid_channel) {
+START_TEST(test_create_channel) {
 
-    int valid = is_valid_channel(PERSISTENT);
-    ck_assert_int_eq(valid, 1);
+    Channel *channel = create_channel("general", PERSISTENT);
 
-    valid = is_valid_channel(4);
-    ck_assert_int_eq(valid, 0);
+    ck_assert_ptr_ne(channel, NULL);
+    ck_assert_str_eq(channel->name, "general");
+    ck_assert_int_eq(channel->channelType, PERSISTENT);
+    ck_assert_int_eq(channel->usersCount, 0);
+    
+    delete_channel(channel);
 }
 END_TEST
 
@@ -115,6 +104,31 @@ START_TEST(test_lookup_channel) {
 }
 END_TEST
 
+START_TEST(test_is_channel_empty) {
+
+    ChannelList *cl = create_channel_list();
+
+    Channel *channel = add_channel(cl, "general", PERSISTENT);
+    
+    ck_assert_ptr_ne(channel, NULL);
+    ck_assert_int_eq(is_channel_empty(channel), 1);
+
+    delete_channel_list(cl);
+}
+END_TEST
+
+START_TEST(test_is_channel_full) {
+
+    ChannelList *cl = create_channel_list();
+
+    Channel *channel = add_channel(cl, "general", PERSISTENT);
+    
+    ck_assert_ptr_ne(channel, NULL);
+    ck_assert_int_eq(is_channel_full(channel), 0);
+
+    delete_channel_list(cl);
+}
+END_TEST
 
 START_TEST(test_add_user_to_channel) {
 
@@ -195,29 +209,13 @@ START_TEST(test_lookup_user_in_channel) {
 }
 END_TEST
 
-START_TEST(test_is_channel_empty) {
+START_TEST(test_is_valid_channel_type) {
 
-    ChannelList *cl = create_channel_list();
+    int valid = is_valid_channel_type(PERSISTENT);
+    ck_assert_int_eq(valid, 1);
 
-    Channel *channel = add_channel(cl, "general", PERSISTENT);
-    
-    ck_assert_ptr_ne(channel, NULL);
-    ck_assert_int_eq(is_channel_empty(channel), 1);
-
-    delete_channel_list(cl);
-}
-END_TEST
-
-START_TEST(test_is_channel_full) {
-
-    ChannelList *cl = create_channel_list();
-
-    Channel *channel = add_channel(cl, "general", PERSISTENT);
-    
-    ck_assert_ptr_ne(channel, NULL);
-    ck_assert_int_eq(is_channel_full(channel), 0);
-
-    delete_channel_list(cl);
+    valid = is_valid_channel_type(4);
+    ck_assert_int_eq(valid, 0);
 }
 END_TEST
 
@@ -231,20 +229,21 @@ Suite* channel_suite(void) {
 
     // Add the test case to the test suite
     tcase_add_test(tc_core, test_create_channel_list);
-    tcase_add_test(tc_core, test_create_channel);
     tcase_add_test(tc_core, test_is_channel_list_empty);
     tcase_add_test(tc_core, test_is_channel_list_full);
-    tcase_add_test(tc_core, test_is_valid_channel);
 
+    tcase_add_test(tc_core, test_create_channel);
     tcase_add_test(tc_core, test_add_channel);
     tcase_add_test(tc_core, test_remove_channel);
     tcase_add_test(tc_core, test_lookup_channel);
+    tcase_add_test(tc_core, test_is_channel_empty);
+    tcase_add_test(tc_core, test_is_channel_full);
 
     tcase_add_test(tc_core, test_add_user_to_channel);
     tcase_add_test(tc_core, test_remove_user_from_channel);
     tcase_add_test(tc_core, test_lookup_user_in_channel);
-    tcase_add_test(tc_core, test_is_channel_empty);
-    tcase_add_test(tc_core, test_is_channel_full);
+
+    tcase_add_test(tc_core, test_is_valid_channel_type);
 
     suite_add_tcase(s, tc_core);
 

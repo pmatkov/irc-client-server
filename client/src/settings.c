@@ -1,128 +1,191 @@
+#ifdef TEST
+#include "test_settings.h"
+#else
 #include "settings.h"
-#include "../../shared/src/errorctrl.h"
+#endif
+
+
+#include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/types.h>
+#include <pwd.h>
 
-STATIC SettingType string_to_setting_type(const char *settingType);
-STATIC int is_valid_setting(SettingType settingType);
+#ifdef TEST
+#define STATIC
+#else
+#define STATIC static
+#endif
 
-static const char *SETTING_TYPE_STRING[] = {
-    "nickname",
-    "username",
-    "realname",
-    "color",
-    "unknown setting"
+#define MAX_VALUE 64
+#define MAX_CHARS 512
+
+#ifndef TEST
+
+struct Property {
+    PropertyType propertyType;
+    char value[MAX_VALUE + 1];
 };
 
-_Static_assert(sizeof(SETTING_TYPE_STRING) / sizeof(SETTING_TYPE_STRING[0]) == SETTING_TYPE_COUNT, "Array size mismatch");
+struct Settings {
+    Property *properties;
+    int allocatedSize;
+};
 
-static SettingsCollection *settingsCollection = NULL;
+#endif
 
-SettingsCollection * create_settings_collection(void) {
+STATIC PropertyType string_to_property_type(const char *string);
+STATIC int is_valid_property_type(PropertyType propertyType);
 
-    settingsCollection = (SettingsCollection *) malloc(sizeof(SettingsCollection));
-    if (settingsCollection == NULL) {
+static const char *PROPERTY_TYPE_STRING[] = {
+    "nickname",
+    "username",
+    "hostname",
+    "realname",
+    "color",
+    "unknown property type"
+};
+
+_Static_assert(sizeof(PROPERTY_TYPE_STRING) / sizeof(PROPERTY_TYPE_STRING[0]) == PROPERTY_TYPE_COUNT, "Array size mismatch");
+
+Settings * create_settings(void) {
+
+    Settings *settings = (Settings *) malloc(sizeof(Settings));
+    if (settings == NULL) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    settingsCollection->settings = (Setting *) malloc(SETTING_TYPE_COUNT * sizeof(Setting));
-    if (settingsCollection == NULL) {
+    settings->properties = (Property *) malloc((PROPERTY_TYPE_COUNT - 1) * sizeof(Property));
+    if (settings->properties == NULL) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    for (int i = 0; i < SETTING_TYPE_COUNT; i++) {
-        settingsCollection->settings[i].settingType = UNKNOWN_SETTING_TYPE;
+    for (int i = 0; i < PROPERTY_TYPE_COUNT - 1; i++) {
+        settings->properties[i].propertyType = (PropertyType) i;
     }
 
-    settingsCollection->allocatedSize = SETTING_TYPE_COUNT;
+    settings->allocatedSize = PROPERTY_TYPE_COUNT - 1;
 
-    return settingsCollection;
+    return settings;
 }
 
-void delete_settings_collection(SettingsCollection *settingsCollection) {
+void delete_settings(Settings *settings) {
 
-    if (settingsCollection != NULL) {
-        free(settingsCollection->settings);
+    if (settings != NULL) {
+
+        free(settings->properties);
     }
-    free(settingsCollection);
+    free(settings);
 }
 
-STATIC SettingType string_to_setting_type(const char *string) {
+void set_default_settings(Settings *settings) {
 
-    if (string == NULL) {
+    if (settings == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    for (int i = 0; i < SETTING_TYPE_COUNT; i++) {
+    struct passwd *userRecord = getpwuid(getuid());
 
-        if (strncmp(string, SETTING_TYPE_STRING[i], MAX_KEYVAL) == 0) {
-            return (SettingType) i;
+    if (userRecord != NULL) {
+        set_property(settings, NICKNAME, userRecord->pw_name);
+        set_property(settings, USERNAME, userRecord->pw_name);
+    }
+
+    char hostname[MAX_CHARS + 1];
+
+    if (gethostname(hostname, sizeof(hostname)) == 0) {
+       set_property(settings, HOSTNAME, hostname);
+    }
+
+    set_property(settings, REALNAME, "");
+    set_property(settings, COLOR, "1");
+}
+
+const char *get_property_type_string(PropertyType propertyType) {
+
+    return PROPERTY_TYPE_STRING[propertyType];
+}
+
+Property * get_property(Settings *settings, PropertyType propertyType) {
+
+    Property *property = NULL;
+
+    if (settings == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    if (is_valid_property_type(propertyType)) {
+        property = &settings->properties[propertyType];
+    }
+    return property;
+}
+
+void set_property(Settings *settings, PropertyType propertyType, const char *value) {
+
+    if (settings == NULL || value == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    if (is_valid_property_type(propertyType) && strnlen(value, MAX_VALUE + 1) != MAX_VALUE + 1) {
+
+        strcpy(settings->properties[propertyType].value, value);
+    }
+}
+
+char * get_property_value(Settings *settings, PropertyType propertyType) {
+
+    if (settings == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    char * value = NULL;
+
+    if (is_valid_property_type(propertyType)) {
+        value = settings->properties[propertyType].value;
+    }
+
+    return value;
+}
+
+int is_property_assigned(Settings *settings, PropertyType propertyType) {
+
+    if (settings == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    int assigned = 0;
+
+    if (is_valid_property_type(propertyType)) {
+        assigned = strcmp(settings->properties[propertyType].value, "") != 0;
+    }
+    return assigned;
+}
+
+int get_assigned_properties(Settings *settings) {
+
+    if (settings == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    int assigned = 0;
+
+    for (int i = 0; i < settings->allocatedSize; i++) {
+
+        if (strcmp(settings->properties[i].value, "") != 0) {
+            assigned++;
         }
     }
-    return UNKNOWN_SETTING_TYPE;
+    return assigned;
 }
 
-STATIC int is_valid_setting(SettingType settingType) {
+void read_settings(Settings *settings, const char *fileName) {
 
-    return settingType >= 0 && settingType < SETTING_TYPE_COUNT;
-}
-
-const char * get_setting_string(SettingType settingType) {
-
-    if (is_valid_setting(settingType)) {
-        return SETTING_TYPE_STRING[settingType];
-    }
-    return NULL;
-}
-
-SettingsCollection * get_all_settings(void) {
-
-    if (settingsCollection == NULL) {
-        FAILED("Settings collection not created", NO_ERRCODE);
-    }
-
-    return settingsCollection;
-}
-
-Setting * get_setting(SettingType settingType) {
-
-    if (settingsCollection == NULL) {
-        FAILED("Settings collection not created", NO_ERRCODE);
-    }
-
-    if (is_valid_setting(settingType)) {
-        return &settingsCollection->settings[settingType];
-    }
-    return NULL;
-}
-
-void set_setting(const char *key, const char *value) {
-
-    if (key == NULL || value == NULL) {
+    if (settings == NULL || fileName == NULL) {
         FAILED(NULL, ARG_ERROR);
-    }
-    if (settingsCollection == NULL) {
-        FAILED("Settings collection not created", NO_ERRCODE);
-    }
-    SettingType settingType;
-    if ((settingType = string_to_setting_type(key)) != UNKNOWN_SETTING_TYPE && \
-         strnlen(key, MAX_KEYVAL + 1) != MAX_KEYVAL + 1 && strnlen(value, MAX_KEYVAL + 1) != MAX_KEYVAL + 1) {
-
-        settingsCollection->settings[settingType].settingType = value == "" ? UNKNOWN_SETTING_TYPE : settingType;
-        strcpy(settingsCollection->settings[settingType].key, key);
-        strcpy(settingsCollection->settings[settingType].value, value);
-    }
-}
-
-void read_settings(const char *fileName) {
-
-    if (fileName == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    if (settingsCollection == NULL) {
-        FAILED("Settings collection not created", NO_ERRCODE);
     }
 
     FILE *file = fopen(fileName, "r");
@@ -130,29 +193,22 @@ void read_settings(const char *fileName) {
         FAILED("Error opening file", NO_ERRCODE);
     }
 
-    char lnBuffer[MAX_KEYVAL * 2 + 1];
+    char buffer[MAX_VALUE * 2 + 1];
 
-    while (fgets(lnBuffer, sizeof(lnBuffer), file) != NULL) {
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
 
-        char *key = strtok(lnBuffer, "=");
+        char *key = strtok(buffer, "=");
         char *value = strtok(NULL, "\n");
 
-        if (key != NULL && value != NULL) {
-
-            set_setting(key, value);
-        }
+        set_property(settings, string_to_property_type(key), value);
     }
     fclose(file);
 }
 
-void write_settings(const char *fileName) {
+void write_settings(Settings *settings, const char *fileName) {
 
-    if (fileName == NULL) {
+    if (settings == NULL || fileName == NULL) {
         FAILED(NULL, ARG_ERROR);
-    }
-
-    if (settingsCollection == NULL) {
-        FAILED("Settings collection not created", NO_ERRCODE);
     }
 
     FILE *file = fopen(fileName, "w");
@@ -160,20 +216,44 @@ void write_settings(const char *fileName) {
         FAILED("Error opening file", NO_ERRCODE);
     }
 
-    // added extra char for '='
-    char lnBuffer[MAX_KEYVAL * 2 + 2];
+    // extra char for '='
+    char buffer[MAX_VALUE * 2 + 2];
 
-    for (int i = 0; i < settingsCollection->allocatedSize; i++) {
+    for (int i = 0; i < settings->allocatedSize; i++) {
 
-        if (settingsCollection->settings[i].settingType != UNKNOWN_SETTING_TYPE)
+        if (is_property_assigned(settings, settings->properties[i].propertyType) && settings->properties[i].propertyType != UNKNOWN_PROPERTY_TYPE) {
 
-        strcat(lnBuffer, settingsCollection->settings[i].key);
-        strcat(lnBuffer, "=");
-        strcat(lnBuffer, settingsCollection->settings[i].value);
-        fprintf(file, lnBuffer);
-        fprintf(file, "\n");
+            memset(buffer, '\0', MAX_VALUE * 2 + 2);
 
+            strcat(buffer, PROPERTY_TYPE_STRING[settings->properties[i].propertyType]);
+            strcat(buffer, "=");
+            strcat(buffer, settings->properties[i].value);
+            
+            fprintf(file, buffer);
+            fprintf(file, "\n");
+        }
+    }
+    fclose(file);
+}
+
+STATIC PropertyType string_to_property_type(const char *string) {
+
+    if (string == NULL) {
+        FAILED(NULL, ARG_ERROR);
     }
 
-    fclose(file);
+    PropertyType propertyType = UNKNOWN_PROPERTY_TYPE; 
+
+    for (int i = 0; i < PROPERTY_TYPE_COUNT - 1; i++) {
+
+        if (strncmp(PROPERTY_TYPE_STRING[i], string, MAX_VALUE) == 0) {
+            propertyType = (PropertyType) i;
+        }
+    }
+    return propertyType;
+}
+
+STATIC int is_valid_property_type(PropertyType propertyType) {
+
+    return propertyType >= 0 && propertyType < PROPERTY_TYPE_COUNT - 1;
 }

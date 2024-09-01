@@ -1,23 +1,63 @@
+#ifdef TEST
+#include "test_channel.h"
+#else
 #include "channel.h"
-#include "../../shared/src/errorctrl.h"
+#endif
+
+#include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
 
 #include <stdlib.h>
 #include <string.h>
 
+#define MAX_CHANNELS 20
+#define MAX_USERS 20
+
+#define MAX_CHANNEL_NAME 50
 #define MSG_QUEUE_LEN 20
 #define DELETED (User*) (0xFFFFFFFFFFFFFFFFUL)
 
+#ifdef TEST
+#define STATIC
+#else
+#define STATIC static
+#endif
+
+#ifndef TEST
+
+struct Channel {
+    MessageQueue *messageQueue;
+    char name[MAX_CHANNEL_NAME + 1];
+    User **users;
+    ChannelType channelType;
+    int usersCount;
+    Channel *next;  
+};
+
+struct ChannelList {
+    Channel *head;
+    int channelCount;
+};
+
+#endif
+
 STATIC Channel * create_channel(char *name, ChannelType channelType);
 STATIC void delete_channel(Channel *channel);
-STATIC int is_channel_list_empty(ChannelList *channelListl);
-STATIC int is_channel_list_full(ChannelList *channelListl);
-STATIC int is_valid_channel(ChannelType type);
 
 STATIC int is_channel_empty(Channel *channel);
 STATIC int is_channel_full(Channel *channel);
 
-ChannelList *create_channel_list() {
+STATIC int is_channel_list_empty(ChannelList *channelListl);
+STATIC int is_channel_list_full(ChannelList *channelListl);
+
+STATIC int is_valid_channel_type(ChannelType type);
+
+STATIC int is_valid_channel_type(ChannelType type) {
+
+    return type >= 0 && type < CHANNEL_TYPE_COUNT;
+}
+
+ChannelList *create_channel_list(void) {
 
     ChannelList *channelList = (ChannelList *) malloc(sizeof(ChannelList));
     if (channelList == NULL) {
@@ -32,24 +72,23 @@ ChannelList *create_channel_list() {
 
 void delete_channel_list(ChannelList *channelList) {
 
-    if (channelList == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    if (channelList != NULL) {
+        Channel *current = channelList->head;
+        Channel *previous = NULL;
+
+        while (current != NULL) {
+            previous = current;
+            current = current->next;
+            
+            delete_channel(previous);
+        }
     }
 
-    Channel *current = channelList->head;
-    Channel *previous = NULL;
-
-    while (current != NULL) {
-        previous = current;
-        current = current->next;
-        
-        delete_channel(previous);
-    }
 }
 
 STATIC Channel * create_channel(char *name, ChannelType channelType) {
 
-    if (name == NULL || strnlen(name, MAX_CHANNEL_LEN + 1) == MAX_CHANNEL_LEN + 1 || !is_valid_channel(channelType)) {
+    if (name == NULL || strnlen(name, MAX_CHANNEL_NAME + 1) == MAX_CHANNEL_NAME + 1 || !is_valid_channel_type(channelType)) {
         FAILED(NULL, ARG_ERROR);
     }
 
@@ -90,22 +129,19 @@ STATIC int is_channel_list_empty(ChannelList *channelList) {
     }
     return channelList->channelCount == 0;
 }
+
 STATIC int is_channel_list_full(ChannelList *channelList) {
 
     if (channelList == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
-    return channelList->channelCount == MAX_CHANNELS;
+    return channelList->channelCount == MAX_CHANNEL_NAME;
 }
 
-STATIC int is_valid_channel(ChannelType type) {
-
-    return type >= PERSISTENT && type < CHTYPE_COUNT;
-}
 
 Channel * add_channel(ChannelList *channelList, char *name, ChannelType channelType) {
 
-    if (channelList == NULL || name == NULL || !is_valid_channel(channelType)) {
+    if (channelList == NULL || name == NULL || !is_valid_channel_type(channelType)) {
         FAILED(NULL, ARG_ERROR);
     }
 
@@ -205,7 +241,7 @@ int remove_user_from_channel(Channel *channel, char *nickname) {
 
         while (channel->users[i] != NULL) {
         
-            if (strcmp(channel->users[i]->nickname, nickname) == 0) {
+            if (strcmp(user_get_nickname(channel->users[i]), nickname) == 0) {
 
                 channel->users[i] = DELETED;
                 channel->usersCount--;
@@ -233,7 +269,7 @@ User * lookup_user_in_channel(Channel *channel, char *nickname) {
             continue;
         }
 
-        if (strcmp(channel->users[i]->nickname, nickname) == 0) {
+        if (strcmp(user_get_nickname(channel->users[i]), nickname) == 0) {
             found = 1;
             break;
         }

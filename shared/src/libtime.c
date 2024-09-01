@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-
+ 
 static void ftime(char *timestamp, size_t length, struct tm *timeInfo);
 static void fdate(char *timestamp, size_t length, struct tm *timeInfo);
 static void fdatetime(char *timestamp, size_t length, struct tm *timeInfo);

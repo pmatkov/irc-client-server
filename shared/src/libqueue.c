@@ -1,9 +1,36 @@
+#ifdef TEST
+#include "test_queue.h"
+#else
 #include "queue.h"
-#include "errorctrl.h"
+#endif
+
+#include "error_control.h"
 #include "logger.h"
 
 #include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
+
+#ifdef TEST
+#define STATIC
+#else
+#define STATIC static
+#endif
+
+#ifndef TEST
+
+struct MessageQueue {
+    void *messages;
+    DataType dataType; 
+    size_t itemSize;
+    int head;
+    int tail;
+    int searchIndex;
+    int allocatedSize;
+    int usedSize;
+};
+
+#endif
 
 STATIC int is_valid_data_type(DataType dataType);
 STATIC size_t get_type_size(DataType dataType);
@@ -40,7 +67,7 @@ MessageQueue * create_message_queue(DataType dataType, int allocationSize) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    messageQueue->messages = (void*) malloc(allocationSize * get_type_size(dataType));
+    messageQueue->messages = (void*) calloc(allocationSize, get_type_size(dataType));
     if (messageQueue->messages == NULL) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
@@ -49,6 +76,7 @@ MessageQueue * create_message_queue(DataType dataType, int allocationSize) {
     messageQueue->itemSize = get_type_size(dataType);
     messageQueue->head = 0;
     messageQueue->tail = 0;
+    messageQueue->searchIndex = 0;
     messageQueue->allocatedSize = allocationSize;
     messageQueue->usedSize = 0; 
 
@@ -60,11 +88,10 @@ void delete_message_queue(MessageQueue *messageQueue) {
     if (messageQueue != NULL) {
         free(messageQueue->messages);
     }
-
     free(messageQueue); 
 }
 
-int is_empty(MessageQueue *messageQueue) {
+int mq_is_empty(MessageQueue *messageQueue) {
 
     if (messageQueue == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -73,7 +100,7 @@ int is_empty(MessageQueue *messageQueue) {
     return messageQueue->usedSize == 0;
 }
 
-int is_full(MessageQueue *messageQueue) {
+int mq_is_full(MessageQueue *messageQueue) {
 
     if (messageQueue == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -82,13 +109,32 @@ int is_full(MessageQueue *messageQueue) {
     return messageQueue->usedSize == messageQueue->allocatedSize;
 }
 
-int set_reg_message(void *message, char *content) {
+void set_char_in_message(void *message, char ch, int index) {
+    
+    if (strlen(((RegMessage*)message)->content) < MAX_MSG) {
+
+        ((RegMessage*)message)->content[index] = ch;
+    }
+}
+
+char get_char_from_message(void *message, int index) {
+    
+    char ch = '\0';
+
+    if (index < strlen(((RegMessage*)message)->content)) {
+        ch = ((RegMessage*)message)->content[index];
+    }
+
+    return ch;
+}
+
+int set_reg_message(void *message, const char *content) {
 
     if (message == NULL || content == NULL) {
         FAILED("Invalid data type", ARG_ERROR);
     }
 
-    if (strnlen(content, MAX_MSG_LEN + 1) == MAX_MSG_LEN + 1) {
+    if (strnlen(content, MAX_MSG + 1) == MAX_MSG + 1) {
         return 0;
     }
 
@@ -97,15 +143,15 @@ int set_reg_message(void *message, char *content) {
     return 1;
 }
 
-int set_ext_message(void *message, char *sender, char *recipient, char *content) {
+int set_ext_message(void *message, const char *sender, const char *recipient, const char *content) {
 
     if (message == NULL || sender == NULL || recipient == NULL || content == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    if (strnlen(sender, MAX_NICKNAME_LEN + 1) == MAX_NICKNAME_LEN + 1\
-        || strnlen(recipient, MAX_CHANNEL_LEN + 1) == MAX_CHANNEL_LEN + 1\
-        || strnlen(content, MAX_MSG_LEN + 1) == MAX_MSG_LEN + 1) {
+    if (strnlen(sender, MAX_NICKNAME + 1) == MAX_NICKNAME + 1\
+        || strnlen(recipient, MAX_CHANNEL + 1) == MAX_CHANNEL + 1\
+        || strnlen(content, MAX_MSG + 1) == MAX_MSG + 1) {
             return 0;
     }
     strcpy(((ExtMessage*)message)->sender, sender);
@@ -115,7 +161,16 @@ int set_ext_message(void *message, char *sender, char *recipient, char *content)
     return 1;
 }
 
-int enqueue(MessageQueue *messageQueue, void *message) {
+char *get_message_content(void *message) {
+
+    if (message == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return ((RegMessage*)message)->content;
+}
+
+void enqueue(MessageQueue *messageQueue, void *message) {
 
     if (messageQueue == NULL || message == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -125,16 +180,17 @@ int enqueue(MessageQueue *messageQueue, void *message) {
 
     memcpy(target, message, messageQueue->itemSize);
 
-    if (is_full(messageQueue)) {
+    if (mq_is_full(messageQueue)) {
         messageQueue->head = (messageQueue->head + 1) % messageQueue->allocatedSize;
+
     }
     else {
         messageQueue->usedSize++;
     }
 
     messageQueue->tail = (messageQueue->tail + 1) % messageQueue->allocatedSize;
+    messageQueue->searchIndex = messageQueue->tail;
 
-    return 1;
 }
 
 void *dequeue(MessageQueue *messageQueue) {
@@ -143,7 +199,7 @@ void *dequeue(MessageQueue *messageQueue) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    if (is_empty(messageQueue)) {
+    if (mq_is_empty(messageQueue)) {
         return NULL;
     }
 
@@ -151,6 +207,34 @@ void *dequeue(MessageQueue *messageQueue) {
 
     messageQueue->head = (messageQueue->head + 1) % messageQueue->allocatedSize;
     messageQueue->usedSize--;
+
+    return message;
+
+}
+
+void *get_message(MessageQueue *messageQueue, int direction) {
+
+    if (messageQueue == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    unsigned char *message;
+
+    if (direction < 0 && messageQueue->searchIndex == messageQueue->tail) {
+        message = NULL;
+    }
+    else if (direction > 0 && messageQueue->searchIndex == messageQueue->head) {
+        message = NULL;
+    }
+    else {
+        if (direction < 0) {
+            messageQueue->searchIndex = (messageQueue->searchIndex + 1) % messageQueue->allocatedSize;
+        }
+        else if (direction > 0) {
+            messageQueue->searchIndex = (messageQueue->searchIndex - 1) % messageQueue->allocatedSize;
+        }
+        message = (unsigned char *)messageQueue->messages + messageQueue->searchIndex * messageQueue->itemSize;
+    }
 
     return message;
 

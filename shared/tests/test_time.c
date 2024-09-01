@@ -4,37 +4,37 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-enum Month {Jan, Feb, Mar, Apr, May, Jun, Jul, Aug, Sep, Oct, Nov, Dec, Unknown};
+enum Month {JAN, FEB, MAR, APR, MAY, JUN, JUL, AUG, SEP, OCT, NOV, DEC, UNKNOWN_MONTH, MONTH_COUNT};
 
 struct MonthMap {
-    enum Month value;
-    const char *name;
+    enum Month month;
+    const char *string;
 };
 
 static struct MonthMap monthMap[] = {
-    {Jan, "Jan"},
-    {Feb, "Feb"},
-    {Mar, "Mar"},
-    {Apr, "Apr"},
-    {May, "May"},
-    {Jun, "Jun"},
-    {Jul, "Jul"},
-    {Aug, "Aug"}, 
-    {Sep, "Sep"},
-    {Oct, "Oct"},
-    {Nov, "Nov"},
-    {Dec, "Dec"},
-    {Unknown, NULL}
+    {JAN, "Jan"},
+    {FEB, "Feb"},
+    {MAR, "Mar"},
+    {APR, "Apr"},
+    {MAY, "May"},
+    {JUN, "Jun"},
+    {JUL, "Jul"},
+    {AUG, "Aug"}, 
+    {SEP, "Sep"},
+    {OCT, "Oct"},
+    {NOV, "Nov"},
+    {DEC, "Dec"},
+    {UNKNOWN_MONTH, NULL}
 };
 
-enum Month string_to_enum(const char *month) {
+enum Month string_to_month(const char *string) {
 
-    for (int i = 0; monthMap[i].name != NULL; i++) {
-        if (strcmp(monthMap[i].name, month) == 0) {
-            return monthMap[i].value;
+    for (int i = 0; i < MONTH_COUNT; i++) {
+        if (strcmp(monthMap[i].string, string) == 0) {
+            return monthMap[i].month;
         }
     }
-    return Unknown;
+    return UNKNOWN_MONTH;
 }
 
 START_TEST(test_get_datetime) {
@@ -47,7 +47,7 @@ START_TEST(test_get_datetime) {
     int d, m, y;
 
     sscanf(__DATE__, "%s %d %d", month, &d, &y);
-    m = string_to_enum(month);
+    m = string_to_month(month);
     sprintf(timestamp2, "%04d-%02d-%02d", y, m + 1, d);
 
     ck_assert_int_ne(strlen(timestamp1), 0);

@@ -1,49 +1,34 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
-#define MAX_KEYVAL 64
-
-#ifdef TEST
-#define STATIC
-#else
-#define STATIC static
-#endif
-
 typedef enum {
     NICKNAME,
     USERNAME,
+    HOSTNAME,
     REALNAME,
     COLOR,
-    UNKNOWN_SETTING_TYPE,
-    SETTING_TYPE_COUNT
-} SettingType;
+    UNKNOWN_PROPERTY_TYPE,
+    PROPERTY_TYPE_COUNT
+} PropertyType;
 
-typedef struct {
-    SettingType settingType;
-    char key[MAX_KEYVAL + 1];
-    char value[MAX_KEYVAL + 1];
-} Setting;
+typedef struct Property Property;
+typedef struct Settings Settings;
 
-typedef struct {
-    Setting *settings;
-    int allocatedSize;
-} SettingsCollection;
+Settings * create_settings(void);
+void delete_settings(Settings *settings);
 
-SettingsCollection * create_settings_collection(void);
-void delete_settings_collection(SettingsCollection *settingsCollection);
+void set_default_settings(Settings *settings);
 
-SettingsCollection * get_all_settings(void);
-Setting * get_setting(SettingType settingType);
-void set_setting(const char *key, const char *value);
+const char *get_property_type_string(PropertyType propertyType);
 
-void read_settings(const char *fileName);
-void write_settings(const char *fileName);
+Property * get_property(Settings *settings, PropertyType propertyType);
+void set_property(Settings *settings, PropertyType propertyType, const char *value);
 
-#ifdef TEST
+char * get_property_value(Settings *settings, PropertyType propertyType);
+int is_property_assigned(Settings *settings, PropertyType propertyType);
+int get_assigned_properties(Settings *settings);
 
-STATIC SettingType string_to_setting_type(const char *settingType);
-STATIC int is_valid_setting(SettingType settingType);
-
-#endif
+void read_settings(Settings *settings, const char *fileName);
+void write_settings(Settings *settings, const char *fileName);
 
 #endif

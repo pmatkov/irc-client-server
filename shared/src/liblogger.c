@@ -1,4 +1,9 @@
+#ifdef TEST
+#include "test_logger.h"
+#else
 #include "logger.h"
+#endif
+
 #include "time.h"
 
 #include <string.h>
@@ -12,9 +17,26 @@
 #include <errno.h>
 #include <stdarg.h>
 
+#ifdef TEST
+#define STATIC
+#else
+#define STATIC static
+#endif
+
+#define MAX_LINES 25
+#define MAX_CHARS 512
+
 #define MAX_FILE_NAME 100
 #define MAX_PATH 64
 #define MAX_IDENTIFIER 16
+
+struct Logger {
+    FILE *logFile;
+    char **logBuffer;
+    int stdoutAllowed;
+    int allocatedLines;
+    int usedLines;
+};
 
 STATIC FILE * open_log_file(char *dirPath, char *identifier);
 STATIC void write_log_to_file(void);
@@ -22,11 +44,9 @@ STATIC void write_log_to_file(void);
 STATIC int is_dir(const char *dirName);
 STATIC int create_dir(const char *dirName);
 
-static Logger *logger = NULL;
+STATIC Logger *logger = NULL;
 
-static int allowConsole = 1;
-
-static const char *LOGLEVEL_STRING[] = {
+STATIC const char *LOGLEVEL_STRING[] = {
     "Info",
     "Debug",
     "Warning",
@@ -35,18 +55,6 @@ static const char *LOGLEVEL_STRING[] = {
 };
 
 _Static_assert(sizeof(LOGLEVEL_STRING) / sizeof(LOGLEVEL_STRING[0]) == LOGLEVEL_COUNT, "Array size mismatch");
-
-const char * get_log_level_string(LogLevel logLevel) {
-
-    if (logLevel >= 0 && logLevel < LOGLEVEL_COUNT) {
-        return LOGLEVEL_STRING[logLevel];
-    }
-    return NULL;
-}
-
-void disable_stdout_logging() {
-    allowConsole = 0;
-}
 
 Logger * create_logger(char *dirPath, char *identifier) {
 
@@ -67,6 +75,8 @@ Logger * create_logger(char *dirPath, char *identifier) {
             FAILED("Error allocating memory", NO_ERRCODE);
         }
     }
+
+    logger->stdoutAllowed = 1;
     logger->allocatedLines = MAX_LINES;
     logger->usedLines = 0;
 
@@ -98,6 +108,14 @@ void delete_logger(Logger *logger) {
         free(logger->logBuffer);
     }
     free(logger);
+}
+
+void set_stdout_allowed(int allowed) {
+
+    if (logger == NULL ) {
+        return;
+    }
+    logger->stdoutAllowed = allowed;
 }
 
 STATIC FILE * open_log_file(char *dirPath, char *identifier) {
@@ -153,19 +171,20 @@ STATIC void write_log_to_file(void) {
 
 STATIC int is_dir(const char *dirName) {
 
+    int isdir = 0;
+
     DIR* dir = opendir(dirName);
 
     if (dir != NULL) {
         closedir(dir);
-        return 1;
+        isdir = 1;
     }
-    return 0;
+    return isdir;
 }
 
 STATIC int create_dir(const char *dirName) {
 
-    return mkdir(dirName, 0700); 
-    
+    return mkdir(dirName, 0700);   
 }
 
 void log_message(LogLevel level, const char *msg, const char *func, const char *file, int line, ...) { 
@@ -183,7 +202,7 @@ void log_message(LogLevel level, const char *msg, const char *func, const char *
 
         if (strchr(msg, '%') == NULL) {
 
-            if (allowConsole) {
+            if (logger->stdoutAllowed) {
                 fprintf(stdout, "%s\n", msg);
             }
 
@@ -196,7 +215,7 @@ void log_message(LogLevel level, const char *msg, const char *func, const char *
             va_start(arglist, line);
             va_copy(arglistcp, arglist); 
 
-            if (allowConsole) {
+            if (logger->stdoutAllowed) {
                 vfprintf(stdout, msg, arglistcp);
                 fprintf(stdout, "\n");
             }
@@ -258,4 +277,14 @@ void log_error(const char *msg, ErrCode errorCode, const char *func, const char 
     if (logger->usedLines >= MAX_LINES) {
         write_log_to_file();
     }
+}
+
+const char * get_log_level_string(LogLevel logLevel) {
+
+    const char *string = NULL;
+
+    if (logLevel >= 0 && logLevel < LOGLEVEL_COUNT) {
+        string = LOGLEVEL_STRING[logLevel];
+    }
+    return string;
 }

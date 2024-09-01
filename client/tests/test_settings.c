@@ -1,38 +1,36 @@
-#include "../src/settings.h"
+#include "../src/test_settings.h"
 
 #include <check.h>
 
-START_TEST(test_create_settings_collection) {
+START_TEST(test_create_settings) {
 
-        SettingsCollection *settingsCollection = create_settings_collection();
+    Settings *settings = create_settings();
 
-        ck_assert_ptr_ne(settingsCollection, NULL);
-        ck_assert_int_eq(settingsCollection->allocatedSize, SETTING_TYPE_COUNT);
+    ck_assert_ptr_ne(settings, NULL);
 
-        delete_settings_collection(settingsCollection);
+    delete_settings(settings);
 }
 END_TEST
 
-START_TEST(test_string_to_setting_type) {
+START_TEST(test_string_to_property_type) {
 
-    SettingType settingType = string_to_setting_type("test");
+    PropertyType propertyType = string_to_property_type("test");
 
-    ck_assert_int_eq(settingType, UNKNOWN_SETTING_TYPE);
+    ck_assert_int_eq(propertyType, UNKNOWN_PROPERTY_TYPE);
 
-    settingType = string_to_setting_type("color");
+    propertyType = string_to_property_type("nickname");
 
-    ck_assert_int_eq(settingType, COLOR);
-
+    ck_assert_int_eq(propertyType, NICKNAME);
 }
 END_TEST
 
-START_TEST(test_is_valid_setting) {
+START_TEST(test_is_valid_property_type) {
 
-    int valid = is_valid_setting("test");
+    int valid = is_valid_property_type(10);
 
     ck_assert_int_eq(valid, 0);
 
-    valid = is_valid_setting("color");
+    valid = is_valid_property_type(NICKNAME);
 
     ck_assert_int_eq(valid, 1);
 
@@ -40,32 +38,77 @@ START_TEST(test_is_valid_setting) {
 END_TEST
 
 
-START_TEST(test_get_setting_string) {
+START_TEST(test_set_default_settings) {
 
-    char *setting = get_setting_string(COLOR);
+    Settings *settings = create_settings();
+    set_default_settings(settings);
 
-    ck_assert_str_eq(setting, "color");
+    ck_assert_str_eq(get_property(settings, USERNAME)->value, "pmatkov");
+    ck_assert_str_eq(get_property(settings, COLOR)->value, "1");
 
-    setting = get_setting_string(10);
-
-    ck_assert_str_eq(setting, NULL);
+    delete_settings(settings);
 
 }
 END_TEST
 
-START_TEST(test_set_setting) {
+START_TEST(test_get_property_type_string) {
 
-    SettingsCollection *settingsCollection = create_settings_collection();
+    ck_assert_str_eq(get_property_type_string(NICKNAME), "nickname");
 
-    set_setting("color", "blue");
+}
+END_TEST
 
-    ck_assert_ptr_ne(&settingsCollection->settings[COLOR], NULL);
-    ck_assert_int_eq(settingsCollection->settings[COLOR].settingType, COLOR);
-    ck_assert_str_eq(settingsCollection->settings[COLOR].key, "color");
-    ck_assert_str_eq(settingsCollection->settings[COLOR].value, "blue");
+START_TEST(test_get_property_value_assigned) {
 
-    delete_settings_collection(settingsCollection);
+    Settings *settings = create_settings();
+    set_property(settings, NICKNAME, "john");
 
+    ck_assert_str_eq(get_property_value(settings, NICKNAME), "john");
+    ck_assert_int_eq(is_property_assigned(settings, NICKNAME), 1);
+
+    ck_assert_str_eq(get_property_value(settings, USERNAME), "");
+    ck_assert_int_eq(is_property_assigned(settings, USERNAME), 0);
+
+    delete_settings(settings);
+}
+END_TEST
+
+START_TEST(test_get_assigned_properties) {
+
+    Settings *settings = create_settings();
+    set_default_settings(settings);
+
+    ck_assert_int_eq(get_assigned_properties(settings), 4);
+
+    delete_settings(settings);
+}
+END_TEST
+
+START_TEST(test_write_settings) {
+
+    Settings *settings = create_settings();
+
+    set_property(settings, NICKNAME, "john");
+
+    write_settings(settings, "tests/data/settings.conf");
+
+    delete_settings(settings);
+
+}
+END_TEST
+
+START_TEST(test_read_settings) {
+
+    Settings *settings = create_settings();
+
+    read_settings(settings, "tests/data/settings.conf");
+
+    ck_assert_ptr_ne(get_property(settings, NICKNAME), NULL);
+    ck_assert_str_eq(get_property_value(settings, NICKNAME), "john");
+
+    ck_assert_int_eq(get_assigned_properties(settings), 1);
+
+    delete_settings(settings);
 }
 END_TEST
 
@@ -77,11 +120,15 @@ Suite* settings_suite(void) {
     tc_core = tcase_create("Core");
 
     // Add the test case to the test suite
-    tcase_add_test(tc_core, test_create_settings_collection);
-    tcase_add_test(tc_core, test_string_to_setting_type);
-    tcase_add_test(tc_core, test_is_valid_setting);
-    tcase_add_test(tc_core, test_get_setting_string);
-    tcase_add_test(tc_core, test_set_setting);
+    tcase_add_test(tc_core, test_create_settings);
+    tcase_add_test(tc_core, test_string_to_property_type);
+    tcase_add_test(tc_core, test_is_valid_property_type);
+    tcase_add_test(tc_core, test_set_default_settings);
+    tcase_add_test(tc_core, test_get_property_type_string);
+    tcase_add_test(tc_core, test_get_property_value_assigned);
+    tcase_add_test(tc_core, test_get_assigned_properties);
+    tcase_add_test(tc_core, test_write_settings);
+    tcase_add_test(tc_core, test_read_settings);
 
     suite_add_tcase(s, tc_core);
 

@@ -1,7 +1,9 @@
-#include "../src/logger.h"
+#include "../src/test_logger.h"
 
 #include <check.h>
 #include <stdlib.h>
+
+#define MAX_LINES 25
 
 START_TEST(test_create_logger) {
 
@@ -64,6 +66,29 @@ START_TEST(test_log_error) {
 }
 END_TEST
 
+START_TEST(test_get_log_level_string) {
+
+    Logger *logger = create_logger(NULL, "test");
+
+    ck_assert_str_eq(get_log_level_string(INFO), "Info");
+
+    delete_logger(logger);
+}
+END_TEST
+
+START_TEST(test_set_stdout_allowed) {
+
+    Logger *logger = create_logger(NULL, "test");
+
+    set_stdout_allowed(1);
+
+    ck_assert_int_eq(logger->stdoutAllowed, 1);
+    
+    delete_logger(logger);
+}
+END_TEST
+
+
 Suite* logger_suite(void) {
     Suite *s;
     TCase *tc_core;
@@ -77,6 +102,8 @@ Suite* logger_suite(void) {
     tcase_add_test(tc_core, test_is_dir);
     tcase_add_test(tc_core, test_log_message);
     tcase_add_test(tc_core, test_log_error);
+    tcase_add_test(tc_core, test_get_log_level_string);
+    tcase_add_test(tc_core, test_set_stdout_allowed);
 
     suite_add_tcase(s, tc_core);
 

@@ -1,27 +1,9 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 
-#include <stddef.h>
-
-#ifdef TEST
-#define STATIC
-#else
-#define STATIC static
-#endif
-
-#define MAX_NICKNAME_LEN 9
-#define MAX_CHANNEL_LEN 50
-#define MAX_MSG_LEN 512
-
-typedef struct {
-    char content[MAX_MSG_LEN + 1];
-} RegMessage;
-
-typedef struct {
-    char sender[MAX_NICKNAME_LEN + 1];
-    char recipient[MAX_CHANNEL_LEN + 1];
-    char content[MAX_MSG_LEN + 1];
-} ExtMessage;
+#define MAX_MSG 512
+#define MAX_NICKNAME 9
+#define MAX_CHANNEL 50
 
 typedef enum {
     REGULAR_MSG,
@@ -30,29 +12,31 @@ typedef enum {
 } DataType;
 
 typedef struct {
-    void *messages;
-    DataType dataType; 
-    size_t itemSize;
-    int head;
-    int tail;
-    int allocatedSize;
-    int usedSize;
-} MessageQueue;
+    char content[MAX_MSG + 1];
+} RegMessage;
+
+typedef struct {
+    char sender[MAX_NICKNAME + 1];
+    char recipient[MAX_CHANNEL + 1];
+    char content[MAX_MSG + 1];
+} ExtMessage;
+
+typedef struct MessageQueue MessageQueue;
 
 MessageQueue * create_message_queue(DataType dataType, int allocationSize);
 void delete_message_queue(MessageQueue *messageQueue);
-int is_empty(MessageQueue *messageQueue);
-int is_full(MessageQueue *messageQueue);
-int set_reg_message(void *message, char *content);
-int set_ext_message(void *message, char *sender, char *recipient, char *content);
-int enqueue(MessageQueue *messageQueue, void *message);
+
+int mq_is_empty(MessageQueue *messageQueue);
+int mq_is_full(MessageQueue *messageQueue);
+
+char get_char_from_message(void *message, int index);
+void set_char_in_message(void *message, char ch, int index);
+int set_reg_message(void *message, const char *content);
+int set_ext_message(void *message, const char *sender, const char *recipient, const char *content);
+char *get_message_content(void *message);
+
+void enqueue(MessageQueue *messageQueue, void *message);
 void *dequeue(MessageQueue *messageQueue);
-
-#ifdef TEST
-
-STATIC int is_valid_data_type(DataType dataType);
-STATIC size_t get_type_size(DataType dataType);
-
-#endif
+void *get_message(MessageQueue *messageQueue, int direction);
 
 #endif
