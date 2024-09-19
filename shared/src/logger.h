@@ -1,34 +1,38 @@
 #ifndef LOGGER_H
 #define LOGGER_H
 
+#include "string_utils.h"
 #include "error_control.h"
 
 #include <stdio.h>
+
+#ifdef TEST
+    #define LOG_FILE(str) APPEND_STRING_PREFIX(test_, str)
+#else
+    #define LOG_FILE(str) TO_STRING(str)
+#endif
 
 #define LOG(level, msg, ...) \
     log_message(level, msg, __func__, __FILE__, __LINE__, ##__VA_ARGS__)
 
 typedef enum {
-    INFO,
     DEBUG,
+    INFO,
     WARNING,
     ERROR,
-    UNKNOWN_LEVEL,
     LOGLEVEL_COUNT
 } LogLevel;
 
 typedef struct Logger Logger;
 
-Logger * create_logger(char *dirPath, char *identifier);
+const char * get_log_level_string(LogLevel logLevel);
+
+Logger * create_logger(char *dirPath, char *identifier, LogLevel logLevel);
 void delete_logger(Logger *logger);
 
-void set_stdout_allowed(int allowed);
-int is_stderr_allowed(void);
-void set_stderr_allowed(int allowed);
-
 void log_message(LogLevel level, const char *msg, const char *func, const char *file, int line, ...);
-void log_error(const char *msg, ErrCode errorCode, const char *func, const char *file, int line, int errnosv, ...);
+void log_error(const char *msg, ErrorCode errorCode, const char *func, const char *file, int line, int errnosv, ...);
 
-const char * get_log_level_string(LogLevel logLevel);
+void set_stdout_allowed(int allowed);
 
 #endif

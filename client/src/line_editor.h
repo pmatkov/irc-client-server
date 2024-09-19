@@ -1,18 +1,19 @@
 #ifndef LINE_EDITOR_H
 #define LINE_EDITOR_H
 
-#include "display.h"
-#include "scrollback.h"
-#include "session.h"
+#define NCURSES_WIDECHAR 1
+
+#include "../../shared/src/queue.h"
 
 #include <ncursesw/curses.h>
 
+typedef struct LnEditorCmd LnEditorCmd;
 typedef struct LineEditor LineEditor;
+
+typedef void (*LnEditorFunc)(LineEditor *lnEditor);
 
 LineEditor * create_line_editor(WINDOW *window);
 void delete_line_editor(LineEditor *lnEditor);
-
-MessageQueue * get_message_queue(LineEditor *lnEditor);
 
 void move_cursor_left(LineEditor *lnEditor);
 void move_cursor_right(LineEditor *lnEditor);
@@ -23,8 +24,17 @@ void use_delete(LineEditor *lnEditor);
 void use_home(LineEditor *lnEditor);
 void use_end(LineEditor *lnEditor);
 
-void display_command_history(LineEditor *lnEditor, int direction);
+void display_previous_command(LineEditor *lnEditor);
+void display_next_command(LineEditor *lnEditor);
 
-void parse_input(LineEditor *lnEditor, Scrollback *scrollback, Settings *settings, Session *session);
+LnEditorFunc use_line_editor_func(int index);
+int get_le_func_index(int keyCode);
+
+WINDOW * le_get_window(LineEditor *lnEditor);
+Queue * le_get_buffer(LineEditor *lnEditor);
+int le_get_char_count(LineEditor *lnEditor);
+void le_set_char_count(LineEditor *lnEditor, int charCount);
+int le_get_cursor(LineEditor *lnEditor);
+void le_set_cursor(LineEditor *lnEditor, int cursor);
 
 #endif

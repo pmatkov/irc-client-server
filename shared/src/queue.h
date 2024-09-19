@@ -1,42 +1,21 @@
 #ifndef QUEUE_H
 #define QUEUE_H
 
-#define MAX_MSG 512
-#define MAX_NICKNAME 9
-#define MAX_CHANNEL 50
+#include <stddef.h>
 
-typedef enum {
-    REGULAR_MSG,
-    EXTENDED_MSG,
-    DATA_TYPE_COUNT
-} DataType;
+typedef struct Queue Queue;
 
-typedef struct {
-    char content[MAX_MSG + 1];
-} RegMessage;
+Queue * create_queue(int capacity, size_t itemSize);
+void delete_queue(Queue *queue);
 
-typedef struct {
-    char sender[MAX_NICKNAME + 1];
-    char recipient[MAX_CHANNEL + 1];
-    char content[MAX_MSG + 1];
-} ExtMessage;
+int is_queue_empty(Queue *queue);
+int is_queue_full(Queue *queue);
 
-typedef struct MessageQueue MessageQueue;
+void enqueue(Queue *queue, void *item);
+void * dequeue(Queue *queue);
 
-MessageQueue * create_message_queue(DataType dataType, int allocationSize);
-void delete_message_queue(MessageQueue *messageQueue);
-
-int mq_is_empty(MessageQueue *messageQueue);
-int mq_is_full(MessageQueue *messageQueue);
-
-char get_char_from_message(void *message, int index);
-void set_char_in_message(void *message, char ch, int index);
-int set_reg_message(void *message, const char *content);
-int set_ext_message(void *message, const char *sender, const char *recipient, const char *content);
-char *get_message_content(void *message);
-
-void enqueue(MessageQueue *messageQueue, void *message);
-void *dequeue(MessageQueue *messageQueue);
-void *get_message(MessageQueue *messageQueue, int direction);
+void * get_previous_item(Queue *queue);
+void * get_next_item(Queue *queue);
+void * get_current_item(Queue *queue);
 
 #endif

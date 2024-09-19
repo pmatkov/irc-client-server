@@ -1,5 +1,5 @@
-#include "../src/test_display.h"
-#include "../src/test_scrollback.h"
+#include "../src/priv_display.h"
+#include "../src/priv_scrollback.h"
 
 #include "../../shared/src/error_control.h"
 
@@ -16,11 +16,11 @@ START_TEST(test_printmsg) {
 
     Scrollback *sb = create_scrollback(NULL, 100);
 
-    printmsg(sb, (MessageParams){0, " ** ", NULL, "Test"}, COLOR_SEP(CYAN));
+    printmsg(sb, &(MessageParams){0, " ** ", NULL, "Test"}, COLOR_SEP(CYAN));
 
     ck_assert_int_eq(sb->head, 1);
     ck_assert_int_eq(sb->currentLine, 1);
-    ck_assert_int_eq(sb->usedSize, 1);
+    ck_assert_int_eq(sb->count, 1);
 
     wchar_t wstring[MAX_CHARS + 1] = {L'\0'};
 
@@ -40,7 +40,7 @@ START_TEST(test_get_message_length) {
 
     MessageParams msgParams = {1, " ** ", NULL, "Test"};
 
-    ck_assert_int_eq(get_message_length(&msgParams), 16);
+    ck_assert_int_eq(get_message_length(&msgParams), 13);
 
 }
 END_TEST

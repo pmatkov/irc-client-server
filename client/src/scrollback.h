@@ -1,11 +1,14 @@
 #ifndef SCROLLBACK_H
 #define SCROLLBACK_H
 
-#define _XOPEN_SOURCE_EXTENDED 1
+#define NCURSES_WIDECHAR 1
 
 #include <ncursesw/curses.h>
 
+typedef struct ScrollbackCmd ScrollbackCmd;
 typedef struct Scrollback Scrollback;
+
+typedef void (*ScrollbackFunc)(Scrollback *scrollback);
 
 Scrollback * create_scrollback(WINDOW *window, int sbMultiplier);
 void delete_scrollback(Scrollback *scrollback); 
@@ -25,5 +28,10 @@ void scroll_line_up(Scrollback *scrollback);
 void scroll_line_down(Scrollback *scrollback);
 void scroll_page_up(Scrollback *scrollback);
 void scroll_page_down(Scrollback *scrollback);
+
+ScrollbackFunc use_scrollback_func(int index);
+int get_sb_func_index(int keyCode);
+
+int remap_ctrl_key(int ch);
 
 #endif

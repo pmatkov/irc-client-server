@@ -1,4 +1,4 @@
-#include "../src/test_line_editor.h"
+#include "../src/priv_line_editor.h"
 
 #include <check.h>
 
@@ -59,7 +59,7 @@ START_TEST(test_move_cursor_right) {
 END_TEST
 
 
-Suite* lineeditor_suite(void) {
+Suite* line_editor_suite(void) {
     Suite *s;
     TCase *tc_core;
 
@@ -81,7 +81,7 @@ int main(void) {
     Suite *s;
     SRunner *sr;
 
-    s = lineeditor_suite();
+    s = line_editor_suite();
     sr = srunner_create(s);
 
     srunner_run_all(sr, CK_NORMAL);

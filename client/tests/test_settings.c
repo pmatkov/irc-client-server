@@ -1,4 +1,4 @@
-#include "../src/test_settings.h"
+#include "../src/priv_settings.h"
 
 #include <check.h>
 
@@ -43,8 +43,8 @@ START_TEST(test_set_default_settings) {
     Settings *settings = create_settings();
     set_default_settings(settings);
 
-    ck_assert_str_eq(get_property(settings, USERNAME)->value, "pmatkov");
-    ck_assert_str_eq(get_property(settings, COLOR)->value, "1");
+    ck_assert_str_eq(get_property_value(settings, USERNAME), "pmatkov");
+    ck_assert_str_eq(get_property_value(settings, COLOR), "1");
 
     delete_settings(settings);
 
@@ -53,7 +53,7 @@ END_TEST
 
 START_TEST(test_get_property_type_string) {
 
-    ck_assert_str_eq(get_property_type_string(NICKNAME), "nickname");
+    ck_assert_str_eq(property_type_to_string(NICKNAME), "nickname");
 
 }
 END_TEST
@@ -61,7 +61,7 @@ END_TEST
 START_TEST(test_get_property_value_assigned) {
 
     Settings *settings = create_settings();
-    set_property(settings, NICKNAME, "john");
+    set_property_value(settings, NICKNAME, "john");
 
     ck_assert_str_eq(get_property_value(settings, NICKNAME), "john");
     ck_assert_int_eq(is_property_assigned(settings, NICKNAME), 1);
@@ -88,7 +88,7 @@ START_TEST(test_write_settings) {
 
     Settings *settings = create_settings();
 
-    set_property(settings, NICKNAME, "john");
+    set_property_value(settings, NICKNAME, "john");
 
     write_settings(settings, "tests/data/settings.conf");
 
@@ -103,7 +103,6 @@ START_TEST(test_read_settings) {
 
     read_settings(settings, "tests/data/settings.conf");
 
-    ck_assert_ptr_ne(get_property(settings, NICKNAME), NULL);
     ck_assert_str_eq(get_property_value(settings, NICKNAME), "john");
 
     ck_assert_int_eq(get_assigned_properties(settings), 1);

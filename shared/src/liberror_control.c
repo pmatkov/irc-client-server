@@ -7,25 +7,33 @@
 #include <errno.h>
 #include <stdarg.h>
 
-static const char *ERRCODE_STRING[] = {
+static const char *ERRCODE_STRINGS[] = {
     "No error",
     "Invalid argument(s)",
     "Input/ output error",
-    "Client error",
-    "Server errror",
     "Unknown error"
 };
 
 static int stderrAllowed = 1;
 
-_Static_assert(sizeof(ERRCODE_STRING) / sizeof(ERRCODE_STRING[0]) == ERRCODE_COUNT, "Array size mismatch");
+_Static_assert(sizeof(ERRCODE_STRINGS) / sizeof(ERRCODE_STRINGS[0]) == ERRCODE_COUNT, "Array size mismatch");
+
+const char * get_error_code_string(ErrorCode errorCode) {
+
+    const char *string = NULL;
+
+    if (errorCode >= 0 && errorCode < ERRCODE_COUNT) {
+        string = ERRCODE_STRINGS[errorCode];
+    }
+    return string;
+}
 
 void set_stderr_allowed(int allowed) {
 
     stderrAllowed = allowed;
 }
 
-void failed(const char *msg, ErrCode errorCode, const char *function, const char *file, int line, ...) {
+void failed(const char *msg, ErrorCode errorCode, const char *function, const char *file, int line, ...) {
 
     // save error number
     int errnosv = errno;
@@ -47,7 +55,7 @@ void failed(const char *msg, ErrCode errorCode, const char *function, const char
             }
         }
         else if (errorCode != NO_ERRCODE) {
-            fprintf(stderr, "%s (%s)\n", ERRCODE_STRING[errorCode], function);
+            fprintf(stderr, "%s (%s)\n", ERRCODE_STRINGS[errorCode], function);
         }
 
         if (errnosv) {
@@ -59,12 +67,3 @@ void failed(const char *msg, ErrCode errorCode, const char *function, const char
     exit(EXIT_FAILURE);
 }
 
-const char * get_error_code_string(ErrCode errorCode) {
-
-    const char *string = NULL;
-
-    if (errorCode >= 0 && errorCode < ERRCODE_COUNT) {
-        string = ERRCODE_STRING[errorCode];
-    }
-    return string;
-}

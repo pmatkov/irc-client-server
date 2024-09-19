@@ -1,9 +1,11 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
+#define NCURSES_WIDECHAR 1
+
 #include "settings.h"
 #include "scrollback.h"
-#include "command_processor.h"
+#include "../../shared/src/command.h"
 
 #include <ncursesw/curses.h>
 
@@ -15,6 +17,7 @@
 #define PROMPT "> "
 #define PROMPT_SIZE 2
 #define SPACE "    "
+#define SPACE_2 "        "
 
 #define WHITE 0x00
 #define RED 0x01
@@ -28,7 +31,9 @@
 #define COLOR_ORG(color) ((color) << (4))
 #define COLOR_MSG(color) ((color) << (8))
 
-// #define COLOR_RESOLVE(color, shift) ((color) >> (shift))    // resolve color
+#define ATTR_SEP(attr) ((attr) << (12))
+#define ATTR_ORG(attr) ((attr) << (16))
+#define ATTR_MSG(attr) ((attr) << (20))
 
 #define PRINT_TS 0x01   // print timestamp
 #define PRINT_SEP 0x02  // print separator
@@ -46,6 +51,15 @@
 #define save_cursor(win, lasty, lastx) getyx(win, lasty, lastx)
 #define restore_cursor(win, lasty, lastx) wmove(win, lasty, lastx)
 
+typedef enum {
+    NORMAL, 
+    BOLD, 
+    STANDOUT, 
+    DIM, 
+    ITALIC,
+    ATTR_COUNT
+} Attributes;
+
 typedef struct WindowManager WindowManager;
 typedef struct MessageParams MessageParams;
 
@@ -55,17 +69,19 @@ void delete_windows(WindowManager *);
 WINDOW *get_chatwin(WindowManager *windowManager);
 WINDOW *get_inputwin(WindowManager *windowManager);
 
+MessageParams * create_message_params(int timestamp, const char *separator, const char *origin, const char *message);
+
 void set_windows_options(WindowManager *windowManager);
 void init_colors(Settings *settings);
 void create_layout(WindowManager *windowManager, Scrollback *scrollback, Settings *settings);
 void draw_window_borders(WindowManager *windowManager);
 
-void printmsg(Scrollback *scrollback, MessageParams msgParams, uint32_t attr);
+void printmsg(Scrollback *scrollback, MessageParams *msgParams, uint32_t attr);
 int string_to_complex_string(const char *string, cchar_t *buffer, int len, uint32_t attr);
 
-void display_commands(Scrollback *scrollback);
-void display_usage(Scrollback *scrollback, CommandType commandType, const char *usage);
-void display_response(Scrollback *scrollback, const char *info, ...);
+void display_commands(Scrollback *scrollback, const Command *commands, int count);
+void display_usage(Scrollback *scrollback, const Command *command);
+void display_response(Scrollback *scrollback, const char *response, ...);
 void display_status(WindowManager *windowManager, const char *status, ...);
 void display_settings(Scrollback *scrollback, Settings *settings);
 

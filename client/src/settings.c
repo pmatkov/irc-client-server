@@ -1,10 +1,11 @@
 #ifdef TEST
-#include "test_settings.h"
+#include "priv_settings.h"
 #else
 #include "settings.h"
 #endif
 
-
+#include "../../shared/src/path.h"
+#include "../../shared/src/string_utils.h"
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
 
@@ -21,30 +22,29 @@
 #define STATIC static
 #endif
 
-#define MAX_VALUE 64
+#define MAX_VALUE_LEN 64
+#define MAX_PATH_LEN 64
 #define MAX_CHARS 512
 
 #ifndef TEST
 
 struct Property {
     PropertyType propertyType;
-    char value[MAX_VALUE + 1];
+    char value[MAX_VALUE_LEN + 1];
 };
 
 struct Settings {
     Property *properties;
-    int allocatedSize;
+    int capacity;
 };
 
 #endif
 
-STATIC PropertyType string_to_property_type(const char *string);
 STATIC int is_valid_property_type(PropertyType propertyType);
 
 static const char *PROPERTY_TYPE_STRING[] = {
     "nickname",
     "username",
-    "hostname",
     "realname",
     "color",
     "unknown property type"
@@ -68,7 +68,7 @@ Settings * create_settings(void) {
         settings->properties[i].propertyType = (PropertyType) i;
     }
 
-    settings->allocatedSize = PROPERTY_TYPE_COUNT - 1;
+    settings->capacity = PROPERTY_TYPE_COUNT - 1;
 
     return settings;
 }
@@ -91,49 +91,12 @@ void set_default_settings(Settings *settings) {
     struct passwd *userRecord = getpwuid(getuid());
 
     if (userRecord != NULL) {
-        set_property(settings, NICKNAME, userRecord->pw_name);
-        set_property(settings, USERNAME, userRecord->pw_name);
+        set_property_value(settings, NICKNAME, userRecord->pw_name);
+        set_property_value(settings, USERNAME, userRecord->pw_name);
     }
 
-    char hostname[MAX_CHARS + 1];
-
-    if (gethostname(hostname, sizeof(hostname)) == 0) {
-       set_property(settings, HOSTNAME, hostname);
-    }
-
-    set_property(settings, REALNAME, "");
-    set_property(settings, COLOR, "1");
-}
-
-const char *get_property_type_string(PropertyType propertyType) {
-
-    return PROPERTY_TYPE_STRING[propertyType];
-}
-
-Property * get_property(Settings *settings, PropertyType propertyType) {
-
-    Property *property = NULL;
-
-    if (settings == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    if (is_valid_property_type(propertyType)) {
-        property = &settings->properties[propertyType];
-    }
-    return property;
-}
-
-void set_property(Settings *settings, PropertyType propertyType, const char *value) {
-
-    if (settings == NULL || value == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    if (is_valid_property_type(propertyType) && strnlen(value, MAX_VALUE + 1) != MAX_VALUE + 1) {
-
-        strcpy(settings->properties[propertyType].value, value);
-    }
+    set_property_value(settings, REALNAME, "anonymous");
+    set_property_value(settings, COLOR, "1");
 }
 
 char * get_property_value(Settings *settings, PropertyType propertyType) {
@@ -149,6 +112,18 @@ char * get_property_value(Settings *settings, PropertyType propertyType) {
     }
 
     return value;
+}
+
+void set_property_value(Settings *settings, PropertyType propertyType, const char *value) {
+
+    if (settings == NULL || value == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    if (is_valid_property_type(propertyType)) {
+
+        safe_copy(settings->properties[propertyType].value, MAX_VALUE_LEN + 1, value);
+    }
 }
 
 int is_property_assigned(Settings *settings, PropertyType propertyType) {
@@ -173,7 +148,7 @@ int get_assigned_properties(Settings *settings) {
 
     int assigned = 0;
 
-    for (int i = 0; i < settings->allocatedSize; i++) {
+    for (int i = 0; i < settings->capacity; i++) {
 
         if (strcmp(settings->properties[i].value, "") != 0) {
             assigned++;
@@ -184,8 +159,20 @@ int get_assigned_properties(Settings *settings) {
 
 void read_settings(Settings *settings, const char *fileName) {
 
-    if (settings == NULL || fileName == NULL) {
+    if (settings == NULL) {
         FAILED(NULL, ARG_ERROR);
+    }
+
+    char basePath[MAX_PATH_LEN + 1] = {'\0'};
+
+    if (fileName == NULL) {
+
+        if (set_default_path(basePath, MAX_PATH_LEN, "/data/buzz.conf")) {
+            fileName = basePath;
+        }
+        else {
+            FAILED("Error creating path", NO_ERRCODE);
+        }
     }
 
     FILE *file = fopen(fileName, "r");
@@ -193,22 +180,36 @@ void read_settings(Settings *settings, const char *fileName) {
         FAILED("Error opening file", NO_ERRCODE);
     }
 
-    char buffer[MAX_VALUE * 2 + 1];
+    char buffer[MAX_VALUE_LEN * 2 + 1];
 
     while (fgets(buffer, sizeof(buffer), file) != NULL) {
 
         char *key = strtok(buffer, "=");
         char *value = strtok(NULL, "\n");
 
-        set_property(settings, string_to_property_type(key), value);
+        if (key != NULL && value != NULL) {
+            set_property_value(settings, string_to_property_type(key), value);
+        }
     }
     fclose(file);
 }
 
 void write_settings(Settings *settings, const char *fileName) {
 
-    if (settings == NULL || fileName == NULL) {
+    if (settings == NULL) {
         FAILED(NULL, ARG_ERROR);
+    }
+
+    char basePath[MAX_PATH_LEN + 1] = {'\0'};
+
+    if (fileName == NULL) {
+
+        if (set_default_path(basePath, MAX_PATH_LEN, "/data/buzz.conf")) {
+            fileName = basePath;
+        }
+        else {
+            FAILED("Error creating path", NO_ERRCODE);
+        }
     }
 
     FILE *file = fopen(fileName, "w");
@@ -217,13 +218,13 @@ void write_settings(Settings *settings, const char *fileName) {
     }
 
     // extra char for '='
-    char buffer[MAX_VALUE * 2 + 2];
+    char buffer[MAX_VALUE_LEN * 2 + 2];
 
-    for (int i = 0; i < settings->allocatedSize; i++) {
+    for (int i = 0; i < settings->capacity; i++) {
 
         if (is_property_assigned(settings, settings->properties[i].propertyType) && settings->properties[i].propertyType != UNKNOWN_PROPERTY_TYPE) {
 
-            memset(buffer, '\0', MAX_VALUE * 2 + 2);
+            memset(buffer, '\0', MAX_VALUE_LEN * 2 + 2);
 
             strcat(buffer, PROPERTY_TYPE_STRING[settings->properties[i].propertyType]);
             strcat(buffer, "=");
@@ -236,7 +237,7 @@ void write_settings(Settings *settings, const char *fileName) {
     fclose(file);
 }
 
-STATIC PropertyType string_to_property_type(const char *string) {
+PropertyType string_to_property_type(const char *string) {
 
     if (string == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -246,11 +247,16 @@ STATIC PropertyType string_to_property_type(const char *string) {
 
     for (int i = 0; i < PROPERTY_TYPE_COUNT - 1; i++) {
 
-        if (strncmp(PROPERTY_TYPE_STRING[i], string, MAX_VALUE) == 0) {
+        if (strncmp(PROPERTY_TYPE_STRING[i], string, MAX_VALUE_LEN) == 0) {
             propertyType = (PropertyType) i;
         }
     }
     return propertyType;
+}
+
+const char *property_type_to_string(PropertyType propertyType) {
+
+    return PROPERTY_TYPE_STRING[propertyType];
 }
 
 STATIC int is_valid_property_type(PropertyType propertyType) {

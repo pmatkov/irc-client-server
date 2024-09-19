@@ -1,234 +1,142 @@
-#include "../src/test_queue.h"
+#include "../src/priv_queue.h"
+#include "../src/priv_message.h"
 
 #include <check.h>
 
-START_TEST(test_create_message_queue) {
+#define QUEUE_CAPACITY 3
 
-    MessageQueue *mq = create_message_queue(REGULAR_MSG, 3);
+START_TEST(test_create_queue) {
 
-    ck_assert_ptr_ne(mq, NULL);
-    ck_assert_int_eq(mq->dataType, REGULAR_MSG);
-    ck_assert_int_eq(mq->itemSize, sizeof(RegMessage));
-    ck_assert_int_eq(mq->head, 0);
-    ck_assert_int_eq(mq->tail, 0);
-    ck_assert_int_eq(mq->allocatedSize, 3);
-    ck_assert_int_eq(mq->usedSize, 0);
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(RegMessage));
 
-    delete_message_queue(mq);
+    ck_assert_ptr_ne(queue, NULL);
+    ck_assert_int_eq(queue->itemSize, sizeof(RegMessage));
+    ck_assert_int_eq(queue->front, 0);
+    ck_assert_int_eq(queue->rear, 0);
+    ck_assert_int_eq(queue->currentItem, 0);
+    ck_assert_int_eq(queue->capacity, QUEUE_CAPACITY);
+    ck_assert_int_eq(queue->count, 0);
+
+    delete_queue(queue);
 }
 END_TEST
 
-START_TEST(test_mq_isempty) {
+START_TEST(test_is_queue_empty) {
 
-    MessageQueue *mq = create_message_queue(REGULAR_MSG, 3);
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(RegMessage));
 
-    ck_assert_int_eq(mq_is_empty(mq), 1);
+    ck_assert_int_eq(is_queue_empty(queue), 1);
 
-    delete_message_queue(mq); 
+    delete_queue(queue); 
 }
 END_TEST
 
-START_TEST(test_mq_isfull) {
+START_TEST(test_is_queue_full) {
 
-    MessageQueue *mq = create_message_queue(REGULAR_MSG, 3);
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(RegMessage));
 
-    ck_assert_int_eq(mq_is_full(mq), 0); 
+    enqueue(queue, &(ExtMessage){"john", "steven", "message1"});
+    enqueue(queue, &(ExtMessage){"john", "mark", "message2"});
+    enqueue(queue, &(ExtMessage){"john", "steven", "message3"});
 
-    delete_message_queue(mq);
-}
-END_TEST
+    ck_assert_int_eq(is_queue_full(queue), 1); 
 
-START_TEST(test_get_char_from_message) {
-
-    MessageQueue *mq = create_message_queue(REGULAR_MSG, 3);
-
-    RegMessage message;
-    set_reg_message(&message, "test");
-    enqueue(mq, &message);
-
-    RegMessage *msg = get_message(mq, 1);
-
-    char ch = get_char_from_message(msg, 1);
-
-    ck_assert_int_eq(ch, 'e');
-
-    delete_message_queue(mq); 
-}
-END_TEST
-
-START_TEST(test_set_char_in_message) {
-
-    MessageQueue *mq = create_message_queue(REGULAR_MSG, 3);
-
-    RegMessage message;
-    set_reg_message(&message, "");
-    enqueue(mq, &message);
-
-    RegMessage *msg = get_message(mq, 1);
-
-    set_char_in_message(msg, 't', strlen(msg->content));
-    set_char_in_message(msg, 'x', strlen(msg->content));
-
-    ck_assert_str_eq(msg->content, "tx");
-
-    delete_message_queue(mq); 
-}
-END_TEST
-
-START_TEST(test_set_reg_message) {
-
-    RegMessage message;
-
-    set_reg_message(&message, "test message");
-
-    ck_assert_str_eq(message.content, "test message"); 
-}
-END_TEST
-
-START_TEST(test_set_ext_message) {
-
-    ExtMessage message;
-
-    set_ext_message(&message, "john", "steven", "test message");
-
-    ck_assert_str_eq(message.sender, "john");
-    ck_assert_str_eq(message.recipient, "steven"); 
-    ck_assert_str_eq(message.content, "test message"); 
-}
-END_TEST
-
-START_TEST(test_get_message_content) {
-
-    MessageQueue *mq = create_message_queue(REGULAR_MSG, 3);
-
-    RegMessage message;
-    set_reg_message(&message, "test");
-    enqueue(mq, &message);
-
-    RegMessage *msg = get_message(mq, 1);
-    ck_assert_str_eq(get_message_content(msg), "test");
-
-    delete_message_queue(mq); 
+    delete_queue(queue);
 }
 END_TEST
 
 START_TEST(test_enqueue) {
 
-    MessageQueue *mq = create_message_queue(EXTENDED_MSG, 3);
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(ExtMessage));
 
-    ExtMessage message1;
-    set_ext_message(&message1, "john", "steven", "message 1");
-    enqueue(mq, &message1);
+    enqueue(queue, &(ExtMessage){"john", "steven", "message1"});
 
-    ck_assert_int_eq(mq->usedSize, 1);
-    ck_assert_int_eq(mq->head, 0);
-    ck_assert_int_eq(mq->tail, 1);
+    ExtMessage *message = get_previous_item(queue);
 
-    ExtMessage message2;
-    set_ext_message(&message2, "john", "mark", "message 2");
-    ExtMessage message3;
-    set_ext_message(&message3, "john", "steven", "message 3");
-    enqueue(mq, &message2);
-    enqueue(mq, &message3);
+    ck_assert_str_eq(message->sender, "john");
+    ck_assert_str_eq(message->recipient, "steven");
+    ck_assert_str_eq(message->content, "message1");
 
-    ck_assert_int_eq(mq->usedSize, 3);
-    ck_assert_int_eq(mq->head, 0);
-    ck_assert_int_eq(mq->tail, 0);
+    ck_assert_int_eq(queue->rear, 1);
+    ck_assert_int_eq(queue->front, 0);
+    ck_assert_int_eq(queue->count, 1);
 
-    ExtMessage message4;
-    set_ext_message(&message4, "john", "steven", "message 4");
-    enqueue(mq, &message4);
+    enqueue(queue, &(ExtMessage){"john", "mark", "message2"});
+    enqueue(queue, &(ExtMessage){"john", "steven", "message3"});
 
-    ck_assert_int_eq(mq->usedSize, 3);
-    ck_assert_int_eq(mq->head, 1);
-    ck_assert_int_eq(mq->tail, 1);
+    ck_assert_int_eq(queue->rear, 0);
+    ck_assert_int_eq(queue->front, 0);
+    ck_assert_int_eq(queue->count, 3);
 
-    delete_message_queue(mq); 
+    enqueue(queue, &(ExtMessage){"john", "steven", "message4"});
+
+    ck_assert_int_eq(queue->rear, 1);
+    ck_assert_int_eq(queue->front, 1);
+    ck_assert_int_eq(queue->count, 3);
+
+    delete_queue(queue); 
 }
 END_TEST
 
 START_TEST(test_dequeue) {
 
-    MessageQueue *mq = create_message_queue(EXTENDED_MSG, 3);
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(ExtMessage));
 
-    ExtMessage message1;
-    set_ext_message(&message1, "john", "steven", "message 1");
-    ExtMessage message2;
-    set_ext_message(&message2, "john", "mark", "message 2");
-    ExtMessage message3;
-    set_ext_message(&message3, "john", "steven", "message 3");
-    
-    enqueue(mq, &message1);
-    enqueue(mq, &message2);
-    enqueue(mq, &message3);
+    enqueue(queue, &(ExtMessage){"john", "steven", "message1"});
+    enqueue(queue, &(ExtMessage){"john", "mark", "message2"});
+    enqueue(queue, &(ExtMessage){"john", "steven", "message3"});
 
-    ck_assert_int_eq(mq->usedSize, 3);
-    ck_assert_int_eq(mq->head, 0);
-    ck_assert_int_eq(mq->tail, 0);
+    ck_assert_int_eq(queue->rear, 0);
+    ck_assert_int_eq(queue->front, 0);
+    ck_assert_int_eq(queue->count, 3);
 
-    ExtMessage *message = dequeue(mq);
+    ExtMessage *message = dequeue(queue);
 
     ck_assert_ptr_ne(message, NULL);
     ck_assert_str_eq(message->sender, "john");
     ck_assert_str_eq(message->recipient, "steven");
-    ck_assert_str_eq(message->content, "message 1");
+    ck_assert_str_eq(message->content, "message1");
 
-    ck_assert_int_eq(mq->usedSize, 2);
-    ck_assert_int_eq(mq->head, 1);
-    ck_assert_int_eq(mq->tail, 0);
+    ck_assert_int_eq(queue->rear, 0);
+    ck_assert_int_eq(queue->front, 1);
+    ck_assert_int_eq(queue->count, 2);
 
-    dequeue(mq);
-    dequeue(mq);
+    dequeue(queue);
+    dequeue(queue);
 
-    ck_assert_int_eq(mq->usedSize, 0);
+    ck_assert_int_eq(queue->count, 0);
 
-    delete_message_queue(mq); 
+    delete_queue(queue); 
 }
 END_TEST
 
-START_TEST(test_get_message) {
+START_TEST(test_get_item) {
 
-    MessageQueue *mq = create_message_queue(REGULAR_MSG, 3);
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(RegMessage));
     
-    RegMessage message1;
-    set_reg_message(&message1, "message 1");
-    RegMessage message2;
-    set_reg_message(&message2, "message 2");
-    enqueue(mq, &message1);
-    enqueue(mq, &message2);
+    enqueue(queue, &(RegMessage){"message1"});
+    enqueue(queue, &(RegMessage){"message2"});
 
-    RegMessage *message = get_message(mq, 1);
+    RegMessage *message = get_previous_item(queue);
 
-    ck_assert_str_eq(message->content, "message 2");
+    ck_assert_str_eq(message->content, "message2");
 
-    message = get_message(mq, 1);
-    ck_assert_str_eq(message->content, "message 1");
+    message = get_previous_item(queue);
+    ck_assert_str_eq(message->content, "message1");
 
-    message = get_message(mq, 1);
+    message = get_previous_item(queue);
     ck_assert_ptr_eq(message, NULL);
 
-    message = get_message(mq, 0);
-    ck_assert_str_eq(message->content, "message 1");
+    message = get_current_item(queue);
+    ck_assert_str_eq(message->content, "message1");
 
-    message = get_message(mq, -1);
-    ck_assert_str_eq(message->content, "message 2");
+    message = get_next_item(queue);
+    ck_assert_str_eq(message->content, "message2");
 
-    delete_message_queue(mq);
+    delete_queue(queue);
 }
 END_TEST
 
-START_TEST(test_is_valid_data_type) {
-
-    ck_assert_int_eq(is_valid_data_type(REGULAR_MSG), 1);
-    ck_assert_int_eq(is_valid_data_type(10), 0);
-}
-END_TEST
-
-START_TEST(test_get_type_size) {
-
-    ck_assert_int_eq(get_type_size(REGULAR_MSG), sizeof(RegMessage));
-}
-END_TEST
 
 Suite* queue_suite(void) {
     Suite *s;
@@ -238,19 +146,12 @@ Suite* queue_suite(void) {
     tc_core = tcase_create("Core");
 
     // Add the test case to the test suite
-    tcase_add_test(tc_core, test_create_message_queue);
-    tcase_add_test(tc_core, test_mq_isempty);
-    tcase_add_test(tc_core, test_mq_isfull);
-    tcase_add_test(tc_core, test_get_char_from_message);
-    tcase_add_test(tc_core, test_set_char_in_message);
-    tcase_add_test(tc_core, test_set_reg_message);
-    tcase_add_test(tc_core, test_set_ext_message);
-    tcase_add_test(tc_core, test_get_message_content);
+    tcase_add_test(tc_core, test_create_queue);
+    tcase_add_test(tc_core, test_is_queue_empty);
+    tcase_add_test(tc_core, test_is_queue_full);
     tcase_add_test(tc_core, test_enqueue);
     tcase_add_test(tc_core, test_dequeue);
-    tcase_add_test(tc_core, test_get_message);
-    tcase_add_test(tc_core, test_is_valid_data_type);
-    tcase_add_test(tc_core, test_get_type_size);
+    tcase_add_test(tc_core, test_get_item);
 
     suite_add_tcase(s, tc_core);
 

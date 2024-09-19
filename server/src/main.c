@@ -1,6 +1,7 @@
-// #define _XOPEN_SOURCE 700
-
 #include "tcpserver.h"
+#include "user.h"
+#include "channel.h"
+
 #include "../../shared/src/signal_handler.h"
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
@@ -19,90 +20,76 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#ifdef TEST
-    #define LOG_FILE(str) "test_" #str
-#else
-    #define LOG_FILE(str) #str
-#endif
+typedef struct {
+    int echo;
+    int daemon;
+} ServerOptions;
 
 typedef struct {
     Logger *logger;
-    PollFds *pollFds;
+    PollFdSet *pollFdSet;
+    TCPServer *tcpServer;
+    ServerOptions options;
 } AppState;
 
 #ifndef TEST
 
 static void daemonize(void);
-// static void set_sigaction(void (*handler)(int), int sig);
-// static void handle_sigint(int sig);
-
-static AppState appState = {NULL};
 static void cleanup(void);
+static void get_options(int argc, char **argv, ServerOptions *options);
+
+static AppState appState = {NULL, NULL, NULL, {.echo = 0, .daemon = 0} };
 
 int main(int argc, char **argv)
 {
-
     // register cleanup function
     atexit(cleanup);
 
     // set signal handler for SIGINT
     set_sigaction(handle_sigint, SIGINT);
 
-    int opt, daemonServer = 0, echoServer = 0;
+    // get server options
+    get_options(argc, argv, &appState.options);
 
-    // get cmd options
-    while ((opt = getopt(argc, argv, "de")) != -1) {
+    appState.logger = create_logger(NULL, LOG_FILE(server), DEBUG);
 
-        switch (opt) {
-            case 'd': {
-                daemonServer = 1;
-                break;
-            }
-            case 'e': {
-                echoServer = 1;
-                break;
-            }
-            default:
-                printf("Usage: %s [-d] [-e]\n", argv[0]);
-                exit(EXIT_FAILURE);
-        }
-    }
     // create daemon process
-    if (daemonServer) {
+    if (appState.options.daemon) {
         daemonize();
-        set_stderr_allowed(0);
+        set_sigaction(handle_sigint, SIGTERM);
+        LOG(INFO, "Started daemon process with PID: %d", getpid());
     }
-    
-    appState.logger = create_logger(NULL, LOG_FILE("server"));
 
-    LOG(INFO, "Server options: daemon %d, echo %d", daemonServer, echoServer);
+    if (appState.options.echo) {
+        LOG(INFO, "Echo server enabled");
+    }
 
-    appState.pollFds = create_pfds(0);
-
+    /* create fd's set to monitor socket events -
+     connection requests and messages from connected
+      clients */
+    appState.pollFdSet = create_pollfd_set(MAX_FDS);
+    appState.tcpServer = create_server("irc.example.com", MAX_FDS);
     int listenFd = init_server();
 
+    // add_channel(appState.channelList, "#general", PERMANENT);
+
     // set listening socket fd
-    set_pfd(appState.pollFds, 0, listenFd, POLLIN);
+    set_pfd(appState.pollFdSet, 0, listenFd, POLLIN);
 
     while (1) {
 
-        // poll file descriptors for events
-        int fdsReady = poll(get_pfds(appState.pollFds), get_allocated_pfds(appState.pollFds), -1);
+        // poll fd's for events
+        int fdsReady = poll(get_pfds(appState.pollFdSet), get_pfds_capacity(appState.pollFdSet), -1);
         if (fdsReady < 0) {
             FAILED("Error polling descriptors", NO_ERRCODE);  
         }
 
-        check_listening_pfd(appState.pollFds, &fdsReady);
-        check_connected_pfds(appState.pollFds, &fdsReady, echoServer);
+        handle_inactive_clients(appState.pollFdSet, appState.tcpServer);
+        check_listening_pfd(appState.pollFdSet, appState.tcpServer, &fdsReady);
+        check_connected_pfds(appState.pollFdSet, appState.tcpServer, &fdsReady, appState.options.echo);
     }
 
     return 0;
-}
-
-static void cleanup(void) {
-
-    delete_pfds(appState.pollFds);
-    delete_logger(appState.logger);
 }
 
 static void daemonize(void) {
@@ -131,10 +118,12 @@ static void daemonize(void) {
         exit(EXIT_SUCCESS);
     }
 
-    const int MAX_FD = 64;
-    for (int i = 0; i < MAX_FD; i++) {
-        close(i);
-    }
+    set_stderr_allowed(0);
+    set_stdout_allowed(0);
+
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
 
     open("/dev/null", O_RDONLY);
     open("/dev/null", O_RDWR);
@@ -142,26 +131,33 @@ static void daemonize(void) {
 
 }
 
-// static void set_sigaction(void (*handler)(int), int sig) {
+static void cleanup(void) {
 
-//     struct sigaction sa;
+    delete_server(appState.tcpServer);
+    delete_pollfd_set(appState.pollFdSet);
+    delete_logger(appState.logger);
+}
 
-//     sa.sa_handler = handler;
-//     sa.sa_flags = 0;
-//     sigemptyset(&sa.sa_mask);
+static void get_options(int argc, char **argv, ServerOptions *options) {
 
-//     if (sigaction(sig, &sa, NULL) == -1) {
-//         FAILED("Failed to set signal handler", NO_ERRCODE);
-//     }
-// }
+    int opt;
 
-// /* call
-// invoke cleanup function on exit */
-// static void handle_sigint(int sig) {
+    while ((opt = getopt(argc, argv, "de")) != -1) {
 
-//     exit(EXIT_SUCCESS);
-// }
+        switch (opt) {
+            case 'd': {
+                options->daemon = 1;
+                break;
+            }
+            case 'e': {
+                options->echo = 1;
+                break;
+            }
+            default:
+                printf("Usage: %s [-d] [-e]\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
+}
 
 #endif
-
-

@@ -1,14 +1,15 @@
-#define _XOPEN_SOURCE 700
-
 #include "tcpclient.h"
 #include "display.h"
-#include "../../shared/src/parser.h"
+
+#include "../../shared/src/priv_message.h"
+#include "../../shared/src/string_utils.h"
+#include "../../shared/src/network_utils.h"
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
 
-#include <limits.h>
-#include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <string.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -16,28 +17,57 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#define DEFAULT_ADDRESS "127.0.0.1"
-#define DEFAULT_PORT "50100"
-#define PORT_MIN 49152
-#define PORT_MAX 65535
+#ifdef TEST
+#define STATIC
+#else
+#define STATIC static
+#endif
 
+#define MAX_SERVERNAME_LEN 50
+#define MAX_CHANNELNAME_LEN 50
 #define MAX_CHARS 512
+#define MSG_QUEUE_LEN 20
 
-STATIC int convert_hostname_to_ip(const char *input, char *result, int len);
-STATIC int is_ipv4address(const char *address);
-STATIC int is_port(const char *port);
+struct TCPClient {
+    char servername[MAX_SERVERNAME_LEN + 1];
+    char channelname[MAX_CHANNELNAME_LEN + 1];
+    char inBuffer[MAX_CHARS + 1];
+    Queue *outQueue;
+    int fd;
+    int connected;
+    int inChannel;
+};
 
-int connect_to_server(char *address, char *port, Session *session)
+TCPClient * create_client(void) {
+
+    TCPClient *tcpClient = (TCPClient *) malloc(sizeof(TCPClient));
+    if (tcpClient == NULL) {
+        FAILED("Error allocating memory", NO_ERRCODE);
+    }
+
+    memset(tcpClient->inBuffer, '\0', MAX_CHARS + 1);
+
+    tcpClient->outQueue = create_queue(MSG_QUEUE_LEN, sizeof(RegMessage));
+    tcpClient->fd = -1;
+    tcpClient->connected = 0;
+    tcpClient->inChannel = 0;
+
+    return tcpClient;
+}
+
+void delete_client(TCPClient *tcpClient) {
+
+    if (tcpClient != NULL) {
+
+        delete_queue(tcpClient->outQueue);
+    }
+    free(tcpClient);
+}
+
+int connect_to_server(TCPClient *tcpClient, char *address, char *port)
 {
+    char *savedAddress = address;
     char ipv4Address[INET_ADDRSTRLEN] = {'\0'};
-
-    // set default address and/ or port
-    if (address == NULL) {
-        address = DEFAULT_ADDRESS;
-    }
-    if (port == NULL) {
-        port = DEFAULT_PORT;
-    }
 
     // convert hostname to ip address
     if (!is_ipv4address(address)) {
@@ -73,80 +103,225 @@ int connect_to_server(char *address, char *port, Session *session)
 
     if (connStatus == 0) {
         
-        session_set_fd(session, clientFd);
-        session_set_connected(session, 1);
+        client_set_fd(tcpClient, clientFd);
+        client_set_servername(tcpClient, savedAddress);
+        client_set_connected(tcpClient, 1);
+        
+        LOG(INFO, "Connected to %s: %s", address, port);
     }
    
     return connStatus;
 }
 
-STATIC int convert_hostname_to_ip(const char *input, char *result, int len) {
-
-    if (input == NULL || result == NULL) {
+int client_read(TCPClient *tcpClient) {
+    
+    if (tcpClient == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    struct addrinfo hints, *res, *p;
-    int converted = 0;
+    char readBuffer[MAX_CHARS + 1] = {'\0'};
 
-    memset(&hints, 0, sizeof(struct addrinfo));
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_STREAM;
+    ssize_t bytesRead = read(client_get_fd(tcpClient), readBuffer, MAX_CHARS);
 
-    if (getaddrinfo(input, NULL, &hints, &res) != 0) {
-        FAILED("Error converting hostname to IP address", NO_ERRCODE);
-    }
+    if (bytesRead <= 0) {
 
-    p = res;
-    if (p != NULL) {
-
-        struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
-        if (inet_ntop(p->ai_family, &ipv4->sin_addr, result, len) != NULL) {
-            converted = 1;
+        if (!bytesRead) {
+            LOG(INFO, "Server terminated");
         }
-    }
-
-    freeaddrinfo(res); 
-
-    return converted;
-}
-
-// checks if string is valid IPv4 address
-STATIC int is_ipv4address(const char *string) {
-    
-    int octets = 0;
-    char *copy, *token, *savePtr;
-
-    copy = strdup(string);
-    token = strtok_r(copy, ".", &savePtr);
-
-    while (token) {
-
-        long n = str_to_uint(token);
-
-        if (n >= 0 && n <= 255) {
-            octets++;
+        else if (errno != ECONNRESET) {
+            FAILED("Error reading from socket: %d", NO_ERRCODE, client_get_fd(tcpClient));
         }
-        else {
-            break;
-        }
-        token = strtok_r(NULL, ".", &savePtr);
-    }
-
-    free(copy);
-
-    return octets == 4 && string[strlen(string) - 1] != '.';
-}
-
-// checks if string is valid port number (in defined range)
-STATIC int is_port(const char *string) {
-
-    long n = str_to_uint(string);
-
-    if (n >= PORT_MIN && n <= PORT_MAX) {
-        return 1;
+        close(client_get_fd(tcpClient));
     }
     else {
-        return 0;
-    }  
+
+        int msgLength = strlen(client_get_buffer(tcpClient));
+
+        if (msgLength + bytesRead <= MAX_CHARS) {
+
+            strcpy(client_get_buffer(tcpClient) + msgLength, readBuffer);
+            msgLength += bytesRead;
+        }
+
+        // full message received
+        if (client_get_char_in_buffer(tcpClient, msgLength - 1) == '\n') {
+            LOG(INFO, "Message received from fd: %d", client_get_fd(tcpClient));
+
+            return 1;
+        }
+    }
+    return 0;
+}
+
+void client_write(TCPClient *tcpClient) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    while (!is_queue_empty(client_get_queue(tcpClient))) {
+
+        size_t nleft; 
+        ssize_t nwritten; 
+
+        RegMessage *message = remove_message_from_client_queue(client_get_queue(tcpClient));
+
+        char *msgPtr = get_reg_message_content(message);
+
+        int len = strlen(msgPtr);
+
+        if (msgPtr[len-1] != '\n') {
+            msgPtr[len] = '\n';
+            msgPtr[len + 1] = '\0';
+        }
+
+        nleft = strlen(msgPtr); 
+
+        while (nleft) { 
+
+            if ((nwritten = write(client_get_fd(tcpClient), msgPtr, nleft)) <= 0) { 
+
+                if (nwritten < 0 && errno == EINTR) {
+                    nwritten = 0;
+                }
+                else {
+                    LOG(ERROR, "Error writing to socket: %d", client_get_fd(tcpClient));
+                }
+            } 
+            nleft -= nwritten; 
+            msgPtr += nwritten; 
+        }
+    }
+}
+
+Queue * client_get_queue(TCPClient *tcpClient) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return tcpClient->outQueue;
+}
+
+char * client_get_buffer(TCPClient *tcpClient) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return tcpClient->inBuffer;
+}
+
+char client_get_char_in_buffer(TCPClient *tcpClient, int index) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return tcpClient->inBuffer[index];
+}
+
+void client_set_char_in_buffer(TCPClient *tcpClient, char ch, int index) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    tcpClient->inBuffer[index] = ch;
+}
+
+int client_get_fd(TCPClient *tcpClient) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return tcpClient->fd;
+}
+
+void client_set_fd(TCPClient *tcpClient, int fd) {
+      
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    tcpClient->fd = fd;
+}
+
+int client_is_connected(TCPClient *tcpClient) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return tcpClient->connected;
+}
+
+void client_set_connected(TCPClient *tcpClient, int connected) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    tcpClient->connected = connected;
+}
+
+int client_is_inchannel(TCPClient *tcpClient) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return tcpClient->inChannel;
+}
+
+void client_set_inchannel(TCPClient *tcpClient, int inChannel) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    tcpClient->inChannel = inChannel;
+}
+
+const char * client_get_servername(TCPClient *tcpClient) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return tcpClient->servername;
+}
+
+void client_set_servername(TCPClient *tcpClient, const char *servername) {
+
+    if (tcpClient == NULL || servername == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    safe_copy(tcpClient->servername, MAX_SERVERNAME_LEN + 1, servername);
+}
+
+const char * client_get_channelname(TCPClient *tcpClient) {
+
+    if (tcpClient == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return tcpClient->channelname;
+}
+
+void client_set_channelname(TCPClient *tcpClient, const char *channelname) {
+
+    if (tcpClient == NULL || channelname == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    safe_copy(tcpClient->channelname, MAX_CHANNELNAME_LEN + 1, channelname);
+}
+
+void add_message_to_client_queue(TCPClient *tcpClient, void *message) {
+
+    if (tcpClient == NULL || message == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    enqueue(tcpClient->outQueue, message);
+}
+
+void * remove_message_from_client_queue(Queue *queue) {
+
+    if (queue == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return dequeue(queue);
 }

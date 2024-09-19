@@ -1,6 +1,6 @@
+.vscode/
 *.png
 *.log
-.vscode/
 
 Client/bin/
 Client/obj/

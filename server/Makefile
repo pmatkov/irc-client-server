@@ -6,11 +6,13 @@ LDFLAGS = -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIBCOM))
 SRCDIR = src
 OBJDIR = obj
 BINDIR = bin
-TDIR = tests
+TESTDIR = tests
 LIBDIR = ../shared/lib
 
-SRCS = $(wildcard $(SRCDIR)/*.c)
-TSRCS = $(wildcard $(TDIR)/*.c)
+EXCLUDE_SRCS = 
+EXCLUDE_TSRCS =
+SRCS = $(filter-out $(EXCLUDE_SRCS), $(wildcard $(SRCDIR)/*.c))
+TSRCS = $(filter-out $(EXCLUDE_TSRCS), $(wildcard $(TESTDIR)/*.c))
 
 OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
 TEST_OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%_test.o, $(SRCS))
@@ -22,7 +24,7 @@ TEST_LIBCOM = $(LIBDIR)/libtestcommon.a
 LIBMOCK = $(LIBDIR)/libmock.a
 
 BIN = $(BINDIR)/server
-TBINS = $(patsubst $(TDIR)/%.c, $(TDIR)/bin/%, $(TSRCS))
+TBINS = $(patsubst $(TESTDIR)/%.c, $(TESTDIR)/bin/%, $(TSRCS))
 
 TEST_CFLAGS = $(CFLAGS) -DTEST
 TEST_LDFLAGS = -lcheck -lm -lpthread -lrt -lsubunit -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(TEST_LIBCOM) $(LIBMOCK))
@@ -46,8 +48,8 @@ $(OBJDIR)/%_test.o: $(SRCDIR)/%.c
 test: $(TBINS)
 	for test in $(TBINS); do ./$$test; done
 
-$(TDIR)/bin/%: $(TDIR)/%.c $(TEST_OBJS) $(TEST_LIBCOM) $(LIBMOCK)
+$(TESTDIR)/bin/%: $(TESTDIR)/%.c $(TEST_OBJS) $(TEST_LIBCOM) $(LIBMOCK)
 	$(CC) $(TEST_CFLAGS) $< $(TEST_OBJS) -o $@ $(TEST_LDFLAGS)
 
 clean:
-	rm $(BIN) $(OBJDIR)/* $(TDIR)/bin/*
+	rm $(BIN) $(OBJDIR)/* $(TESTDIR)/bin/*

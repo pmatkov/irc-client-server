@@ -1,9 +1,12 @@
 #include "settings.h"
-#include "session.h"
+#include "tcpclient.h"
 #include "display.h"
 #include "scrollback.h"
 #include "line_editor.h"
-#include "../../shared/src/parser.h"
+#include "command_handler.h"
+
+#include "../../shared/src/command.h"
+#include "../../shared/src/string_utils.h"
 #include "../../shared/src/signal_handler.h"
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
@@ -15,18 +18,12 @@
 #include <signal.h>
 #include <poll.h>
 
-#ifdef TEST
-    #define LOG_FILE(str) "test_" #str
-#else
-    #define LOG_FILE(str) #str
-#endif
-
 #define PFDS_COUNT 2
 
 typedef struct {
     Logger *logger;
     Settings *settings;
-    Session *session;
+    TCPClient *tcpClient;
     WindowManager *windowManager;
     Scrollback *scrollback;
     LineEditor *lnEditor;
@@ -35,11 +32,11 @@ typedef struct {
 #ifndef TEST
 
 static AppState appState = {NULL};
+
 static void cleanup(void);
 
 int main(void)
 {
-
     // register cleanup function
     atexit(cleanup);
 
@@ -47,7 +44,7 @@ int main(void)
     set_sigaction(handle_sigint, SIGINT);
 
     // create logger
-    appState.logger = create_logger(NULL, LOG_FILE(client));
+    appState.logger = create_logger(NULL, LOG_FILE(client), DEBUG);
     set_stdout_allowed(0);
 
     LOG(INFO, "Client started");
@@ -55,10 +52,10 @@ int main(void)
     // load settings
     appState.settings = create_settings();
     set_default_settings(appState.settings);
-    read_settings(appState.settings, "data/buzz.conf");
+    read_settings(appState.settings, NULL);
 
-    // create client session
-    appState.session = create_session();
+    // create client tcpClient
+    appState.tcpClient = create_client();
 
     // create ncurses windows and set options
     appState.windowManager = create_windows();
@@ -66,10 +63,6 @@ int main(void)
     // create scrollback and line editor
     appState.scrollback = create_scrollback(get_chatwin(appState.windowManager), 0);
     appState.lnEditor = create_line_editor(get_inputwin(appState.windowManager));
-
-    // RegMessage message;
-    // set_reg_message(&message, "");
-    // enqueue(get_message_queue(appState.lnEditor), &message);
 
     set_windows_options(appState.windowManager);
     init_colors(appState.settings);
@@ -91,104 +84,86 @@ int main(void)
         // check for stdin events
         if (pfds[0].revents & POLLIN) {
 
-            // process char input
-            int ch = wgetch(get_inputwin(appState.windowManager));
+            // handle char input
+            int ch, index;
+            CommandTokens *cmdTokens = create_command_tokens();
 
-            const char *keystr = keyname(ch);
+            ch = wgetch(get_inputwin(appState.windowManager));
+            ch = remap_ctrl_key(ch);
 
-            if (keystr != NULL && strcmp(keystr, "kUP5") == 0) {
-                scroll_line_up(appState.scrollback);
+            if ((index = get_sb_func_index(ch)) != -1) {
+                use_scrollback_func(index)(appState.scrollback);
             }
-            else if (keystr != NULL && strcmp(keystr, "kDN5") == 0) {
-                scroll_line_down(appState.scrollback);
+            else if ((index = get_le_func_index(ch)) != -1) {
+                use_line_editor_func(index)(appState.lnEditor);
+            }
+            else if (ch == KEY_NEWLINE) {
+                parse_input(appState.lnEditor, cmdTokens);
             }
             else {
-            
-                switch(ch) {
+                add_char(appState.lnEditor, ch);
+            }
 
-                    case KEY_LEFT:
-                        move_cursor_left(appState.lnEditor);
-                        break;
-                    case KEY_RIGHT:
-                        move_cursor_right(appState.lnEditor);
-                        break;
+            CommandType commandType = string_to_command_type(get_cmd_from_cmd_tokens(cmdTokens));
 
-                    case KEY_UP:
-                        // scroll_line_up(appState.scrollback);
-                        display_command_history(appState.lnEditor, 1);
-                        break;
-                    case KEY_DOWN:
-                        display_command_history(appState.lnEditor, -1);
-                        break;
+            if (commandType != UNKNOWN_COMMAND_TYPE) {
 
-                    case KEY_PPAGE:
-                        scroll_page_up(appState.scrollback);
-                        break;
-                    case KEY_NPAGE:
-                        scroll_page_down(appState.scrollback);
-                        break;
-                    case KEY_BACKSPACE:
-                        use_backspace(appState.lnEditor);
-                        break;
-                    case KEY_DC:
-                        use_delete(appState.lnEditor);
-                        break;
-                    case KEY_HOME:
-                        use_home(appState.lnEditor);
-                        break;
-                    case KEY_END:
-                        use_end(appState.lnEditor);
-                        break;
-                    case KEY_NEWLINE:
-                        parse_input(appState.lnEditor, appState.scrollback, appState.settings, appState.session);
-                        break;
-                    case KEY_RESIZE:   
-                        handle_resize(appState.windowManager, appState.scrollback);
-                        break;
-                    default:
-                        add_char(appState.lnEditor, ch);
-                }
-            }        
+                CommandFunction cmdFunction = get_command_function(commandType);
+                cmdFunction(appState.scrollback, appState.settings, appState.tcpClient, cmdTokens);
+            }
 
+            delete_command_tokens(cmdTokens);
             wrefresh(get_inputwin(appState.windowManager));
+
         }
 
-        if (pfds[1].fd == -1 && session_is_connected(appState.session)) {
-            pfds[1].fd = session_get_fd(appState.session);
+        // check connection
+        if (pfds[1].fd == -1 && client_is_connected(appState.tcpClient)) {
+
+            pfds[1].fd = client_get_fd(appState.tcpClient);
+
+            display_status(appState.windowManager, "[%s]  [%s]", get_property_value(appState.settings, NICKNAME), client_get_servername(appState.tcpClient));
         }
-        else if (pfds[1].fd != -1 && !session_is_connected(appState.session)) {
+        else if (pfds[1].fd != -1 && !client_is_connected(appState.tcpClient)) {
             pfds[1].fd = -1;
         }
 
-        // if messages in buffer, send
+        // send messages
+        if (!is_queue_empty(client_get_queue(appState.tcpClient))) {
 
-  
-
-        // check for socket event
-
-        if (pfds[1].revents & POLLIN) {
-
-
+            client_write(appState.tcpClient);
         }
 
+        // check for socket input events
+        if (pfds[1].revents & POLLIN) {
 
-       
+            int fullMsg = client_read(appState.tcpClient);
 
+            if (fullMsg) {
+
+                MessageParams *messageParams = create_message_params(1, " <> ", NULL, client_get_buffer(appState.tcpClient));
+
+                printmsg(appState.scrollback, messageParams, COLOR_SEP(RED));
+                wrefresh(get_chatwin(appState.windowManager));
+                wrefresh(get_inputwin(appState.windowManager));
+
+                free(messageParams);
+            }
+        }
     }
-
 	return 0;
 }
 
 static void cleanup(void) {
 
-    write_settings(appState.settings, "data/buzz.conf");
+    write_settings(appState.settings, NULL);
     delete_settings(appState.settings);
 
-    delete_session(appState.session);
+    delete_client(appState.tcpClient);
 
-    delete_windows(appState.windowManager);
-    delete_scrollback(appState.scrollback);
     delete_line_editor(appState.lnEditor);
+    delete_scrollback(appState.scrollback);
+    delete_windows(appState.windowManager);
 
     delete_logger(appState.logger);
 }

@@ -1,24 +1,38 @@
 #ifndef TCPCLIENT_H
 #define TCPCLIENT_H
 
-#include "session.h"
+#include "../../shared/src/queue.h"
 
-#include <arpa/inet.h>
+#define DEFAULT_ADDRESS "127.0.0.1"
+#define DEFAULT_PORT "50100"
 
-#ifdef TEST
-#define STATIC
-#else
-#define STATIC static
-#endif
+typedef struct TCPClient TCPClient;
 
-int connect_to_server(char *address, char *port, Session *session);
+TCPClient * create_client(void);
+void delete_client(TCPClient *tcpClient);
 
-#ifdef TEST
+int connect_to_server(TCPClient *tcpClient, char *address, char *port);
 
-STATIC int convert_hostname_to_ip(const char *input, char *result, int len);
-STATIC int is_ipv4address(const char *string);
-STATIC int is_port(const char *string);
+int client_read(TCPClient *tcpClient);
+void client_write(TCPClient *tcpClient);
 
-#endif
+const char * client_get_servername(TCPClient *tcpClient);
+void client_set_servername(TCPClient *tcpClient, const char *servername);
+const char * client_get_channelname(TCPClient *tcpClient);
+void client_set_channelname(TCPClient *tcpClient, const char *channelname);
+
+Queue * client_get_queue(TCPClient *tcpClient);
+char * client_get_buffer(TCPClient *tcpClient);
+char client_get_char_in_buffer(TCPClient *tcpClient, int index);
+void client_set_char_in_buffer(TCPClient *tcpClient, char ch, int index);
+int client_get_fd(TCPClient *tcpClient);
+void client_set_fd(TCPClient *tcpClient, int fd);
+int client_is_connected(TCPClient *tcpClient);
+void client_set_connected(TCPClient *tcpClient, int connected);
+int client_is_inchannel(TCPClient *tcpClient);
+void client_set_inchannel(TCPClient *tcpClient, int inChannel);
+
+void add_message_to_client_queue(TCPClient *tcpClient, void *message);
+void * remove_message_from_client_queue(Queue *queue);
 
 #endif

@@ -1,7 +1,7 @@
 #define _XOPEN_SOURCE 700
 
 #include "signal_handler.h"
-#include "../../shared/src/error_control.h"
+#include "error_control.h"
 
 #include <stdlib.h>
 #include <unistd.h>

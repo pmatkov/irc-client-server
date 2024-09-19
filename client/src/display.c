@@ -1,16 +1,11 @@
-// wide characters support
-#define _XOPEN_SOURCE_EXTENDED 1
-
 #ifdef TEST
-#include "test_display.h"
+#include "priv_display.h"
 #else
 #include "display.h"
 #endif
 
-#include "line_editor.h"
-#include "tcpclient.h"
-#include "../../shared/src/time.h"
-#include "../../shared/src/parser.h"
+#include "../../shared/src/time_utils.h"
+#include "../../shared/src/string_utils.h"
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
 
@@ -30,7 +25,15 @@
 #endif
 
 #define MAX_CHARS 512
-#define MAX_TOKENS 5
+#define MAX_MSG_TOKENS 5
+
+static const unsigned ATTR_CONVERT[] = {
+    A_NORMAL,
+    A_BOLD,
+    A_STANDOUT,
+    A_DIM,
+    A_ITALIC
+};
 
 #ifndef TEST
 
@@ -42,7 +45,7 @@ struct WindowManager {
     WINDOW *inputwin;
 };
 
-struct MessageParams{
+struct MessageParams {
     int timestamp;
     const char *separator;
     const char *origin;
@@ -52,6 +55,7 @@ struct MessageParams{
 #endif
 
 STATIC int get_message_length(MessageParams *msgParams);
+STATIC void display_string_list(Scrollback *scrollback, char **stringList, int size, const char *title);
 
 WindowManager * create_windows(void) {
 
@@ -79,24 +83,23 @@ WindowManager * create_windows(void) {
 
 void delete_windows(WindowManager *windowManager) {
 
-    if (windowManager == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
+    if (windowManager != NULL) { 
 
-    if (windowManager->stdscr != NULL) {
-        endwin();
-    }
-    if (windowManager->inputwin != NULL) { 
-        delwin(windowManager->inputwin);
-    }
-    if (windowManager->chatwin != NULL) {
-        delwin(windowManager->chatwin);
-    }
-    if (windowManager->statuswin != NULL) {
-        delwin(windowManager->statuswin);
-    }
-    if (windowManager->mainwin != NULL) {
-        delwin(windowManager->mainwin);
+        if (windowManager->stdscr != NULL) {
+            endwin();
+        }
+        if (windowManager->inputwin != NULL) { 
+            delwin(windowManager->inputwin);
+        }
+        if (windowManager->chatwin != NULL) {
+            delwin(windowManager->chatwin);
+        }
+        if (windowManager->statuswin != NULL) {
+            delwin(windowManager->statuswin);
+        }
+        if (windowManager->mainwin != NULL) {
+            delwin(windowManager->mainwin);
+        }
     }
 
     free(windowManager);
@@ -116,6 +119,18 @@ WINDOW *get_inputwin(WindowManager *windowManager) {
         FAILED(NULL, ARG_ERROR);
     }
     return windowManager->inputwin;
+}
+
+MessageParams * create_message_params(int timestamp, const char *separator, const char *origin, const char *message) {
+
+    MessageParams *messageParams = (MessageParams *) malloc(sizeof(MessageParams));
+
+    messageParams->timestamp = timestamp;
+    messageParams->separator = separator;
+    messageParams->origin = origin;
+    messageParams->message = message;
+
+    return messageParams;
 }
 
 void set_windows_options(WindowManager *windowManager) {
@@ -170,13 +185,12 @@ void create_layout(WindowManager *windowManager, Scrollback *scrollback, Setting
     draw_window_borders(windowManager);
 
     // display app info
-    printmsg(scrollback, (MessageParams){1, " ## ", NULL, "Buzz v1.0"}, COLOR_SEP(MAGENTA));
-    printmsg(scrollback, (MessageParams){1, NULL, NULL, NULL}, 0);
+    printmsg(scrollback, &(MessageParams){1, " ## ", NULL, "Buzz v1.0"}, COLOR_SEP(MAGENTA) | ATTR_MSG(BOLD));
 
     display_settings(scrollback, settings);
-    printmsg(scrollback, (MessageParams){1, NULL, NULL, NULL}, 0);
 
-    printmsg(scrollback, (MessageParams){1, " ## ", NULL, "Type /help for a list of available commands."}, COLOR_SEP(MAGENTA));
+    printmsg(scrollback, &(MessageParams){1, NULL, NULL, NULL}, 0);
+    printmsg(scrollback, &(MessageParams){1, " ** ", NULL, "Type /help for a list of available commands."}, COLOR_SEP(CYAN));
 
     wrefresh(windowManager->mainwin);
 
@@ -203,7 +217,7 @@ void draw_window_borders(WindowManager *windowManager) {
 
     // set window title
     wattron(windowManager->mainwin, COLOR_PAIR(CYAN_REV));
-    mvwaddstr(windowManager->mainwin, 0, 1, "Buzz");
+    mvwaddstr(windowManager->mainwin, 0, 1, "Buzz - chat client");
     wattroff(windowManager->mainwin, COLOR_PAIR(CYAN_REV));
 }
 
@@ -212,26 +226,26 @@ void draw_window_borders(WindowManager *windowManager) {
  attr is a bitfield of attributes: color for 
  each item and style for message) */
 
-void printmsg(Scrollback *scrollback, MessageParams msgParams, uint32_t attributes) {
+void printmsg(Scrollback *scrollback, MessageParams *msgParams, uint32_t attributes) {
 
     if (scrollback == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    if (get_message_length(&msgParams) > MAX_CHARS) {
+    if (get_message_length(msgParams) > MAX_CHARS) {
         FAILED("Max message length exceeded", NO_ERRCODE);
     }
 
     cchar_t buffer[MAX_CHARS + 1] = {0};
     cchar_t *bufferPtr = NULL;
 
-    char *tokens[MAX_TOKENS] = {NULL};
+    const char *tokens[MAX_MSG_TOKENS] = {NULL};
     int tkCount = 1;
 
-    if (msgParams.message != NULL) {
+    if (msgParams->message != NULL) {
 
-        char *msgCopy = strdup(msgParams.message);
-        tkCount = split_input_string(msgCopy, tokens, MAX_TOKENS, '\n');
+        char *msgCopy = strdup(msgParams->message);
+        tkCount = split_input_string(msgCopy, tokens, MAX_MSG_TOKENS, '\n');
     }
     int i = 0;
 
@@ -239,24 +253,24 @@ void printmsg(Scrollback *scrollback, MessageParams msgParams, uint32_t attribut
 
         bufferPtr = buffer;
 
-        if (msgParams.timestamp) {
+        if (msgParams->timestamp) {
 
-            char timestamp[TIME_LENGTH] = {'\0'};
-            get_datetime(get_format_function(TIME), timestamp, TIME_LENGTH);
+            char timestamp[HM_TIME_LENGTH] = {'\0'};
+            get_datetime(get_format_function(HM_TIME), timestamp, HM_TIME_LENGTH);
             
             bufferPtr += string_to_complex_string(timestamp, bufferPtr, strlen(timestamp), 0);
         }
-        if (msgParams.separator != NULL) {
+        if (msgParams->separator != NULL) {
 
-            bufferPtr += string_to_complex_string(msgParams.separator, bufferPtr, strlen(msgParams.separator), (attributes & 0xF));
+            bufferPtr += string_to_complex_string(msgParams->separator, bufferPtr, strlen(msgParams->separator), (attributes & 0x00F00F));
         }
-        if (msgParams.origin != NULL) {
+        if (msgParams->origin != NULL) {
 
-            bufferPtr += string_to_complex_string(msgParams.origin, bufferPtr, strlen(msgParams.origin), (attributes & 0xF0));
+            bufferPtr += string_to_complex_string(msgParams->origin, bufferPtr, strlen(msgParams->origin), (attributes & 0x0F00F0));
         }
-        if (msgParams.message != NULL) {
+        if (msgParams->message != NULL) {
 
-            bufferPtr += string_to_complex_string(tokens[i++], bufferPtr, strlen(msgParams.message), (attributes & 0xFFFFFF00));
+            bufferPtr += string_to_complex_string(tokens[i++], bufferPtr, strlen(msgParams->message), (attributes & 0xF00F00));
         }
 
         add_to_scrollback(scrollback, buffer, bufferPtr - buffer);
@@ -273,7 +287,7 @@ STATIC int get_message_length(MessageParams *msgParams) {
     int msgLen = 0;
 
     if (msgParams->timestamp) {
-        msgLen += TIME_LENGTH - 1;
+        msgLen += HM_TIME_LENGTH - 1;
     }
     if (msgParams->separator) {
         msgLen += strlen(msgParams->separator);
@@ -299,13 +313,16 @@ int string_to_complex_string(const char *string, cchar_t *buffer, int len, uint3
     }
 
     // get style from first 20 bits
-    attr_t style = attr & 0xFFFFF000;
+    // attr_t style = attr & 0xFFFFF000;
+    attr_t style = (attr & 0x00FFF000) >> 12;
+    int color = (attr & 0x00000FFF);
 
-    int i = 0, color = 0;
+    int i = 0;
     
     // get color pair from last 12 bits (sep, org, msg)
-    while (!(color = attr & 0xF) && i++ < 3) {
-        attr >>= 4;
+    while (!(color &= 0xF) && ++i < 3) {
+        color >>= 4;
+        style >>= 4;
     }
 
     wchar_t wstring[MAX_CHARS + 1] = {L'\0'};
@@ -323,7 +340,7 @@ int string_to_complex_string(const char *string, cchar_t *buffer, int len, uint3
         temp[0] = wstring[i];
         temp[1] = L'\0';  
 
-        if (setcchar(buffer++, temp, style, color, NULL) != OK) {
+        if (setcchar(buffer++, temp, ATTR_CONVERT[(Attributes)style], color, NULL) != OK) {
             FAILED("Error setting cchar", NO_ERRCODE);
         }
         i++;
@@ -333,64 +350,74 @@ int string_to_complex_string(const char *string, cchar_t *buffer, int len, uint3
 }
 
 // display a list of available commands
-void display_commands(Scrollback *scrollback) {
+void display_commands(Scrollback *scrollback, const Command *commands, int count) {
 
-    if (scrollback == NULL) {
+    if (scrollback == NULL || commands == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    printmsg(scrollback, (MessageParams){1, NULL, NULL, NULL}, 0);
-    printmsg(scrollback, (MessageParams){1, " ** ", NULL, "Commands:"}, COLOR_SEP(CYAN) | A_STANDOUT);
+    printmsg(scrollback, &(MessageParams){1, NULL, NULL, NULL}, 0);
+    printmsg(scrollback, &(MessageParams){1, " ** ", NULL, "Commands:"}, COLOR_SEP(CYAN));
 
-    for (int i = 1; i < COMMAND_TYPE_COUNT - 1; i++) {
+    int size = get_command_size();
+    char *cmd = (char*) commands;
 
-        printmsg(scrollback, (MessageParams){1, SPACE, NULL, get_command_label((CommandType)i)}, 0);
+    for (int i = 1; i < count - 1; i++) {
+
+        printmsg(scrollback, &(MessageParams){1, SPACE, NULL, get_command_label((Command*)(cmd +  i * size))}, 0);
     }
 
-    printmsg(scrollback, (MessageParams){1, SPACE, NULL, "For details type /help <command name>."}, 0);
+    printmsg(scrollback, &(MessageParams){1, NULL, NULL, NULL}, 0);
+    printmsg(scrollback, &(MessageParams){1, SPACE, NULL, "Type /help <command name> for usage details."}, 0);
 
     wrefresh(sb_get_window(scrollback));
-    // wrefresh(inputwin);
+
 }
 
 // display help on how to use a command
-void display_usage(Scrollback *scrollback, CommandType commandType, const char *usage) {
+void display_usage(Scrollback *scrollback, const Command *command) {
 
-    printmsg(scrollback, (MessageParams){1, NULL, NULL, NULL}, 0);
-    printmsg(scrollback, (MessageParams){1, " ** ", NULL, get_command_label(commandType)}, COLOR_SEP(CYAN) | A_STANDOUT);
-    printmsg(scrollback, (MessageParams){1, SPACE, NULL, usage}, 0);
+    printmsg(scrollback, &(MessageParams){1, NULL, NULL, NULL}, 0);
+    printmsg(scrollback, &(MessageParams){1, " ** ", "Command ", get_command_label(command)}, COLOR_SEP(CYAN) | ATTR_MSG(DIM));
+
+    char *description[MAX_TOKENS] = {NULL};
+    char *examples[MAX_TOKENS] = {NULL};
+
+    get_command_description(command, description, MAX_TOKENS);
+    get_command_examples(command, examples, MAX_TOKENS);
+
+    display_string_list(scrollback, description, MAX_TOKENS,"Description:");
+    display_string_list(scrollback, description, MAX_TOKENS, "Example(s):");
 
     wrefresh(sb_get_window(scrollback));
-    // wrefresh(inputwin);
 }
 
-// display info message
-void display_response(Scrollback *scrollback, const char *info, ...) {
+// display client response
+void display_response(Scrollback *scrollback, const char *response, ...) {
 
-    if (info == NULL) {
+    if (response == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
-    else if (strchr(info, '%') == NULL) {
+    else if (strchr(response, '%') == NULL) {
 
-        printmsg(scrollback, (MessageParams){1, NULL, NULL, NULL}, 0);
-        printmsg(scrollback, (MessageParams){1, " ** ", NULL, info}, COLOR_SEP(CYAN) | A_BOLD);
+        printmsg(scrollback, &(MessageParams){1, NULL, NULL, NULL}, 0);
+        printmsg(scrollback, &(MessageParams){1, " ** ", NULL, response}, COLOR_SEP(CYAN) | ATTR_MSG(BOLD));
 
     }
     else {
-        char infoWithArgs[MAX_CHARS] = {'\0'}; 
+        char responseWithArgs[MAX_CHARS] = {'\0'}; 
        
         va_list arglist;
-        va_start(arglist, info);
-        vsnprintf(infoWithArgs, MAX_CHARS, info, arglist);
+        va_start(arglist, response);
+        vsnprintf(responseWithArgs, MAX_CHARS, response, arglist);
         va_end(arglist);
 
-        printmsg(scrollback, (MessageParams){1, NULL, NULL, NULL}, 0);
-        printmsg(scrollback, (MessageParams){1, " ** ", NULL, infoWithArgs}, COLOR_SEP(CYAN) | A_BOLD);
+        printmsg(scrollback, &(MessageParams){1, NULL, NULL, NULL}, 0);
+        printmsg(scrollback, &(MessageParams){1, " ** ", NULL, responseWithArgs}, COLOR_SEP(CYAN) | ATTR_MSG(BOLD));
 
     }
 
     wrefresh(sb_get_window(scrollback));
-    // wrefresh(inputwin);
 }
 
 // display status info (status window)
@@ -412,6 +439,7 @@ void display_status(WindowManager *windowManager, const char *status, ...) {
         va_start(arglist, status);
         vsnprintf(statusWithArgs, MAX_CHARS, status, arglist);
         va_end(arglist);
+
         wattron(windowManager->statuswin, COLOR_PAIR(CYAN_REV));
         mvwaddstr(windowManager->statuswin, 0, 1, statusWithArgs);
         wattroff(windowManager->statuswin, COLOR_PAIR(CYAN_REV));
@@ -424,7 +452,8 @@ void display_status(WindowManager *windowManager, const char *status, ...) {
 // display settings
 void display_settings(Scrollback *scrollback, Settings *settings) {
 
-    printmsg(scrollback, (MessageParams){1, " ** ", NULL, "Active settings: "}, COLOR_SEP(CYAN));
+    printmsg(scrollback, &(MessageParams){1, NULL, NULL, NULL}, 0);
+    printmsg(scrollback, &(MessageParams){1, " ** ", NULL, "Assigned settings: "}, COLOR_SEP(CYAN));
 
     char propertyValue[MAX_CHARS + 1];
 
@@ -437,12 +466,9 @@ void display_settings(Scrollback *scrollback, Settings *settings) {
 
             strcat(propertyValue, get_property_value(settings, (PropertyType)i)); 
 
-            printmsg(scrollback, (MessageParams){1, SPACE, get_property_type_string((PropertyType)i), propertyValue}, 0);
+            printmsg(scrollback, &(MessageParams){1, SPACE, property_type_to_string((PropertyType)i), propertyValue}, ATTR_MSG(DIM));
         }
     }
-    
-    printmsg(scrollback, (MessageParams){1, SPACE, NULL, "Change nickname with /nick"}, 0);
-    printmsg(scrollback, (MessageParams){1, SPACE, NULL, "Change username, hostname and real name with /user"}, 0);
 }
 
 // adjust display when resizing window
@@ -468,6 +494,20 @@ void handle_resize(WindowManager *windowManager, Scrollback *scrollback) {
     // lnEditor->window = inputwin;
     draw_window_borders(windowManager);
     restore_from_scrollback(scrollback);
+}
+
+STATIC void display_string_list(Scrollback *scrollback, char **stringList, int size, const char *title) {
+
+    int i = 0;
+
+    while (i < size && stringList[i] != NULL) {
+
+        if (i == 0) {
+            printmsg(scrollback, &(MessageParams){1, SPACE, NULL, title}, 0);
+        }
+        printmsg(scrollback, &(MessageParams){1, SPACE_2, NULL, stringList[i]}, 0);
+        i++;
+    }
 }
 
 

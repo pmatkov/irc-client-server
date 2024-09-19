@@ -1,17 +1,21 @@
- #ifndef USER_H
+#ifndef USER_H
 #define USER_H
 
+#define MAX_CHANNELS_PER_USER 5
+
 typedef struct User User;
-typedef struct UsersTable UsersTable;
 
-UsersTable * create_users_table(int size);
-void delete_users_table(UsersTable *usersTable);
+User * create_user(const char *nickname, const char *username, const char *hostname, const char *realname, int fd);
+void delete_user(void *user);
 
-char * user_get_nickname(User *user);
-int user_set_nickname(UsersTable *usersTable, User *user, char *nickname);
+void add_message_to_user_queue(User *user, void *message);
 
-int insert_user(UsersTable *usersTable, int socketFd, char *nickname);
-int remove_user(UsersTable *usersTable, char *nickname);
-User * lookup_user(UsersTable *usersTable, char *nickname);
+void set_user_data(User *user, const char *username, const char *hostname, const char *realname);
+int are_users_equal(void *user1, void *user2);
+
+const char * get_user_nickname(User *user);
+const char * get_username(User *user);
+const char * get_hostname(User *user);
+const char * get_realname(User *user);
 
 #endif

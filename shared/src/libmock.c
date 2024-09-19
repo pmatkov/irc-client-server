@@ -2,7 +2,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <ncursesw/curses.h>
 
 #define MAX_CHARS 512
 
@@ -50,5 +49,3 @@ int mock_close(int fd) {
     }
     return 0;
 }
-
-

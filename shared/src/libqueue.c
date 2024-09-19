@@ -1,14 +1,14 @@
 #ifdef TEST
-#include "test_queue.h"
+#include "priv_queue.h"
 #else
 #include "queue.h"
 #endif
 
+#include "string_utils.h"
 #include "error_control.h"
 #include "logger.h"
 
 #include <stdlib.h>
-#include <stddef.h>
 #include <string.h>
 
 #ifdef TEST
@@ -19,223 +19,156 @@
 
 #ifndef TEST
 
-struct MessageQueue {
-    void *messages;
-    DataType dataType; 
+struct Queue {
+    void *items;
     size_t itemSize;
-    int head;
-    int tail;
-    int searchIndex;
-    int allocatedSize;
-    int usedSize;
+    int front;
+    int rear;
+    int currentItem;
+    int capacity;
+    int count;
 };
 
 #endif
 
-STATIC int is_valid_data_type(DataType dataType);
-STATIC size_t get_type_size(DataType dataType);
+Queue * create_queue(int capacity, size_t itemSize) {
 
-STATIC int is_valid_data_type(DataType dataType) {
-
-    return dataType >= 0 && dataType < DATA_TYPE_COUNT;
-}
-
-STATIC size_t get_type_size(DataType dataType) {
-
-    if (!is_valid_data_type(dataType)) {
-        FAILED("Invalid data type", NO_ERRCODE);
-    }
-    
-    if (dataType == REGULAR_MSG) {
-        return sizeof(RegMessage);
-    }
-    else if (dataType == EXTENDED_MSG) {
-        return sizeof(ExtMessage);
-    }
-
-    return 0;
-}
-
-MessageQueue * create_message_queue(DataType dataType, int allocationSize) {
-
-    if (!is_valid_data_type(dataType)) {
-        FAILED("Invalid data type", NO_ERRCODE);
-    }
-
-    MessageQueue *messageQueue = (MessageQueue*) malloc(sizeof(MessageQueue));
-    if (messageQueue == NULL) {
+    Queue *queue = (Queue*) malloc(sizeof(Queue));
+    if (queue == NULL) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    messageQueue->messages = (void*) calloc(allocationSize, get_type_size(dataType));
-    if (messageQueue->messages == NULL) {
+    queue->items = (void*) malloc(capacity * itemSize);
+    if (queue->items == NULL) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    messageQueue->dataType = dataType;
-    messageQueue->itemSize = get_type_size(dataType);
-    messageQueue->head = 0;
-    messageQueue->tail = 0;
-    messageQueue->searchIndex = 0;
-    messageQueue->allocatedSize = allocationSize;
-    messageQueue->usedSize = 0; 
+    queue->itemSize = itemSize;
+    queue->front = 0;
+    queue->rear = 0;
+    queue->currentItem = 0;
+    queue->capacity = capacity;
+    queue->count = 0;
 
-    return messageQueue;
+    return queue;
 }
 
-void delete_message_queue(MessageQueue *messageQueue) {
+void delete_queue(Queue *queue) {
 
-    if (messageQueue != NULL) {
-        free(messageQueue->messages);
+    if (queue != NULL) {
+        free(queue->items);
     }
-    free(messageQueue); 
+    free(queue); 
 }
 
-int mq_is_empty(MessageQueue *messageQueue) {
+int is_queue_empty(Queue *queue) {
 
-    if (messageQueue == NULL) {
+    if (queue == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    return messageQueue->usedSize == 0;
+    return queue->count == 0;
 }
 
-int mq_is_full(MessageQueue *messageQueue) {
+int is_queue_full(Queue *queue) {
 
-    if (messageQueue == NULL) {
+    if (queue == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    return messageQueue->usedSize == messageQueue->allocatedSize;
+    return queue->count == queue->capacity;
 }
 
-void set_char_in_message(void *message, char ch, int index) {
-    
-    if (strlen(((RegMessage*)message)->content) < MAX_MSG) {
+void enqueue(Queue *queue, void *item) {
 
-        ((RegMessage*)message)->content[index] = ch;
-    }
-}
-
-char get_char_from_message(void *message, int index) {
-    
-    char ch = '\0';
-
-    if (index < strlen(((RegMessage*)message)->content)) {
-        ch = ((RegMessage*)message)->content[index];
-    }
-
-    return ch;
-}
-
-int set_reg_message(void *message, const char *content) {
-
-    if (message == NULL || content == NULL) {
-        FAILED("Invalid data type", ARG_ERROR);
-    }
-
-    if (strnlen(content, MAX_MSG + 1) == MAX_MSG + 1) {
-        return 0;
-    }
-
-    strcpy(((RegMessage*)message)->content, content);
-
-    return 1;
-}
-
-int set_ext_message(void *message, const char *sender, const char *recipient, const char *content) {
-
-    if (message == NULL || sender == NULL || recipient == NULL || content == NULL) {
+    if (queue == NULL || item == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    if (strnlen(sender, MAX_NICKNAME + 1) == MAX_NICKNAME + 1\
-        || strnlen(recipient, MAX_CHANNEL + 1) == MAX_CHANNEL + 1\
-        || strnlen(content, MAX_MSG + 1) == MAX_MSG + 1) {
-            return 0;
-    }
-    strcpy(((ExtMessage*)message)->sender, sender);
-    strcpy(((ExtMessage*)message)->recipient, recipient);
-    strcpy(((ExtMessage*)message)->content, content);
+    unsigned char *target = (unsigned char *)queue->items + queue->rear * queue->itemSize;
 
-    return 1;
-}
+    memcpy(target, item, queue->itemSize);
 
-char *get_message_content(void *message) {
-
-    if (message == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    return ((RegMessage*)message)->content;
-}
-
-void enqueue(MessageQueue *messageQueue, void *message) {
-
-    if (messageQueue == NULL || message == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    unsigned char *target = (unsigned char *)messageQueue->messages + messageQueue->tail * messageQueue->itemSize;
-
-    memcpy(target, message, messageQueue->itemSize);
-
-    if (mq_is_full(messageQueue)) {
-        messageQueue->head = (messageQueue->head + 1) % messageQueue->allocatedSize;
+    if (is_queue_full(queue)) {
+        queue->front = (queue->front + 1) % queue->capacity;
 
     }
     else {
-        messageQueue->usedSize++;
+        queue->count++;
     }
 
-    messageQueue->tail = (messageQueue->tail + 1) % messageQueue->allocatedSize;
-    messageQueue->searchIndex = messageQueue->tail;
+    queue->rear = (queue->rear + 1) % queue->capacity;
+    queue->currentItem = queue->rear;
 
 }
 
-void *dequeue(MessageQueue *messageQueue) {
+void * dequeue(Queue *queue) {
 
-    if (messageQueue == NULL) {
+    if (queue == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    if (mq_is_empty(messageQueue)) {
-        return NULL;
+    unsigned char *message = NULL;
+
+    if (!is_queue_empty(queue)) {
+
+        message = (unsigned char *)queue->items + queue->front * queue->itemSize;
+
+        queue->front = (queue->front + 1) % queue->capacity;
+        queue->count--;
     }
-
-    unsigned char *message = (unsigned char *)messageQueue->messages + messageQueue->head * messageQueue->itemSize;
-
-    messageQueue->head = (messageQueue->head + 1) % messageQueue->allocatedSize;
-    messageQueue->usedSize--;
 
     return message;
 
 }
 
-void *get_message(MessageQueue *messageQueue, int direction) {
+void * get_previous_item(Queue *queue) {
 
-    if (messageQueue == NULL) {
+    if (queue == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
     unsigned char *message;
 
-    if (direction < 0 && messageQueue->searchIndex == messageQueue->tail) {
-        message = NULL;
-    }
-    else if (direction > 0 && messageQueue->searchIndex == messageQueue->head) {
+    if (queue->currentItem == queue->front) {
         message = NULL;
     }
     else {
-        if (direction < 0) {
-            messageQueue->searchIndex = (messageQueue->searchIndex + 1) % messageQueue->allocatedSize;
-        }
-        else if (direction > 0) {
-            messageQueue->searchIndex = (messageQueue->searchIndex - 1) % messageQueue->allocatedSize;
-        }
-        message = (unsigned char *)messageQueue->messages + messageQueue->searchIndex * messageQueue->itemSize;
+
+        queue->currentItem = (queue->currentItem - 1) % queue->capacity;
+  
+        message = (unsigned char *)queue->items + queue->currentItem * queue->itemSize;
     }
 
     return message;
+}
 
+void * get_next_item(Queue *queue) {
+
+    if (queue == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    unsigned char *item;
+
+    if (queue->currentItem == queue->rear) {
+        item = NULL;
+    }
+    else {
+
+        queue->currentItem = (queue->currentItem + 1) % queue->capacity;
+
+        item = (unsigned char *)queue->items + queue->currentItem * queue->itemSize;
+    }
+
+    return item;
+}
+
+void * get_current_item(Queue *queue) {
+
+    if (queue == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return (unsigned char *)queue->items + queue->currentItem * queue->itemSize;
 }

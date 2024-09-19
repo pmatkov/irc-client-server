@@ -11,14 +11,14 @@ END_TEST
 
 START_TEST(test_failed1) {
 
-    failed("Error test 1", NO_ERRCODE, __func__, __FILE__, __LINE__);
+    failed("Error test [1]", NO_ERRCODE, __func__, __FILE__, __LINE__);
 
 }
 END_TEST
 
 START_TEST(test_failed2) {
 
-    failed("Error test %d", NO_ERRCODE, __func__, __FILE__, __LINE__, 2);
+    failed("Error test [%d]", NO_ERRCODE, __func__, __FILE__, __LINE__, 2);
     failed(NULL, ARG_ERROR, __func__, __FILE__, __LINE__);
 }
 END_TEST

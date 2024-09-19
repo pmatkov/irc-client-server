@@ -1,2 +1,2 @@
-obj/libqueue.o: src/libqueue.c src/queue.h src/error_control.h \
- src/logger.h
+obj/libqueue.o: src/libqueue.c src/queue.h src/string_utils.h \
+ src/error_control.h src/logger.h

@@ -1,13 +1,12 @@
-#include "../src/test_logger.h"
+#include "../src/priv_logger.h"
 
 #include <check.h>
-#include <stdlib.h>
 
 #define MAX_LINES 25
 
 START_TEST(test_create_logger) {
 
-    Logger *logger = create_logger(NULL, "test");
+    Logger *logger = create_logger(NULL, "test", DEBUG);
 
     ck_assert_ptr_ne(logger, NULL);
     ck_assert_int_eq(logger->allocatedLines, MAX_LINES);
@@ -26,18 +25,9 @@ START_TEST(test_open_log_file) {
 }
 END_TEST
 
-START_TEST(test_is_dir) {
-
-    int status = is_dir("log");
-
-    ck_assert_int_eq(status, 1);
-
-}
-END_TEST
-
 START_TEST(test_log_message) {
 
-    Logger *logger = create_logger(NULL, "test");
+    Logger *logger = create_logger(NULL, "test", DEBUG);
 
     ck_assert_ptr_ne(logger, NULL);
 
@@ -53,7 +43,7 @@ END_TEST
 
 START_TEST(test_log_error) {
 
-    Logger *logger = create_logger(NULL, "test");
+    Logger *logger = create_logger(NULL, "test", DEBUG);
 
     ck_assert_ptr_ne(logger, NULL);
 
@@ -66,19 +56,9 @@ START_TEST(test_log_error) {
 }
 END_TEST
 
-START_TEST(test_get_log_level_string) {
-
-    Logger *logger = create_logger(NULL, "test");
-
-    ck_assert_str_eq(get_log_level_string(INFO), "Info");
-
-    delete_logger(logger);
-}
-END_TEST
-
 START_TEST(test_set_stdout_allowed) {
 
-    Logger *logger = create_logger(NULL, "test");
+    Logger *logger = create_logger(NULL, "test", DEBUG);
 
     set_stdout_allowed(1);
 
@@ -88,6 +68,13 @@ START_TEST(test_set_stdout_allowed) {
 }
 END_TEST
 
+START_TEST(test_is_valid_log_level) {
+
+    ck_assert_int_eq(is_valid_log_level(DEBUG), 1);
+    ck_assert_int_eq(is_valid_log_level(10), 0);
+    
+}
+END_TEST
 
 Suite* logger_suite(void) {
     Suite *s;
@@ -99,11 +86,10 @@ Suite* logger_suite(void) {
     // Add the test case to the test suite
     tcase_add_test(tc_core, test_create_logger);
     tcase_add_test(tc_core, test_open_log_file);
-    tcase_add_test(tc_core, test_is_dir);
     tcase_add_test(tc_core, test_log_message);
     tcase_add_test(tc_core, test_log_error);
-    tcase_add_test(tc_core, test_get_log_level_string);
     tcase_add_test(tc_core, test_set_stdout_allowed);
+    tcase_add_test(tc_core, test_is_valid_log_level);
 
     suite_add_tcase(s, tc_core);
 

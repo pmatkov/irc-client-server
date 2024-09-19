@@ -1,5 +1,5 @@
-#include "../src/test_scrollback.h"
-#include "../src/test_display.h"
+#include "../src/priv_scrollback.h"
+#include "../src/priv_display.h"
 #include "../../shared/src/mock.h"
 
 #include <check.h>
@@ -20,8 +20,8 @@ START_TEST(test_create_sb) {
     ck_assert_int_eq(sb->head, 0);
     ck_assert_int_eq(sb->tail, 0);
     ck_assert_int_eq(sb->currentLine, 0);
-    ck_assert_int_eq(sb->allocatedSize, 100);
-    ck_assert_int_eq(sb->usedSize, 0);
+    ck_assert_int_eq(sb->capacity, 100);
+    ck_assert_int_eq(sb->count, 0);
 
     delete_scrollback(sb);
 }
@@ -40,7 +40,7 @@ END_TEST
 START_TEST(test_sb_is_full) {
 
     Scrollback *sb = create_scrollback(NULL, 100);
-    sb->usedSize = 100;
+    sb->count = 100;
 
     ck_assert(sb_is_full(sb)); 
 
@@ -55,21 +55,21 @@ START_TEST(test_get_preceding_ln_count) {
     sb->tail = 0;
     sb->head = 5;
     sb->currentLine = 5;
-    sb->usedSize = 5;
+    sb->count = 5;
 
     ck_assert_int_eq(get_preceding_ln_count(sb), 5);
 
     sb->tail = 1;
     sb->head = 0;
     sb->currentLine = 0;
-    sb->usedSize = 100;
+    sb->count = 100;
 
     ck_assert_int_eq(get_preceding_ln_count(sb), 100);
 
     sb->tail = 5;
     sb->head = 4;
     sb->currentLine = 1;
-    sb->usedSize = 100;
+    sb->count = 100;
 
     ck_assert_int_eq(get_preceding_ln_count(sb), 97);
 
@@ -91,7 +91,7 @@ START_TEST(test_add_to_scrollback) {
     add_to_scrollback(sb, buffer, bufferPtr - buffer);
 
     ck_assert_int_eq(sb->head, 1);
-    ck_assert_int_eq(sb->usedSize, 1);
+    ck_assert_int_eq(sb->count, 1);
 
     wchar_t wstring[MAX_CHARS + 1] = {L'\0'};
 

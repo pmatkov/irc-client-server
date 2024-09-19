@@ -1,22 +1,54 @@
+#ifdef TEST
+#include "priv_line_editor.h"
+#else
 #include "line_editor.h"
-#include "command_processor.h"
-#include "../../shared/src/queue.h"
-#include "../../shared/src/parser.h"
+#include "../../shared/src/priv_message.h"
+#endif
+
+#include "display.h"
+#include "../../shared/src/string_utils.h"
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
 
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef TEST
+#define STATIC
+#else
+#define STATIC static
+#endif
+
 #define MAX_CHARS 512
-#define DEF_ARGS 4
 #define MSG_HISTORY 10
+
+STATIC void display_command_text(LineEditor *lnEditor, RegMessage *msg);
+
+#ifndef TEST
+
+struct LnEditorCmd {
+    int keyCode;
+    LnEditorFunc lnEditorFunc;
+};
 
 struct LineEditor {
     WINDOW *window;
-    MessageQueue *buffer;
+    Queue *buffer;
     int cursor;
     int charCount;
+};
+
+#endif
+
+static const LnEditorCmd lnEditorCmd[] = {
+    {KEY_LEFT, move_cursor_left},
+    {KEY_RIGHT, move_cursor_right},
+    {KEY_UP, display_previous_command},
+    {KEY_DOWN, display_next_command},
+    {KEY_BACKSPACE, use_backspace},
+    {KEY_DC, use_delete},
+    {KEY_HOME, use_home},
+    {KEY_END, use_end}
 };
 
 // line editor stores user input to enable line editing
@@ -27,7 +59,7 @@ LineEditor * create_line_editor(WINDOW *window) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    lnEditor->buffer = create_message_queue(REGULAR_MSG, MSG_HISTORY);
+    lnEditor->buffer = create_queue(MSG_HISTORY, sizeof(RegMessage));
     lnEditor->window = window;
     lnEditor->cursor = PROMPT_SIZE;
     lnEditor->charCount = 0;
@@ -38,19 +70,9 @@ LineEditor * create_line_editor(WINDOW *window) {
 void delete_line_editor(LineEditor *lnEditor) {
 
     if (lnEditor != NULL) {
-        delete_message_queue(lnEditor->buffer);
+        delete_queue(lnEditor->buffer);
     }
     free(lnEditor);
-}
-
-MessageQueue * get_message_queue(LineEditor *lnEditor) {
-
-    if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-    
-    return lnEditor->buffer;
-
 }
 
 void move_cursor_left(LineEditor *lnEditor) {
@@ -83,8 +105,8 @@ void delete_char(LineEditor *lnEditor) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    RegMessage *regMessage = get_message(lnEditor->buffer, 0);
-    set_char_in_message(regMessage, '\0', lnEditor->cursor-PROMPT_SIZE);
+    RegMessage *regMessage = get_current_item(lnEditor->buffer);
+    set_char_in_message(regMessage, '\0', lnEditor->cursor-PROMPT_SIZE, get_reg_message_content);
     --lnEditor->charCount;
 }
 
@@ -105,15 +127,15 @@ void add_char(LineEditor *lnEditor, char ch) {
             char shiftCh = mvwinch(lnEditor->window, 0, i-1);
             mvwaddch(lnEditor->window, 0, i, shiftCh);
 
-            RegMessage *regMessage = get_message(lnEditor->buffer, 0);
-            char ch = get_char_from_message(regMessage, i-PROMPT_SIZE-1);
-            set_char_in_message(regMessage, ch, i-PROMPT_SIZE);
+            RegMessage *regMessage = get_current_item(lnEditor->buffer);
+            char ch = get_char_from_message(regMessage, i-PROMPT_SIZE-1, get_reg_message_content);
+            set_char_in_message(regMessage, ch, i-PROMPT_SIZE, get_reg_message_content);
 
         }
         mvwaddch(lnEditor->window, 0, lnEditor->cursor, ch);  
 
-        RegMessage *regMessage = get_message(lnEditor->buffer, 0);
-        set_char_in_message(regMessage, ch, lnEditor->cursor-PROMPT_SIZE);
+        RegMessage *regMessage = get_current_item(lnEditor->buffer);
+        set_char_in_message(regMessage, ch, lnEditor->cursor-PROMPT_SIZE, get_reg_message_content);
 
         lnEditor->charCount++;        
         lnEditor->cursor++;  
@@ -167,72 +189,114 @@ void use_end(LineEditor *lnEditor) {
     wmove(lnEditor->window, 0, lnEditor->charCount + PROMPT_SIZE);
 }
 
-void display_command_history(LineEditor *lnEditor, int direction) {
+void display_previous_command(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    RegMessage *msg = get_message(lnEditor->buffer, direction);
+    RegMessage *msg = get_previous_item(lnEditor->buffer);
+    display_command_text(lnEditor, msg);
 
-    if (msg == NULL) {
-        return;
-    }
-
-    char *content = get_message_content(msg);
-
-    delete_part_line(lnEditor->window, PROMPT_SIZE);
-    mvwprintw(lnEditor->window, 0, PROMPT_SIZE, content);
-    
-    lnEditor->charCount = strlen(content);
-    lnEditor->cursor = PROMPT_SIZE + strlen(content);
-    wrefresh(lnEditor->window);
 }
 
-// parse command line input
-void parse_input(LineEditor *lnEditor, Scrollback *scrollback, Settings *settings, Session *session) {
+void display_next_command(LineEditor *lnEditor) {
 
-    if (lnEditor == NULL || session == NULL) {
+    if (lnEditor == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    if (lnEditor->charCount <= 0 && lnEditor->charCount > MAX_CHARS) {
-        return;
+    RegMessage *msg = get_next_item(lnEditor->buffer);
+    display_command_text(lnEditor, msg);
+}
+
+LnEditorFunc use_line_editor_func(int index) {
+
+    return lnEditorCmd[index].lnEditorFunc;
+}
+
+int get_le_func_index(int keyCode) {
+
+    int cmdIndex = -1;
+
+    for (int i = 0; i < sizeof(lnEditorCmd)/ sizeof(lnEditorCmd[0]) && cmdIndex == -1; i++) {
+
+        if (lnEditorCmd[i].keyCode == keyCode) {
+            cmdIndex = i;
+        }
+    }
+    return cmdIndex;
+}
+
+STATIC void display_command_text(LineEditor *lnEditor, RegMessage *msg) {
+
+    if (lnEditor == NULL) {
+        FAILED(NULL, ARG_ERROR);
     }
 
-    RegMessage *msg = get_message(lnEditor->buffer, 0);
-    set_char_in_message(msg, '\0', lnEditor->charCount);
+    if (msg != NULL) {
 
-    char *input = get_message_content(msg);
+        char *content = get_reg_message_content(msg);
 
-    if (has_command_prefix(input)) {
-
-        // split input to tokens
-        char *inputCopy = strdup(input);
-        char *tokens[DEF_ARGS] = {NULL};
-
-        int tkCount = split_input_string(inputCopy, tokens, DEF_ARGS, ' ');
-
-        CommandType commandType = string_to_command_type(tokens[0]);
-  
-        get_command_function(commandType)(scrollback, settings, session, tokens, tkCount);
-
-        free(inputCopy);
+        delete_part_line(lnEditor->window, PROMPT_SIZE);
+        mvwprintw(lnEditor->window, 0, PROMPT_SIZE, content);
+        
+        lnEditor->charCount = strlen(content);
+        lnEditor->cursor = PROMPT_SIZE + strlen(content);
+        wrefresh(lnEditor->window);
     }
-    else if (session_is_inchannel(session)) {
+}
 
-         get_command_function(MSG)(scrollback, settings, session, &input, 1);
+WINDOW * le_get_window(LineEditor *lnEditor) {
+
+    if (lnEditor == NULL) {
+        FAILED(NULL, ARG_ERROR);
     }
 
-    delete_part_line(lnEditor->window, PROMPT_SIZE);
+    return lnEditor->window;
+}
 
-    lnEditor->charCount = 0;
-    lnEditor->cursor = PROMPT_SIZE;
+Queue * le_get_buffer(LineEditor *lnEditor) {
+    
+    if (lnEditor == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
 
-    wrefresh(lnEditor->window);
+    return lnEditor->buffer;
+}
 
-    RegMessage newMsg;
-    set_reg_message(&newMsg, input);
-    enqueue(lnEditor->buffer, &newMsg);
+int le_get_char_count(LineEditor *lnEditor) {
+    
+    if (lnEditor == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
 
+    return lnEditor->charCount;
+}
+
+void le_set_char_count(LineEditor *lnEditor, int charCount) {
+
+    if (lnEditor == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    lnEditor->charCount = charCount;
+}
+
+int le_get_cursor(LineEditor *lnEditor) {
+    
+    if (lnEditor == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return lnEditor->cursor;
+}
+
+void le_set_cursor(LineEditor *lnEditor, int cursor) {
+    
+    if (lnEditor == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    lnEditor->cursor = cursor;
 }

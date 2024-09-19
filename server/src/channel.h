@@ -1,27 +1,24 @@
 #ifndef CHANNEL_H
 #define CHANNEL_H
 
-#include "../../shared/src/queue.h"
-#include "user.h"
+#define MAX_USERS_PER_CHANNEL 100
 
 typedef enum {
-    PERSISTENT,
+    PERMANENT,
     TEMPORARY,
     CHANNEL_TYPE_COUNT
 } ChannelType;
 
 typedef struct Channel Channel;
-typedef struct ChannelList ChannelList;
 
-ChannelList * create_channel_list(void);
-void delete_channel_list(ChannelList *channelList);
+Channel * create_channel(const char *channelName, ChannelType channelType, int capacity);
+void delete_channel(void *channel);
 
-Channel * add_channel(ChannelList *channelList, char *name,     ChannelType channelType);
-int remove_channel(ChannelList *channelList, char *name);
-Channel *lookup_channel(ChannelList *channelList, char *name);
+void add_message_to_channel(void *channel, void *content);
 
-int add_user_to_channel(Channel *channel, User *user);
-int remove_user_from_channel(Channel *channel, char *nickname);
-User * lookup_user_in_channel(Channel *channel, char *nickname);
+int are_channels_equal(void *channel1, void *channel2);
+
+ChannelType get_channel_type(Channel *channel);
+const char *get_channel_name(Channel *channel);
 
 #endif

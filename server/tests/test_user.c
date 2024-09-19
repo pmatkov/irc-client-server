@@ -1,147 +1,61 @@
-#include "../src/test_user.h"
+#include "../src/priv_user.h"
+#include "../../shared/src/priv_queue.h"
+#include "../../shared/src/priv_message.h"
 
 #include <check.h>
 
-START_TEST(test_create_users_table) {
-
-    UsersTable *usersTable = create_users_table(5);
-
-    ck_assert_ptr_ne(usersTable, NULL);
-    ck_assert_int_eq(usersTable->allocatedSize, 5);
-    ck_assert_int_eq(usersTable->usedSize, 0);
-    ck_assert_int_eq(usersTable->addedLinks, 0);
-
-    delete_users_table(usersTable);
-}
-END_TEST
-
-START_TEST(test_user_get_nickname) {
-
-    UsersTable *usersTable = create_users_table(5);
-
-    User *user = create_user(usersTable, -1, "john");
-
-    ck_assert_ptr_ne(user, NULL);
-    ck_assert_str_eq(user_get_nickname(user), "john");
-
-    delete_users_table(usersTable);
-}
-END_TEST
-
-START_TEST(test_user_set_nickname) {
-
-    UsersTable *usersTable = create_users_table(5);
-
-    User *user = create_user(usersTable, -1, "john");
-
-    user_set_nickname(usersTable, user, "mark");
-
-    ck_assert_ptr_ne(user, NULL);
-    ck_assert_str_eq(user_get_nickname(user), "mark");
-
-    delete_users_table(usersTable);
-}
-END_TEST
+#define MAX_QUEUE_LEN 20
 
 START_TEST(test_create_user) {
 
-    UsersTable *usersTable = create_users_table(5);
-    
-    ck_assert_ptr_ne(usersTable, NULL);
-
-    User *user = create_user(usersTable, -1, NULL);
+    User *user = create_user("john", NULL, NULL, NULL, 0);
 
     ck_assert_ptr_ne(user, NULL);
-    ck_assert_ptr_ne(user->messageQueue, NULL);
-    ck_assert_int_eq(user->socketFd, -1);
-    ck_assert_str_eq(user->nickname, "user_1");
-
-    user = create_user(usersTable, 2, "john");
-
-    ck_assert_ptr_ne(user, NULL);
-    ck_assert_ptr_ne(user->messageQueue, NULL);
-    ck_assert_int_eq(user->socketFd, 2);
     ck_assert_str_eq(user->nickname, "john");
+    ck_assert_str_eq(user->username, "");
+    ck_assert_int_eq(user->fd, 0);
+    ck_assert_ptr_ne(user->outQueue, NULL);
 
-    delete_users_table(usersTable);
     delete_user(user);
 }
 END_TEST
 
-START_TEST(test_remove_user) {
+START_TEST(test_add_message_to_user_queue) {
 
-    UsersTable *usersTable = create_users_table(5);
+    User *user = create_user("john", NULL, NULL, NULL, 0);
 
-    ck_assert_ptr_ne(usersTable, NULL);
+    add_message_to_user_queue(user, &(RegMessage){"message"});
 
-    insert_user(usersTable, 2, "john1");
-    insert_user(usersTable, 3, NULL);
+    ck_assert_int_eq(user->outQueue->capacity, MAX_QUEUE_LEN);
+    ck_assert_int_eq(user->outQueue->count, 1);
 
-    ck_assert_int_eq(usersTable->usedSize, 2);
-
-    int removed = remove_user(usersTable, "john3");
-    ck_assert_int_eq(removed, 0);
-
-    removed = remove_user(usersTable, "john1");
-    ck_assert_int_eq(removed, 1);
-
-    removed = remove_user(usersTable, "user_2");
-    ck_assert_int_eq(removed, 1);
-
-    ck_assert_int_eq(usersTable->usedSize, 0);
-
-    delete_users_table(usersTable);
+    delete_user(user);
 }
 END_TEST
 
-START_TEST(test_insert_user) {
+START_TEST(test_set_user_data) {
 
-    UsersTable *usersTable = create_users_table(5);
+    User *user = create_user("john", NULL, NULL, NULL, 0);
+    set_user_data(user, "jjones", "irc.client.com", "john jones");
 
-    ck_assert_ptr_ne(usersTable, NULL);
+    ck_assert_str_eq(user->username, "jjones");
+    ck_assert_str_eq(user->hostname, "irc.client.com");
+    ck_assert_str_eq(user->realname, "john jones");
 
-    int inserted = insert_user(usersTable, 2, "john1");
-
-    ck_assert_int_eq(inserted, 1);
-    ck_assert_int_eq(usersTable->usedSize, 1);
-
-    User *user = lookup_user(usersTable, "john1");
-    ck_assert_ptr_ne(user, NULL);
-    ck_assert_str_eq(user->nickname, "john1");
-
-    delete_users_table(usersTable);
+    delete_user(user);
 }
 END_TEST
 
-START_TEST(test_lookup_user) {
+START_TEST(test_are_users_equal) {
 
-    UsersTable *usersTable = create_users_table(5);
+    User *user1 = create_user("john", "marotti", NULL, NULL, 0);
+    User *user2 = create_user("john", "jones", NULL, NULL, 0);
 
-    User *user = lookup_user(usersTable, "john");
-    ck_assert_ptr_eq(user, NULL);
+    int equal = are_users_equal(user1, user2);
+    ck_assert_int_eq(equal, 0);
 
-    int inserted = insert_user(usersTable, 2, "john");
-
-    ck_assert_int_eq(inserted, 1);
-    ck_assert_int_eq(usersTable->usedSize, 1);
-
-    user = lookup_user(usersTable, "john");
-    ck_assert_ptr_ne(user, NULL);
-    ck_assert_str_eq(user->nickname, "john");
-
-    delete_users_table(usersTable);
-}
-END_TEST
-
-
-START_TEST(test_calculate_hash) {
-
-    unsigned hash1 = calculate_hash("user1");
-    unsigned hash2 = calculate_hash("user1");
-    unsigned hash3 = calculate_hash("user2");
-
-    ck_assert_int_eq(hash1, hash2);
-    ck_assert_int_ne(hash1, hash3);
+    delete_user(user1);
+    delete_user(user2);
 }
 END_TEST
 
@@ -153,15 +67,11 @@ Suite* user_suite(void) {
     tc_core = tcase_create("Core");
 
     // Add the test case to the test suite
-    tcase_add_test(tc_core, test_create_users_table);
-    tcase_add_test(tc_core, test_user_get_nickname);
-    tcase_add_test(tc_core, test_user_set_nickname);
     tcase_add_test(tc_core, test_create_user);
-    tcase_add_test(tc_core, test_remove_user);
-    tcase_add_test(tc_core, test_insert_user);
-    tcase_add_test(tc_core, test_lookup_user);
-    tcase_add_test(tc_core, test_calculate_hash);
-
+    tcase_add_test(tc_core, test_add_message_to_user_queue);
+    tcase_add_test(tc_core, test_set_user_data);
+    tcase_add_test(tc_core, test_are_users_equal);
+    
     suite_add_tcase(s, tc_core);
 
     return s;
