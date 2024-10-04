@@ -28,5 +28,6 @@ void start_timer(Timer *timer);
 void stop_timer(Timer *timer);
 void reset_timer(Timer *timer);
 int get_elapsed_time(Timer *timer);
+int is_timer_active(Timer *timer);
 
 #endif

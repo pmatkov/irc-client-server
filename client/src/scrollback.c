@@ -5,13 +5,13 @@
 #endif
 
 #include "display.h"
+#include "../../shared/src/string_utils.h"
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
 
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_CHARS 512
 #define DEFAULT_SB_MULTIPLIER 5
 
 #define KEY_CTRLUP 1
@@ -21,7 +21,7 @@
 
 struct ScrollbackCmd {
     int keyCode;
-    ScrollbackFunc scrollbackFunc;
+    ScrollbackFunction scrollbackFunc;
 };
 
 struct Scrollback {
@@ -289,7 +289,7 @@ void scroll_page_down(Scrollback *scrollback) {
     }
 }
 
-ScrollbackFunc use_scrollback_func(int index) {
+ScrollbackFunction get_scrollback_function(int index) {
 
     return scrollbackCmd[index].scrollbackFunc;
 }

@@ -3,7 +3,6 @@
 
 #define NCURSES_WIDECHAR 1
 
-#include "settings.h"
 #include "priv_scrollback.h"
 #include "../../shared/src/priv_command.h"
 
@@ -84,8 +83,8 @@ WINDOW *get_inputwin(WindowManager *windowManager);
 MessageParams * create_message_params(int timestamp, const char *separator, const char *origin, const char *message);
 
 void set_windows_options(WindowManager *windowManager);
-void init_colors(Settings *settings);
-void create_layout(WindowManager *windowManager, Scrollback *scrollback, Settings *settings);
+void init_colors(void);
+void create_layout(WindowManager *windowManager, Scrollback *scrollback);
 void draw_window_borders(WindowManager *windowManager);
 
 void printmsg(Scrollback *scrollback, MessageParams *msgParams, uint32_t attr);
@@ -95,7 +94,7 @@ void display_commands(Scrollback *scrollback, const Command *commands, int count
 void display_usage(Scrollback *scrollback, const Command *command);
 void display_response(Scrollback *scrollback, const char *response, ...);
 void display_status(WindowManager *windowManager, const char *status, ...);
-void display_settings(Scrollback *scrollback, Settings *settings);
+void display_settings(Scrollback *scrollback);
 
 void handle_resize(WindowManager *windowManager, Scrollback *scrollback);
 

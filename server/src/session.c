@@ -27,7 +27,7 @@
 #define LOAD_FACTOR 2.0
 
 /* keeps track of all channels
- that a user has joined */
+ joined by a user*/
 struct UserChannels {
     User *user;
     LinkedList *channels;
@@ -43,12 +43,21 @@ struct ChannelUsers {
     int count;
 };
 
+/* keeps track of users and channnels
+  with messages to send */ 
+
+struct ReadyList {
+    LinkedList *readyUsers;
+    LinkedList *readyChannels;
+};
+ 
 /* keeps track of all users on the server, 
 all channels on the server, all channels
  a user has joined and all users in
  a channel */
 
 struct Session {
+    ReadyList *readyList;
     HashTable *users;
     HashTable *channels;
     LinkedList *userChannelsLL;
@@ -70,13 +79,12 @@ Session * create_session(void) {
     if (session == NULL) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
+    session->readyList = create_ready_list();
 
     session->users = create_hash_table(START_USERS, string_hash_function, are_strings_equal, NULL, delete_user);
-
     session->channels = create_hash_table(START_CHANNELS, string_hash_function, are_strings_equal, NULL, delete_channel);
 
     session->userChannelsLL = create_linked_list(are_user_channels_equal, delete_user_channels);
-
     session->channelUsersLL = create_linked_list(are_channel_users_equal, delete_channel_users);
 
     session->usersCapacity = MAX_USERS;
@@ -91,6 +99,7 @@ void delete_session(Session *session) {
 
     if (session != NULL) {
 
+        delete_ready_list(session->readyList);
         delete_hash_table(session->users);
         delete_hash_table(session->channels);
         delete_linked_list(session->userChannelsLL);
@@ -99,6 +108,7 @@ void delete_session(Session *session) {
 
     free(session);    
 }
+
 
 /* don't manually free user or channel after 
 adding them to <hash table>, they will be
@@ -201,13 +211,63 @@ Channel * find_channel_in_hash_table(Session *session, const char *name) {
 
 void change_user_in_hash_table(Session *session, User *oldUser, User *newUser) {
 
-    if (session == NULL || oldUser == NULL || newUser) {
+    if (session == NULL || oldUser == NULL || newUser == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
     remove_user_from_hash_table(session, oldUser);
     add_user_to_hash_table(session, newUser);
 
+}
+
+ReadyList * create_ready_list(void) {
+    
+    ReadyList *readyList = (ReadyList *) malloc(sizeof(ReadyList));
+    if (readyList == NULL) {
+        FAILED("Error allocating memory", NO_ERRCODE);
+    }
+
+    readyList->readyUsers = create_linked_list(are_users_equal, NULL);
+    readyList->readyChannels = create_linked_list(are_channels_equal, NULL);
+
+    return readyList;
+}
+
+void delete_ready_list(ReadyList *readyList) {
+
+    if (readyList != NULL) {
+
+        delete_linked_list(readyList->readyUsers);
+        delete_linked_list(readyList->readyChannels);
+    }
+
+    free(readyList);   
+}
+
+void add_user_to_ready_users(void *user, void *readyList) {
+
+    if (user == NULL || readyList == NULL ) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    if (!find_node(((ReadyList*)readyList)->readyUsers, user)) {
+
+        Node *node = create_node(user);
+        append_node(((ReadyList*)readyList)->readyUsers, node);
+    }
+}
+
+void add_channel_to_ready_channels(void *channel, void *readyList) {
+
+    if (channel == NULL || readyList == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    if (!find_node(((ReadyList*)readyList)->readyChannels, channel)) {
+
+        Node *node = create_node(channel);
+        append_node(((ReadyList*)readyList)->readyChannels, node);
+    }
 }
 
 UserChannels * create_user_channels(User *user) {
@@ -221,9 +281,8 @@ UserChannels * create_user_channels(User *user) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    userChannels->channels = create_linked_list(are_channels_equal, NULL);
-
     userChannels->user = user;
+    userChannels->channels = create_linked_list(are_channels_equal, NULL);
     userChannels->capacity = MAX_CHANNELS_PER_USER;
     userChannels->count = 0;
 
@@ -241,9 +300,8 @@ ChannelUsers * create_channel_users(Channel *channel) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    channelUsers->users = create_linked_list(are_users_equal, NULL);
-
     channelUsers->channel = channel;
+    channelUsers->users = create_linked_list(are_users_equal, NULL);
     channelUsers->capacity = MAX_USERS_PER_CHANNEL;
     channelUsers->count = 0;
 
@@ -270,10 +328,11 @@ STATIC void delete_channel_users(void *channelUsers) {
     free(channelUsers);
 }
 
-/* don't manually userChannels user or channelUsers 
-after adding them to <linked list>, they will be
- freed automatically when linked list is deleted 
- in delete_session() if DeleteDataFunc is passed to create_linked_list() */
+/* don't manually free userChannels user or 
+channelUsers after adding them to <linked list>, 
+they will be freed automatically when linked list 
+is deleted in delete_session() if DeleteDataFunc 
+is passed to create_linked_list() */
 
 void add_user_channels(Session *session, UserChannels *userChannels) {
 
@@ -379,7 +438,6 @@ int add_user_to_channel_users(ChannelUsers *channelUsers, User *user) {
     return added;
 }
 
-
 Channel * find_channel_in_user_channels(UserChannels *userChannels, Channel *channel) {
 
     if (userChannels == NULL || channel == NULL) {
@@ -413,6 +471,7 @@ void remove_channel_in_user_channels(UserChannels *userChannels, Channel *channe
     }
 
     remove_node(userChannels->channels, channel);
+    userChannels->count--;
 }
 
 void remove_user_in_channel_users(ChannelUsers *channelUsers, User *user) {
@@ -422,6 +481,7 @@ void remove_user_in_channel_users(ChannelUsers *channelUsers, User *user) {
     }
 
     remove_node(channelUsers->users, user);
+    channelUsers->count--;
 }
 
 void change_user_in_user_channels(UserChannels *userChannels, User *user) {
@@ -447,7 +507,7 @@ void change_user_in_channel_users(void *channelUsers, void *user) {
     }
 }
 
-void find_single_user_channels(void *channel, void *arg) {
+void find_removable_channels(void *channel, void *arg) {
 
     if (channel == NULL || arg == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -456,16 +516,26 @@ void find_single_user_channels(void *channel, void *arg) {
     struct {
         Session *session;
         Channel *channels[MAX_CHANNELS_PER_USER];
-        int index;
+        int count;
     } *data = arg;
 
     ChannelUsers *channelUsers = find_channel_users(data->session, channel);
 
     if (channelUsers != NULL && channelUsers->count == 1) {
 
-        data->channels[data->index++] = channel;
+        data->channels[data->count++] = channel;
     }
 }
+
+int is_channel_full(ChannelUsers *channelUsers) {
+
+    if (channelUsers == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return channelUsers->count == channelUsers->capacity;
+}
+
 
 int are_user_channels_equal(void *userChannels1, void *userChannels2) {
 
@@ -477,6 +547,33 @@ int are_user_channels_equal(void *userChannels1, void *userChannels2) {
     }
 
     return equal;
+}
+
+ReadyList * get_ready_list(Session *session) {
+
+    if (session == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return session->readyList;
+}
+
+LinkedList * get_ready_users(ReadyList *readyList) {
+
+    if (readyList == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return readyList->readyUsers;
+}
+
+LinkedList * get_ready_channels(ReadyList *readyList) {
+
+    if (readyList == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return readyList->readyChannels;
 }
 
 int are_channel_users_equal(void *channelUsers1, void *channelUsers2) {
@@ -498,6 +595,15 @@ LinkedList * get_channels_from_user_channels(UserChannels *userChannels) {
     }
 
     return userChannels->channels;
+}
+
+LinkedList * get_users_from_channel_users(ChannelUsers *channelUsers) {
+
+    if (channelUsers == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return channelUsers->users;
 }
 
 LinkedList * get_channel_users_ll(Session *session) {

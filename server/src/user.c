@@ -2,7 +2,6 @@
 #include "priv_user.h"
 #else
 #include "user.h"
-#include "../../shared/src/queue.h"
 #endif
 
 #include "../../shared/src/priv_message.h"
@@ -24,7 +23,6 @@
 #ifndef TEST
 
 struct User {
-
     char nickname[MAX_NICKNAME_LEN + 1];
     char username[MAX_USERNAME_LEN + 1];
     char hostname[MAX_HOSTNAME_LEN + 1];
@@ -43,7 +41,7 @@ User * create_user(const char *nickname, const char *username, const char *hostn
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    user->outQueue = create_queue(MSG_QUEUE_LEN, sizeof (RegMessage));
+    user->outQueue = create_queue(MSG_QUEUE_LEN, sizeof(RegMessage));
 
     if (is_valid_name(nickname, 0)) {
 
@@ -77,6 +75,19 @@ void add_message_to_user_queue(User *user, void *message) {
     enqueue(user->outQueue, message);
 }
 
+void * remove_message_from_user_queue(User *user) {
+
+    if (user == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    RegMessage *message = NULL;
+
+    message = dequeue(((User *)user)->outQueue);
+
+    return message; 
+}
+
 void set_user_data(User *user, const char *username, const char *hostname, const char *realname) {
 
     if (user == NULL) {
@@ -96,6 +107,17 @@ int are_users_equal(void *user1, void *user2) {
         equal = strcmp(((User*)user1)->nickname, ((User*)user2)->nickname) == 0;
     }
     return equal;
+}
+
+
+void add_nickname_to_list(void *user, void *namesList) {
+
+    if (user == NULL || namesList == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    add_string_to_string_list((StringList*)namesList, ((User*)user)->nickname);
+
 }
 
 const char *get_user_nickname(User *user) {
@@ -132,4 +154,22 @@ const char * get_realname(User *user) {
     }
 
     return user->realname;
+}
+
+Queue * get_user_queue(User *user) {
+
+    if (user == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return user->outQueue;
+}
+
+int get_user_fd(User *user) {
+
+    if (user == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return user->fd;  
 }

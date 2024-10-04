@@ -2,11 +2,9 @@
 #include "priv_channel.h"
 #else
 #include "channel.h"
-#include "../../shared/src/queue.h"
 #endif
 
 #include "../../shared/src/priv_message.h"
-#include "../../shared/src/string_utils.h"
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
 
@@ -25,30 +23,27 @@
 
 struct Channel {
     char name[MAX_CHANNEL_NAME + 1];
+    char topic[MAX_CHARS + 1];
     ChannelType channelType;
     Queue *outQueue;
-    int capacity;
-    int count;
-    Channel *next; 
+    Channel *next;
 };
 
 #endif
 
-Channel * create_channel(const char *channelName, ChannelType channelType, int capacity) {
+Channel * create_channel(const char *name, const char *topic, ChannelType channelType, int capacity) {
 
     Channel *channel = (Channel*) malloc(sizeof(Channel));
     if (channel == NULL) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    channel->outQueue = create_queue(capacity, sizeof (RegMessage));
-
-    if (is_valid_name(channelName, 1)) {
-
-        safe_copy(channel->name, MAX_CHANNEL_NAME + 1, channelName);
+    if (is_valid_name(name, 1)) {
+        safe_copy(channel->name, MAX_CHANNEL_NAME + 1, name);
     }
-
+    safe_copy(channel->topic, MAX_CHARS + 1, topic);
     channel->channelType = channelType;
+    channel->outQueue = create_queue(capacity, sizeof(RegMessage));
     channel->next = NULL;
 
     return channel;
@@ -63,7 +58,7 @@ void delete_channel(void *channel) {
     free(channel);
 }
 
-void add_message_to_channel(void *channel, void *content) {
+void add_message_to_channel_queue(void *channel, void *content) {
 
     if (channel == NULL || content == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -76,13 +71,46 @@ void add_message_to_channel(void *channel, void *content) {
     delete_message(message); 
 }
 
-int are_channels_equal(void *channel1, void *channel2) {
+void * remove_message_from_channel_queue(Channel *channel) {
 
-    if (channel1 == NULL || channel2 == NULL) {
+    if (channel == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    return strcmp(((Channel*)channel1)->name, ((Channel*)channel2)->name) == 0;
+    RegMessage *message = NULL;
+
+    message = dequeue(((Channel *)channel)->outQueue);
+
+    return message; 
+}
+
+int are_channels_equal(void *channel1, void *channel2) {
+
+    int equal = 0;
+
+    if (channel1 != NULL && channel2 != NULL) {
+        equal = strcmp(((Channel*)channel1)->name, ((Channel*)channel2)->name) == 0;
+    }
+    return equal;
+
+}
+
+const char *get_channel_name(Channel *channel) {
+
+    if (channel == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return channel->name;
+}
+
+const char *get_channel_topic(Channel *channel) {
+
+    if (channel == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return channel->topic;
 }
 
 ChannelType get_channel_type(Channel *channel) {
@@ -94,11 +122,11 @@ ChannelType get_channel_type(Channel *channel) {
     return channel->channelType;
 }
 
-const char *get_channel_name(Channel *channel) {
+Queue * get_channel_queue(Channel *channel) {
 
     if (channel == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    return channel->name;
+    return channel->outQueue;
 }

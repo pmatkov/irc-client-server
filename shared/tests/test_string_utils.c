@@ -2,7 +2,58 @@
 
 #include <check.h>
 
-#define MAX_CHARS 512
+#define LIST_CAPACITY 10
+#define STRING_LENGTH 20
+
+START_TEST(test_create_string_list) {
+
+    StringList *stringList = create_string_list(LIST_CAPACITY, STRING_LENGTH);
+
+    ck_assert_ptr_ne(stringList, NULL);
+    ck_assert_int_eq(stringList->stringLength, STRING_LENGTH);
+    ck_assert_int_eq(stringList->capacity, LIST_CAPACITY);
+    ck_assert_int_eq(stringList->count, 0);
+
+    delete_string_list(stringList);
+}
+END_TEST
+
+START_TEST(test_is_string_list_empty) {
+
+    StringList *stringList = create_string_list(LIST_CAPACITY, STRING_LENGTH);
+
+    ck_assert_int_eq(is_string_list_empty(stringList), 1);
+
+    delete_string_list(stringList);
+}
+END_TEST
+
+START_TEST(test_is_string_list_full) {
+
+    StringList *stringList = create_string_list(LIST_CAPACITY, STRING_LENGTH);
+
+    ck_assert_int_eq(is_string_list_full(stringList), 0);
+
+    delete_string_list(stringList);
+}
+END_TEST
+
+START_TEST(test_add_remove_string_from_string_list) {
+
+    StringList *stringList = create_string_list(LIST_CAPACITY, STRING_LENGTH);
+
+    add_string_to_string_list(stringList, "john");
+
+    ck_assert_int_eq(stringList->count, 1);
+    ck_assert_str_eq(stringList->strings[0], "john");
+
+    remove_string_from_string_list(stringList);
+    ck_assert_int_eq(stringList->count, 0);
+    ck_assert_str_eq(stringList->strings[0], "");
+
+    delete_string_list(stringList);
+}
+END_TEST
 
 START_TEST(test_split_input_string) {
 
@@ -81,13 +132,13 @@ START_TEST(test_concat_tokens) {
     ck_assert_int_eq(tkCount, 2);
     ck_assert_str_eq(buffer, "/help connect");
 
-    memset(buffer, '\0', MAX_CHARS + 1);
+    memset(buffer, '\0', sizeof(buffer));
 
     tkCount = concat_tokens(buffer, 10, tokens, 2, " ");
 
     ck_assert_str_eq(buffer, "/help con");
 
-    memset(buffer, '\0', MAX_CHARS + 1);
+    memset(buffer, '\0', sizeof(buffer));
 
     const char *msgTokens[] = {"PRIVMSG", "#general", NULL};
 
@@ -98,28 +149,54 @@ START_TEST(test_concat_tokens) {
 }
 END_TEST
 
+START_TEST(test_count_tokens) {
+
+    char msg1[] = "PRIVMSG #cmsc23300 :Hello everybody";  
+
+    int count = count_tokens(msg1, ':');
+
+    ck_assert_int_eq(count, 3);
+
+    count = count_tokens(msg1, '\0');
+
+    ck_assert_int_eq(count, 4);
+
+    char msg2[] = "PRIVMSG #cmsc23300";  
+
+    count = count_tokens(msg2, ':');
+
+    ck_assert_int_eq(count, 2);
+
+}
+END_TEST
+
 START_TEST(test_prepend_char) {
 
-    char buffer[MAX_CHARS + 1] = {'\0'};  
+    char buffer[MAX_CHARS + 1] = "test";  
 
-    prepend_char(buffer, MAX_CHARS, "test", ':');
+    prepend_char(buffer, MAX_CHARS, buffer, ':');
 
     ck_assert_str_eq(buffer, ":test");
 
 }
 END_TEST
 
-START_TEST(test_count_tokens) {
+START_TEST(test_crlf_terminate) {
 
-    char msg[] = "PRIVMSG #cmsc23300 :Hello everybody";  
+    char buffer[MAX_CHARS + 1] = {'\0'};
 
-    int count = count_tokens(msg, ':');
+    crlf_terminate(buffer, MAX_CHARS + 1, "message");
 
-    ck_assert_int_eq(count, 3);
+    ck_assert_str_eq(buffer, "message\r\n");
 
-    count = count_tokens(msg, '\0');
+}
+END_TEST
 
-    ck_assert_int_eq(count, 4);
+START_TEST(test_is_crlf_terminated) {
+
+    ck_assert_int_eq(is_crlf_terminated("message\r\n"), 1);
+    ck_assert_int_eq(is_crlf_terminated("message\n"), 0);
+    ck_assert_int_eq(is_crlf_terminated("message"), 0);
 
 }
 END_TEST
@@ -137,16 +214,21 @@ END_TEST
 
 START_TEST(test_safe_copy) {
 
-    char buffer[10 + 1] = {'\0'};  
+    char buffer[10 + 1] = {'\0'}; 
 
-    int status = safe_copy(buffer, 10 + 1, "/help");
+    int copied = safe_copy(buffer, 10 + 1, "/help");
 
-    ck_assert_int_eq(status, 1);
+    ck_assert_int_eq(copied, 1);
     ck_assert_str_eq(buffer, "/help");
 
-    status = safe_copy(buffer, 10 + 1, "/help connect");
+    copied = safe_copy(buffer, 10 + 1, "john");
 
-    ck_assert_int_eq(status, 0);
+    ck_assert_int_eq(copied, 1);
+    ck_assert_str_eq(buffer, "john");
+
+    copied = safe_copy(buffer, 10 + 1, "/help connect");
+
+    ck_assert_int_eq(copied, 0);
     ck_assert_str_ne(buffer, "/help connect");
 
 }
@@ -158,6 +240,7 @@ START_TEST(test_str_to_uint) {
     ck_assert_int_eq(str_to_uint("-45"), -1);
     ck_assert_int_eq(str_to_uint("abc"), -1);
     ck_assert_int_eq(str_to_uint("45abc"), -1);
+    ck_assert_int_eq(str_to_uint("001"), 1);
 
 }
 END_TEST
@@ -199,10 +282,16 @@ Suite* string_utils_suite(void) {
     tc_core = tcase_create("Core");
 
     // Add the test case to the test suite
+    tcase_add_test(tc_core, test_create_string_list);
+    tcase_add_test(tc_core, test_is_string_list_empty);
+    tcase_add_test(tc_core, test_is_string_list_full);
+    tcase_add_test(tc_core, test_add_remove_string_from_string_list);
     tcase_add_test(tc_core, test_split_input_string);
     tcase_add_test(tc_core, test_concat_tokens);
-    tcase_add_test(tc_core, test_prepend_char);
     tcase_add_test(tc_core, test_count_tokens);
+    tcase_add_test(tc_core, test_prepend_char);
+    tcase_add_test(tc_core, test_crlf_terminate);
+    tcase_add_test(tc_core, test_is_crlf_terminated);
     tcase_add_test(tc_core, test_is_valid_name);
     tcase_add_test(tc_core, test_safe_copy);
     tcase_add_test(tc_core, test_str_to_uint);

@@ -5,48 +5,40 @@
 
 struct ResponseCode {
     ResponseType responseType;
-    int code;
-    char *message;
+    const char *code;
+    const char *message;
 };
 
 static const ResponseCode RESPONSE_CODES[] = {
-    {RPL_WELCOME, 1, "Welcome to the Internet Relay Network"},
-    {ERR_NOSUCHCHANNEL, 403, "No such channel"},
-    {ERR_UNKNOWNCOMMAND, 421, "Unknown command"},
-    {ERR_NONICKNAMEGIVEN, 431, "No nickname given"},
-    {ERR_ERRONEUSNICKNAME, 432, "Erroneous nickname"},
-    {ERR_NICKNAMEINUSE, 433, "Nickname is already in use"},
-    {ERR_NOTONCHANNEL, 442, "You're not on that channel"},
-    {ERR_NOTREGISTERED, 451, "You have not registered"},
-    {ERR_NEEDMOREPARAMS, 461, "Not enough parameters"},
-    {ERR_ALREADYREGISTRED, 462, "Already registered"},
-    {ERR_CHANNELISFULL, 471, "Cannot join channel"},
-    {UNKNOWN_RESPONSE_TYPE, 0, "Unknown response type"},
+    {RPL_WELCOME, "001", "Welcome to the IRC Network"},
+    {RPL_NOTOPIC, "331", "No topic is set"},
+    {RPL_TOPIC, "332", ""},
+    {RPL_NAMREPLY, "353", ""},
+    {RPL_ENDOFNAMES, "366", "End of NAMES list"},
+    {ERR_NOSUCHNICK, "401", "No such nick"},
+    {ERR_NOSUCHCHANNEL, "403", "No such channel"},
+    {ERR_UNKNOWNCOMMAND, "421", "Unknown command"},
+    {ERR_NONICKNAMEGIVEN, "431", "No nickname given"},
+    {ERR_ERRONEUSNICKNAME, "432", "Erroneous nickname"},
+    {ERR_NICKNAMEINUSE, "433", "Nickname is already in use"},
+    {ERR_NOTONCHANNEL, "442", "You're not on that channel"},
+    {ERR_NOTREGISTERED, "451", "You have not registered"},
+    {ERR_NEEDMOREPARAMS, "461", "Not enough parameters"},
+    {ERR_ALREADYREGISTRED, "462", "Already registered"},
+    {ERR_CHANNELISFULL, "471", "Cannot join channel"},
+    {ERR_BADCHANNAME, "479", "Illegal channel name"},
+    {UNKNOWN_RESPONSE_TYPE, "0", "Unknown response type"},
 };
 
 _Static_assert(sizeof(RESPONSE_CODES) / sizeof(RESPONSE_CODES[0]) == RESPONSE_CODE_COUNT, "Array size mismatch");
 
-int is_valid_code(int code) {
-
-    int valid = 0;
-
-    for (int i = 0; i < sizeof(RESPONSE_CODES)/ sizeof(RESPONSE_CODES[0]); i++) {
-
-        if (RESPONSE_CODES[i].code == code) {
-            valid = 1;
-        }
-    }
-
-    return valid;
-}
-
-ResponseType get_response_type(int code) {
+ResponseType get_response_type(const char *code) {
 
     ResponseType responseType = UNKNOWN_RESPONSE_TYPE;
 
     for (int i = 0; i < sizeof(RESPONSE_CODES)/ sizeof(RESPONSE_CODES[0]); i++) {
 
-        if (RESPONSE_CODES[i].code == code) {
+        if (strcmp(RESPONSE_CODES[i].code, code) == 0) {
             responseType = RESPONSE_CODES[i].responseType;
         }
     }
@@ -54,11 +46,11 @@ ResponseType get_response_type(int code) {
     return responseType;
 }
 
-int get_response_code(ResponseType responseType) {
+const char * get_response_code(ResponseType responseType) {
 
-    int code = 0;
+    const char *code = NULL;
 
-    for (int i = 0; i < sizeof(RESPONSE_CODES) / sizeof(RESPONSE_CODES[0]) && !code; i++) {
+    for (int i = 0; i < sizeof(RESPONSE_CODES) / sizeof(RESPONSE_CODES[0]); i++) {
 
         if (RESPONSE_CODES[i].responseType == responseType) {
             code = RESPONSE_CODES[i].code;
@@ -67,13 +59,13 @@ int get_response_code(ResponseType responseType) {
     return code;
 }
 
-const char * get_response_message(int code) {
+const char * get_response_message(const char *code) {
 
     const char *message = NULL;
 
     for (int i = 0; i < sizeof(RESPONSE_CODES)/ sizeof(RESPONSE_CODES[0]); i++) {
 
-        if (RESPONSE_CODES[i].code == code) {
+        if (strcmp(RESPONSE_CODES[i].code, code) == 0) {
             message = RESPONSE_CODES[i].message;
         }
     }

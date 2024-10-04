@@ -1,8 +1,21 @@
 #include "../src/priv_line_editor.h"
+#include "../../shared/src/mock.h"
 
 #include <check.h>
 
 #define PROMPT_SIZE 2
+
+void set_content(LineEditor *lnEditor, int cursor, int charCount, const char *content) {
+
+    RegMessage *message = create_reg_message(content);
+    enqueue(lnEditor->buffer, message);
+
+    lnEditor->cursor = cursor;
+    lnEditor->charCount = charCount;
+    lnEditor->buffer->currentItem--;
+
+    delete_message(message);
+}
 
 START_TEST(test_create_line_editor) {
 
@@ -58,6 +71,86 @@ START_TEST(test_move_cursor_right) {
 }
 END_TEST
 
+START_TEST(test_delete_char) {
+
+    LineEditor *lnEditor = create_line_editor(NULL);
+
+    char *content = "message";
+
+    set_content(lnEditor, PROMPT_SIZE + strlen(content) - 1, strlen(content), content);
+
+    delete_char(lnEditor);
+    ck_assert_int_eq(lnEditor->charCount, strlen(content) - 1);
+    ck_assert_int_eq(lnEditor->cursor, PROMPT_SIZE + strlen(content) - 1);
+
+    RegMessage *message = get_current_item(lnEditor->buffer);
+    ck_assert_str_eq(get_reg_message_content(message), "messag");
+
+    delete_line_editor(lnEditor);
+
+}
+END_TEST
+
+START_TEST(test_add_char) {
+
+    LineEditor *lnEditor = create_line_editor(NULL);
+
+    char *content = "message";
+
+    set_content(lnEditor, PROMPT_SIZE + strlen(content), strlen(content), content);
+
+    add_char(lnEditor, '1');
+    ck_assert_int_eq(lnEditor->charCount, strlen(content) + 1);
+    ck_assert_int_eq(lnEditor->cursor, PROMPT_SIZE + strlen(content) + 1);
+
+    RegMessage *message = get_current_item(lnEditor->buffer);
+    ck_assert_str_eq(get_reg_message_content(message), "message1");
+
+    delete_line_editor(lnEditor);
+
+}
+END_TEST
+
+START_TEST(test_use_backspace) {
+
+    LineEditor *lnEditor = create_line_editor(NULL);
+
+    char *content = "message";
+
+    set_content(lnEditor, PROMPT_SIZE + strlen(content), strlen(content), content);
+
+    use_backspace(lnEditor);
+    ck_assert_int_eq(lnEditor->charCount, strlen(content) - 1);
+    ck_assert_int_eq(lnEditor->cursor, PROMPT_SIZE + strlen(content) - 1);
+
+    RegMessage *message = get_current_item(lnEditor->buffer);
+    ck_assert_str_eq(get_reg_message_content(message), "messag");
+
+    delete_line_editor(lnEditor);
+
+}
+END_TEST
+
+START_TEST(test_use_delete) {
+
+    LineEditor *lnEditor = create_line_editor(NULL);
+
+    char *content = "message";
+
+    set_content(lnEditor, PROMPT_SIZE + strlen(content), strlen(content), content);
+
+    use_delete(lnEditor);
+    ck_assert_int_eq(lnEditor->charCount, strlen(content));
+    ck_assert_int_eq(lnEditor->cursor, PROMPT_SIZE + strlen(content));
+
+    RegMessage *message = get_current_item(lnEditor->buffer);
+    ck_assert_str_eq(get_reg_message_content(message), "message");
+
+    delete_line_editor(lnEditor);
+
+}
+END_TEST
+
 
 Suite* line_editor_suite(void) {
     Suite *s;
@@ -70,6 +163,10 @@ Suite* line_editor_suite(void) {
     tcase_add_test(tc_core, test_create_line_editor);
     tcase_add_test(tc_core, test_move_cursor_left);
     tcase_add_test(tc_core, test_move_cursor_right);
+    tcase_add_test(tc_core, test_delete_char);
+    tcase_add_test(tc_core, test_add_char);
+    tcase_add_test(tc_core, test_use_backspace);
+    tcase_add_test(tc_core, test_use_delete);
     suite_add_tcase(s, tc_core);
 
     return s;

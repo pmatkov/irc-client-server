@@ -43,7 +43,7 @@ int get_bin_path(char *binPath, int size) {
 }
 
 // traverse up dir path
-int traverse_up_path(char *output, int size, char *path,  int level) {
+int traverse_up_path(char *buffer, int size, char *path,  int level) {
 
     if (path == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -63,8 +63,8 @@ int traverse_up_path(char *output, int size, char *path,  int level) {
         if (pathLen > size - 1) {
             pathLen = size - 1;
         }
-        strncpy(output, pathCopy, pathLen);
-        output[pathLen] = '\0';
+        strncpy(buffer, pathCopy, pathLen);
+        buffer[pathLen] = '\0';
         status = 1;
     }
 
@@ -73,9 +73,9 @@ int traverse_up_path(char *output, int size, char *path,  int level) {
     return status;
 }
 
-int set_default_path(char *output, int size, const char *path) {
+int set_default_path(char *buffer, int size, const char *path) {
 
-    if (output == NULL || path == NULL) {
+    if (buffer == NULL || path == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
@@ -87,11 +87,11 @@ int set_default_path(char *output, int size, const char *path) {
     level = 3;
     #endif
 
-    if (get_bin_path(binPath, MAX_PATH) && traverse_up_path(output, MAX_PATH, binPath, level)) {
+    if (get_bin_path(binPath, MAX_PATH) && traverse_up_path(buffer, MAX_PATH, binPath, level)) {
 
-        if (strlen(path) + strlen(output) < size) {
+        if (strlen(path) + strlen(buffer) < size) {
 
-            strcat(output, path);
+            strcat(buffer, path);
             status = 1;
         }
     }

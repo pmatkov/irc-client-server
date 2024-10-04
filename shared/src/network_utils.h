@@ -3,10 +3,10 @@
 
 #include <arpa/inet.h>
 
-int convert_hostname_to_ip(const char *input, char *result, int size);
-int convert_ip_to_hostname(const char *input, char *result, int size);
-void get_localhost_ip(char *result, int size, int fd);
-int is_ipv4address(const char *string);
-int is_port(const char *string);
+int convert_hostname_to_ip_address(char *buffer, int size, const char *hostname);
+int convert_ip_to_hostname(char *buffer, int size, const char *ipv4Address);
+void get_client_ip(char *buffer, int size, int fd);
+int is_valid_ip_address(const char *string);
+int is_valid_port(const char *string);
 
 #endif

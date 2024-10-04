@@ -1,7 +1,11 @@
 #include "tcpserver.h"
 #include "user.h"
 #include "channel.h"
+#include "command_handler.h"
 
+#include "../../shared/src/settings.h"
+#include "../../shared/src/command.h"
+#include "../../shared/src/message.h"
 #include "../../shared/src/signal_handler.h"
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
@@ -27,9 +31,9 @@ typedef struct {
 
 typedef struct {
     Logger *logger;
-    PollFdSet *pollFdSet;
     TCPServer *tcpServer;
     ServerOptions options;
+    CommandTokens *cmdTokens;
 } AppState;
 
 #ifndef TEST
@@ -38,7 +42,7 @@ static void daemonize(void);
 static void cleanup(void);
 static void get_options(int argc, char **argv, ServerOptions *options);
 
-static AppState appState = {NULL, NULL, NULL, {.echo = 0, .daemon = 0} };
+static AppState appState = {NULL, NULL, {.echo = 0, .daemon = 0} };
 
 int main(int argc, char **argv)
 {
@@ -48,10 +52,14 @@ int main(int argc, char **argv)
     // set signal handler for SIGINT
     set_sigaction(handle_sigint, SIGINT);
 
+    appState.logger = create_logger(NULL, LOG_FILE(server), DEBUG);
+
+    // load settings
+    set_default_settings();
+    read_settings(NULL, SERVER_PROPERTY);
+
     // get server options
     get_options(argc, argv, &appState.options);
-
-    appState.logger = create_logger(NULL, LOG_FILE(server), DEBUG);
 
     // create daemon process
     if (appState.options.daemon) {
@@ -67,26 +75,101 @@ int main(int argc, char **argv)
     /* create fd's set to monitor socket events -
      connection requests and messages from connected
       clients */
-    appState.pollFdSet = create_pollfd_set(MAX_FDS);
-    appState.tcpServer = create_server("irc.example.com", MAX_FDS);
+    appState.tcpServer = create_server(MAX_FDS);
     int listenFd = init_server();
 
-    // add_channel(appState.channelList, "#general", PERMANENT);
+    const int listenfdIndex = 0;
 
     // set listening socket fd
-    set_pfd(appState.pollFdSet, 0, listenFd, POLLIN);
+    set_fd(appState.tcpServer, listenfdIndex, listenFd);
+
+    appState.cmdTokens = create_command_tokens();
 
     while (1) {
 
-        // poll fd's for events
-        int fdsReady = poll(get_pfds(appState.pollFdSet), get_pfds_capacity(appState.pollFdSet), -1);
+        // check for input events on file descriptors
+        int fdsReady = poll(get_fds(appState.tcpServer), get_fds_capacity(appState.tcpServer), -1);
         if (fdsReady < 0) {
             FAILED("Error polling descriptors", NO_ERRCODE);  
         }
+        /* remove clients which have not registered 
+        connection in waiting time */
+        const int waitingTime = 60;
+        remove_inactive_clients(appState.tcpServer, waitingTime);
 
-        handle_inactive_clients(appState.pollFdSet, appState.tcpServer);
-        check_listening_pfd(appState.pollFdSet, appState.tcpServer, &fdsReady);
-        check_connected_pfds(appState.pollFdSet, appState.tcpServer, &fdsReady, appState.options.echo);
+        Session *session = get_session(appState.tcpServer);
+        
+        int fdIndex = 0;
+
+        while (fdsReady && fdIndex < get_fds_capacity(appState.tcpServer)) {
+
+            int ready = is_fd_ready(appState.tcpServer, fdIndex);
+
+            if (ready) {
+
+                if (fdIndex == listenfdIndex) {
+                    add_client(appState.tcpServer, listenfdIndex);
+                }            
+                else {
+
+                    int fullMsg = server_read(appState.tcpServer, fdIndex);
+
+                    /* if echo server is active and full message 
+                    was received, echo message back to the client */
+                    if (fullMsg) {
+
+                        Client *client = get_client(appState.tcpServer, fdIndex);
+                        
+                        if (appState.options.echo) {
+
+                            server_write(get_client_inbuffer(client), get_client_fd(client));
+                        }
+                        else {
+
+                            parse_message(appState.tcpServer, client, appState.cmdTokens);
+
+                            CommandType commandType = string_to_command_type(get_cmd_from_cmd_tokens(appState.cmdTokens));
+
+                            LOG(INFO, "[%s] command parsed", command_type_to_string(commandType));
+
+                            CommandFunction cmdFunction = get_command_function((CommandType)commandType);
+
+                            cmdFunction(appState.tcpServer, client, appState.cmdTokens);
+
+                            User *user = find_user_in_hash_table(session, get_client_nickname(client));
+
+                            if (user != NULL && !is_queue_empty(get_user_queue(user))) {
+                                add_user_to_ready_users(user, get_ready_list(session));
+                            }
+
+                            memset(get_client_inbuffer(client), '\0', MAX_CHARS + 1);
+
+                            reset_cmd_tokens(appState.cmdTokens);
+                        }
+                    }
+                }
+                fdsReady--;
+            }
+            fdIndex++;
+        }
+
+        while (!is_queue_empty(get_msg_queue(appState.tcpServer))) {
+
+            ExtMessage *message = remove_message_from_server_queue(appState.tcpServer);
+            char *recipient = get_ext_message_recipient(message);
+            char *content = get_ext_message_content(message);
+
+            int fd = str_to_uint(recipient);
+
+            server_write(content, fd);
+        }
+
+        iterate_list(get_ready_users(get_ready_list(session)), send_user_queue_messages, NULL);
+        iterate_list(get_ready_channels(get_ready_list(session)), send_channel_queue_messages, get_session(appState.tcpServer));
+
+        reset_linked_list(get_ready_users(get_ready_list(session)));
+        reset_linked_list(get_ready_channels(get_ready_list(session)));
+
     }
 
     return 0;
@@ -133,8 +216,9 @@ static void daemonize(void) {
 
 static void cleanup(void) {
 
+    delete_command_tokens(appState.cmdTokens);
+    write_settings(NULL, SERVER_PROPERTY);
     delete_server(appState.tcpServer);
-    delete_pollfd_set(appState.pollFdSet);
     delete_logger(appState.logger);
 }
 

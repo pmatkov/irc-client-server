@@ -32,6 +32,7 @@ struct LinkedList {
 #endif
 
 STATIC void delete_node(Node *node, DeleteDataFunc deleteDataFunc);
+STATIC void delete_all_nodes(LinkedList *linkedList);
 
 LinkedList * create_linked_list(ComparatorFunc comparatorFunc, DeleteDataFunc deleteDataFunc) {
 
@@ -54,18 +55,20 @@ void delete_linked_list(LinkedList *linkedList) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    Node *current = linkedList->head;
-    Node *previous = NULL;
-
-    while (current != NULL) {
-
-        previous = current;
-        current = current->next;
-
-        delete_node(previous, linkedList->deleteDataFunc);
-    }
+    delete_all_nodes(linkedList);
 
     free(linkedList);
+}
+
+void reset_linked_list(LinkedList *linkedList) {
+
+    if (linkedList == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    delete_all_nodes(linkedList);
+
+    linkedList->count = 0;
 }
 
 Node * create_node(void *data) {
@@ -85,13 +88,32 @@ Node * create_node(void *data) {
     return node;
 }
 
-void delete_node(Node *node, DeleteDataFunc deleteDataFunc) {
+STATIC void delete_node(Node *node, DeleteDataFunc deleteDataFunc) {
 
     if (node != NULL && deleteDataFunc != NULL) {
         deleteDataFunc(node->data);
     }
 
     free(node);
+}
+
+STATIC void delete_all_nodes(LinkedList *linkedList) {
+
+    if (linkedList == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    Node *current = linkedList->head;
+    Node *previous = NULL;
+
+    while (current != NULL) {
+
+        previous = current;
+        current = current->next;
+
+        delete_node(previous, linkedList->deleteDataFunc);
+    }
+
 }
 
 void append_node(LinkedList *linkedList, Node *node) {
@@ -168,7 +190,7 @@ Node * find_node(LinkedList *linkedList, void *data) {
     return current;
 }
 
-void iterate_list(LinkedList *linkedList, IteratorFunction iteratorFunction, void *arg) {
+void iterate_list(LinkedList *linkedList, IteratorFunc iteratorFunction, void *arg) {
 
     if (linkedList == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -187,7 +209,7 @@ void * get_data(Node *node) {
 
     void *data = NULL;
 
-    if (data != NULL) {
+    if (node != NULL) {
         data = node->data;
     }
 
@@ -212,4 +234,13 @@ Node * get_next(Node *node) {
     }
 
     return next;
+}
+
+int get_list_count(LinkedList *linkedList) {
+
+    if (linkedList == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return linkedList->count;
 }

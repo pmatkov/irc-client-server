@@ -20,6 +20,7 @@ typedef enum {
 typedef struct {
     time_t startTime;
     time_t endTime;
+    int isActive;
 } Timer;
 
 void (*get_format_function(DateTimeFormat format))(char *, size_t, struct tm *);
@@ -31,5 +32,6 @@ void start_timer(Timer *timer);
 void stop_timer(Timer *timer);
 void reset_timer(Timer *timer);
 int get_elapsed_time(Timer *timer);
+int is_timer_active(Timer *timer);
 
 #endif

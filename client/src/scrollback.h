@@ -8,7 +8,7 @@
 typedef struct ScrollbackCmd ScrollbackCmd;
 typedef struct Scrollback Scrollback;
 
-typedef void (*ScrollbackFunc)(Scrollback *scrollback);
+typedef void (*ScrollbackFunction)(Scrollback *scrollback);
 
 Scrollback * create_scrollback(WINDOW *window, int sbMultiplier);
 void delete_scrollback(Scrollback *scrollback); 
@@ -29,7 +29,7 @@ void scroll_line_down(Scrollback *scrollback);
 void scroll_page_up(Scrollback *scrollback);
 void scroll_page_down(Scrollback *scrollback);
 
-ScrollbackFunc use_scrollback_func(int index);
+ScrollbackFunction get_scrollback_function(int index);
 int get_sb_func_index(int keyCode);
 
 int remap_ctrl_key(int ch);

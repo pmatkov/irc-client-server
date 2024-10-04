@@ -10,7 +10,7 @@
 typedef struct LnEditorCmd LnEditorCmd;
 typedef struct LineEditor LineEditor;
 
-typedef void (*LnEditorFunc)(LineEditor *lnEditor);
+typedef void (*LnEditorFunction)(LineEditor *lnEditor);
 
 LineEditor * create_line_editor(WINDOW *window);
 void delete_line_editor(LineEditor *lnEditor);
@@ -27,7 +27,7 @@ void use_end(LineEditor *lnEditor);
 void display_previous_command(LineEditor *lnEditor);
 void display_next_command(LineEditor *lnEditor);
 
-LnEditorFunc use_line_editor_func(int index);
+LnEditorFunction get_lneditor_function(int index);
 int get_le_func_index(int keyCode);
 
 WINDOW * le_get_window(LineEditor *lnEditor);

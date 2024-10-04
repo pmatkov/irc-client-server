@@ -1,10 +1,12 @@
 #include "../src/priv_user.h"
-#include "../../shared/src/priv_queue.h"
 #include "../../shared/src/priv_message.h"
+#include "../../shared/src/string_utils.h"
 
 #include <check.h>
 
 #define MAX_QUEUE_LEN 20
+#define LIST_CAPACITY 10
+#define MAX_NICKNAME_LEN 9
 
 START_TEST(test_create_user) {
 
@@ -20,14 +22,17 @@ START_TEST(test_create_user) {
 }
 END_TEST
 
-START_TEST(test_add_message_to_user_queue) {
+START_TEST(test_add_remove_message_from_user_queue) {
 
     User *user = create_user("john", NULL, NULL, NULL, 0);
 
     add_message_to_user_queue(user, &(RegMessage){"message"});
 
-    ck_assert_int_eq(user->outQueue->capacity, MAX_QUEUE_LEN);
     ck_assert_int_eq(user->outQueue->count, 1);
+
+    RegMessage *message = remove_message_from_user_queue(user);
+    ck_assert_ptr_ne(message, NULL);
+    ck_assert_int_eq(user->outQueue->count, 0);
 
     delete_user(user);
 }
@@ -48,14 +53,50 @@ END_TEST
 
 START_TEST(test_are_users_equal) {
 
-    User *user1 = create_user("john", "marotti", NULL, NULL, 0);
-    User *user2 = create_user("john", "jones", NULL, NULL, 0);
+    User *user1 = create_user("john", NULL, NULL, NULL, 0);
+    User *user2 = create_user("john", NULL, NULL, NULL, 0);
+    User *user3 = create_user("mark", NULL, NULL, NULL, 0);
 
     int equal = are_users_equal(user1, user2);
+    ck_assert_int_eq(equal, 1);
+
+    equal = are_users_equal(user1, user3);
     ck_assert_int_eq(equal, 0);
 
     delete_user(user1);
     delete_user(user2);
+    delete_user(user3);
+}
+END_TEST
+
+START_TEST(test_add_nickname_to_list) {
+
+    User *user = create_user("john", NULL, NULL, NULL, 0);
+
+    StringList *stringList = create_string_list(LIST_CAPACITY, MAX_NICKNAME_LEN);
+
+    add_nickname_to_list(user, stringList);
+
+    ck_assert_int_eq(stringList->count, 1);
+
+    delete_string_list(stringList);
+    delete_user(user);
+
+}
+END_TEST
+
+START_TEST(test_get_user_data) {
+
+    User *user = create_user("john", "jjones", "client.irc.com", "John Jones", 1);
+
+    ck_assert_str_eq(get_user_nickname(user), "john");
+    ck_assert_str_eq(get_username(user), "jjones");
+    ck_assert_str_eq(get_hostname(user), "client.irc.com");
+    ck_assert_str_eq(get_realname(user), "John Jones");
+    ck_assert_ptr_ne(get_user_queue(user), NULL);
+
+    delete_user(user);
+
 }
 END_TEST
 
@@ -68,9 +109,11 @@ Suite* user_suite(void) {
 
     // Add the test case to the test suite
     tcase_add_test(tc_core, test_create_user);
-    tcase_add_test(tc_core, test_add_message_to_user_queue);
+    tcase_add_test(tc_core, test_add_remove_message_from_user_queue);
     tcase_add_test(tc_core, test_set_user_data);
     tcase_add_test(tc_core, test_are_users_equal);
+    tcase_add_test(tc_core, test_add_nickname_to_list);
+    tcase_add_test(tc_core, test_get_user_data);
     
     suite_add_tcase(s, tc_core);
 

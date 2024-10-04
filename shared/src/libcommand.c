@@ -4,7 +4,6 @@
 #include "command.h"
 #endif
 
-#include "../../shared/src/string_utils.h"
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
 
@@ -19,13 +18,12 @@
 #endif
 
 #define MAX_TOKEN_LEN 64
-#define MAX_CHARS 512
 
 #ifndef TEST
 
 struct Command {
     CommandType commandType;
-    CommandHandler commandHandler;     
+    CommandUser commandUser;     
     char *label;
     char *syntax;
     char *description[MAX_TOKENS];
@@ -36,9 +34,9 @@ struct Command {
 
 static const Command COMMANDS[] = {
 
-    {HELP, CLIENT, "help", NULL, {NULL}, {NULL}},
+    {HELP, CLIENT_COMMAND, "help", NULL, {NULL}, {NULL}},
 
-    {CONNECT, CLIENT, 
+    {CONNECT, CLIENT_COMMAND, 
         "connect",  
         "connect <address | hostname> [port]", 
         {"connects to the server with the specified address or hostname and optional port",
@@ -46,21 +44,21 @@ static const Command COMMANDS[] = {
         {"/connect 127.0.0.1 49152", NULL}
         },
 
-    {DISCONNECT, CLIENT, 
+    {DISCONNECT, CLIENT_COMMAND, 
         "disconnect", 
         "disconnect [msg]",
         {"disconnects from the active server with optional message", NULL},
         {"/disconnect bye", NULL}
         },
 
-    {NICK, COMMON, 
+    {NICK, COMMON_COMMAND, 
         "nick", 
         "nick <nickname>",
         {"sets users nickname", NULL},
         {"/nick john", NULL}
         },
 
-    {USER, COMMON, 
+    {USER, COMMON_COMMAND, 
         "user", 
         "user [username] [hostname] <real name>",
         {"sets users username, hostname and real name",
@@ -68,21 +66,21 @@ static const Command COMMANDS[] = {
         {"/user john123 defhost \"john doe\"", NULL}
         },
 
-    {JOIN, COMMON, 
+    {JOIN, COMMON_COMMAND, 
         "join", 
         "join <channel>",
         {"joins the specified channel or creates a new one if it doesn't exist", NULL},
         {"/join #general", NULL}
         },
 
-    {PART, COMMON, 
+    {PART, COMMON_COMMAND, 
         "part", 
         "part <channel> [msg]",
         {"leaves the channel with optional message", NULL},
         {"/part #general bye", NULL}
     },
 
-    {PRIVMSG, COMMON, 
+    {PRIVMSG, COMMON_COMMAND, 
         "msg", 
         "msg <channel | user> <message>",
         {"sends message to the channel", NULL},
@@ -90,14 +88,14 @@ static const Command COMMANDS[] = {
         "/msg john bye", NULL}
         },
 
-    {QUIT, COMMON, 
+    {QUIT, COMMON_COMMAND, 
         "quit", 
         "quit [msg]",
         {"terminates the application with optional message", NULL}, 
         {"/quit done for today!", NULL}
     },
 
-    {UNKNOWN_COMMAND_TYPE, UNKNOWN_COMMAND_HANDLER,
+    {UNKNOWN_COMMAND_TYPE, UNKNOWN_COMMAND_USER,
         "unknown", NULL, {NULL}, {NULL}},
 };
 
@@ -110,15 +108,7 @@ CommandTokens * create_command_tokens(void) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    memset(cmdTokens->input, '\0', MAX_CHARS + 1);
-
-    cmdTokens->command = NULL;
-
-    for (int i = 0; i < MAX_TOKENS; i++) {
-        cmdTokens->args[i] = NULL;
-    }
-
-    cmdTokens->argCount = 0;
+    reset_cmd_tokens(cmdTokens);    
 
     return cmdTokens;
 }
@@ -126,6 +116,59 @@ CommandTokens * create_command_tokens(void) {
 void delete_command_tokens(CommandTokens *cmdTokens) {
 
     free(cmdTokens);
+}
+
+void reset_cmd_tokens(CommandTokens *cmdTokens) {
+
+    if (cmdTokens == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    memset(cmdTokens->input, '\0', sizeof(cmdTokens->input));
+
+    cmdTokens->command = NULL;
+
+    for (int i = 0; i < cmdTokens->argCount; i++) {
+        cmdTokens->args[i] = NULL;
+    }
+
+    cmdTokens->argCount = 0;
+}
+
+/*  Message formats
+    - server response (when client sends an invalid command):
+        " <:prefix> <response code> <param 1> ... [param n] [:response message]"
+        example: ":irc.server.com 431 * :No nickname given"
+    - forwarded message (when client sends messsage to the channel or another user directly): 
+        " <:prefix> <message>"
+        example: ":john!john@irc.client.com PRIVMSG #general :Hello"  */
+
+void create_message(char *buffer, int size, MessageTokens *messageTokens) {
+
+    if (messageTokens == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    char prefix[MAX_CHARS + 1] = {'\0'}; 
+    int tkCount = concat_tokens(prefix, size, messageTokens->prefix, ARR_SIZE(prefix), " ");
+
+    if (tkCount) {
+        prepend_char(prefix, MAX_CHARS, prefix, ':');
+    }
+
+    char body[MAX_CHARS + 1] = {'\0'}; 
+    concat_tokens(body, size, messageTokens->body, ARR_SIZE(body), " ");
+
+    char suffix[MAX_CHARS + 1] = {'\0'}; 
+    concat_tokens(suffix, size, messageTokens->suffix, ARR_SIZE(suffix), " ");
+
+    if (messageTokens->useLeadChar) {
+        prepend_char(suffix, MAX_CHARS, suffix, ':');
+    }
+
+    const char *tokens[] = {prefix, body, suffix};  
+
+    concat_tokens(buffer, size, tokens, ARR_SIZE(tokens), " ");
 }
 
 const char * command_type_to_string(CommandType commandType) {

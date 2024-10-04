@@ -4,6 +4,7 @@
 #include "display.h"
 #endif
 
+#include "../../shared/src/settings.h"
 #include "../../shared/src/time_utils.h"
 #include "../../shared/src/string_utils.h"
 #include "../../shared/src/error_control.h"
@@ -24,7 +25,6 @@
 #define STATIC static
 #endif
 
-#define MAX_CHARS 512
 #define MAX_MSG_TOKENS 5
 
 static const unsigned ATTR_CONVERT[] = {
@@ -155,13 +155,9 @@ void set_windows_options(WindowManager *windowManager) {
 }
 
 // define color pairs
-void init_colors(Settings *settings) {
+void init_colors(void) {
 
-    if (settings == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    const char *useColors = get_property_value(settings, COLOR);
+    const char *useColors = get_property_value(COLOR);
 
     if (str_to_uint(useColors) && has_colors()) {
 
@@ -176,9 +172,9 @@ void init_colors(Settings *settings) {
     }
 }
 
-void create_layout(WindowManager *windowManager, Scrollback *scrollback, Settings *settings) {  
+void create_layout(WindowManager *windowManager, Scrollback *scrollback) {  
 
-    if (windowManager == NULL || scrollback == NULL || settings == NULL) {
+    if (windowManager == NULL || scrollback == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
@@ -187,7 +183,7 @@ void create_layout(WindowManager *windowManager, Scrollback *scrollback, Setting
     // display app info
     printmsg(scrollback, &(MessageParams){1, " ## ", NULL, "Buzz v1.0"}, COLOR_SEP(MAGENTA) | ATTR_MSG(BOLD));
 
-    display_settings(scrollback, settings);
+    display_settings(scrollback);
 
     printmsg(scrollback, &(MessageParams){1, NULL, NULL, NULL}, 0);
     printmsg(scrollback, &(MessageParams){1, " ** ", NULL, "Type /help for a list of available commands."}, COLOR_SEP(CYAN));
@@ -386,8 +382,11 @@ void display_usage(Scrollback *scrollback, const Command *command) {
     get_command_description(command, description, MAX_TOKENS);
     get_command_examples(command, examples, MAX_TOKENS);
 
-    display_string_list(scrollback, description, MAX_TOKENS,"Description:");
-    display_string_list(scrollback, description, MAX_TOKENS, "Example(s):");
+    printmsg(scrollback, &(MessageParams){1, SPACE, "Syntax:", NULL}, 0);
+    printmsg(scrollback, &(MessageParams){1, SPACE_2, NULL, get_command_syntax(command)}, 0);
+
+    display_string_list(scrollback, description, MAX_TOKENS, "Description:");
+    display_string_list(scrollback, examples, MAX_TOKENS, "Example(s):");
 
     wrefresh(sb_get_window(scrollback));
 }
@@ -416,7 +415,6 @@ void display_response(Scrollback *scrollback, const char *response, ...) {
         printmsg(scrollback, &(MessageParams){1, " ** ", NULL, responseWithArgs}, COLOR_SEP(CYAN) | ATTR_MSG(BOLD));
 
     }
-
     wrefresh(sb_get_window(scrollback));
 }
 
@@ -450,7 +448,7 @@ void display_status(WindowManager *windowManager, const char *status, ...) {
 }
 
 // display settings
-void display_settings(Scrollback *scrollback, Settings *settings) {
+void display_settings(Scrollback *scrollback) {
 
     printmsg(scrollback, &(MessageParams){1, NULL, NULL, NULL}, 0);
     printmsg(scrollback, &(MessageParams){1, " ** ", NULL, "Assigned settings: "}, COLOR_SEP(CYAN));
@@ -459,14 +457,14 @@ void display_settings(Scrollback *scrollback, Settings *settings) {
 
     for (int i = 0; i < PROPERTY_TYPE_COUNT - 1; i++) {
 
-        if (is_property_assigned(settings, (PropertyType)i)) {
+        if (get_property_user((PropertyType) i) == CLIENT_PROPERTY && is_property_assigned((PropertyType) i)) {
 
-            memset(propertyValue, '\0', MAX_CHARS + 1);
+            memset(propertyValue, '\0', sizeof(propertyValue));
             propertyValue[0] = ' ';
 
-            strcat(propertyValue, get_property_value(settings, (PropertyType)i)); 
+            strcat(propertyValue, get_property_value((PropertyType) i)); 
 
-            printmsg(scrollback, &(MessageParams){1, SPACE, property_type_to_string((PropertyType)i), propertyValue}, ATTR_MSG(DIM));
+            printmsg(scrollback, &(MessageParams){1, SPACE, property_type_to_string((PropertyType) i), propertyValue}, ATTR_MSG(DIM));
         }
     }
 }

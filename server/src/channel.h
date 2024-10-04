@@ -1,6 +1,9 @@
 #ifndef CHANNEL_H
 #define CHANNEL_H
 
+#include "../../shared/src/queue.h"
+#include "../../shared/src/string_utils.h"
+
 #define MAX_USERS_PER_CHANNEL 100
 
 typedef enum {
@@ -11,14 +14,17 @@ typedef enum {
 
 typedef struct Channel Channel;
 
-Channel * create_channel(const char *channelName, ChannelType channelType, int capacity);
+Channel * create_channel(const char *name, const char *topic, ChannelType channelType, int capacity);
 void delete_channel(void *channel);
 
-void add_message_to_channel(void *channel, void *content);
+void add_message_to_channel_queue(void *channel, void *content);
+void * remove_message_from_channel_queue(Channel *channel);
 
 int are_channels_equal(void *channel1, void *channel2);
 
-ChannelType get_channel_type(Channel *channel);
 const char *get_channel_name(Channel *channel);
+const char *get_channel_topic(Channel *channel);
+ChannelType get_channel_type(Channel *channel);
+Queue * get_channel_queue(Channel *channel);
 
 #endif

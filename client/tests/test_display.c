@@ -1,11 +1,10 @@
 #include "../src/priv_display.h"
 #include "../src/priv_scrollback.h"
 
+#include "../../shared/src/string_utils.h"
 #include "../../shared/src/error_control.h"
 
 #include <check.h>
-
-#define MAX_CHARS 512
 
 #define ck_assert_wstr_eq(s1, s2) \
     ck_assert_msg((wcscmp((s1), (s2)) == 0), \

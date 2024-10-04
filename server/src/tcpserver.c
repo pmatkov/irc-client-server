@@ -3,14 +3,11 @@
 #include "../../shared/src/mock.h"
 #else
 #include "tcpserver.h"
-#include "../../shared/src/queue.h"
+#include "../../shared/src/time_utils.h"
 #endif
 
-#include "command_handler.h"
-#include "../../shared/src/command.h"
+#include "../../shared/src/settings.h"
 #include "../../shared/src/priv_message.h"
-#include "../../shared/src/time_utils.h"
-#include "../../shared/src/string_utils.h"
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
 
@@ -30,21 +27,14 @@
 #endif
 
 #define MAX_NICKNAME_LEN 9
-#define MAX_CHARS 512
 #define MSG_QUEUE_LEN MAX_FDS/ 100
-
-#define MAX_WAITING_TIME 60
 
 #define SERVER_PORT 50100
 #define LISTEN_QUEUE 100
 
-#ifndef TEST
+#define INT_DIGITS 10
 
-struct PollFdSet {
-    struct pollfd *pfds;
-    int capacity;
-    int count;
-};
+#ifndef TEST
 
 struct Client {
     char nickname[MAX_NICKNAME_LEN + 1];
@@ -52,116 +42,28 @@ struct Client {
     char ipv4Address[INET_ADDRSTRLEN + 1];
     int port;
     int registered;
-    int fd;
+    int *fd;
     Timer *timer;
 };
 
 struct TCPServer {
+    struct pollfd *pfds;
     Client *clients;
     Session *session;
     Queue *msgQueue;
     char serverName[MAX_CHARS + 1];
     int capacity;
+    int count;
 };
 
 #endif
 
+STATIC struct pollfd * create_pfds(int capacity);
+STATIC void delete_pfds(struct pollfd *pfds);
 STATIC Client * create_clients(int capacity);
 STATIC void delete_clients(Client *clients, int capacity);
 
-STATIC int find_pfd_index(PollFdSet *pollFdSet, int fd);
-
-STATIC int server_read(PollFdSet *pollFdSet, TCPServer *tcpServer, int i);
-STATIC void server_write(TCPServer *tcpServer, int i);
-
-PollFdSet * create_pollfd_set(int capacity) {
-
-    PollFdSet *pollFdSet = (PollFdSet*) malloc(sizeof(PollFdSet));
-    if (pollFdSet == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);  
-    }
-
-    if (!capacity) {
-        capacity = MAX_FDS;
-    }
-
-    pollFdSet->pfds = (struct pollfd *) malloc(capacity * sizeof(struct pollfd));
-    if (pollFdSet->pfds == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);  
-    }
-
-    for (int i = 0; i < MAX_FDS; i++) {
-        pollFdSet->pfds[i].fd = -1;
-        pollFdSet->pfds[i].events = POLLIN;
-    }
-
-    pollFdSet->capacity = capacity;
-    pollFdSet->count = 0;
-
-    return pollFdSet;
-}
-
-void delete_pollfd_set(PollFdSet *pollFdSet) {
-
-    if (pollFdSet != NULL) {
-
-        free(pollFdSet->pfds);
-    }
-
-    free(pollFdSet);
-}
-
-int is_pfd_set_empty(PollFdSet *pollFdSet) {
-
-    if (pollFdSet == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    return pollFdSet->count == 0;
-}
-
-int is_pfd_set_full(PollFdSet *pollFdSet) {
-
-    if (pollFdSet == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    return pollFdSet->count == pollFdSet->capacity;
-}
-
-void set_pfd(PollFdSet *pollFdSet, TCPServer *tcpServer, int index, int fd) {
-
-    if (pollFdSet == NULL || tcpServer == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    if (is_pfd_set_full(pollFdSet) || index < 0 || index >= pollFdSet->capacity) {
-        return;
-    }
-
-    pollFdSet->pfds[index].fd = fd;
-    tcpServer->clients[index].fd = fd;
-
-    pollFdSet->count++;
-}
-
-void unset_pfd(PollFdSet *pollFdSet, TCPServer *tcpServer, int index) {
-
-    if (pollFdSet == NULL || tcpServer == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    if (is_pfd_set_empty(pollFdSet) || index < 0 || index >= pollFdSet->capacity) {
-        return;
-    }
-
-    pollFdSet->pfds[index].fd = -1;
-    tcpServer->clients[index].fd = -1;
-
-    pollFdSet->count--;
-}
-
-TCPServer * create_server(const char *serverName, int capacity) {
+TCPServer * create_server(int capacity) {
 
     TCPServer *tcpServer = (TCPServer*) malloc(sizeof(TCPServer));
     if (tcpServer == NULL) {
@@ -172,11 +74,13 @@ TCPServer * create_server(const char *serverName, int capacity) {
         capacity = MAX_FDS;
     }
 
+    tcpServer->pfds = create_pfds(capacity);
     tcpServer->clients = create_clients(capacity);
     tcpServer->session = create_session();
     tcpServer->msgQueue = create_queue(MSG_QUEUE_LEN, sizeof(ExtMessage));
-    safe_copy(tcpServer->serverName, MAX_CHARS + 1, serverName);
+    safe_copy(tcpServer->serverName, MAX_CHARS + 1, get_property_value(HOSTNAME));
     tcpServer->capacity = capacity;
+    tcpServer->count = 0;
 
     return tcpServer;
 }
@@ -185,6 +89,7 @@ void delete_server(TCPServer *tcpServer) {
 
     if (tcpServer != NULL) {
 
+        delete_pfds(tcpServer->pfds);
         delete_clients(tcpServer->clients, tcpServer->capacity);
         delete_session(tcpServer->session);
         delete_queue(tcpServer->msgQueue);
@@ -232,6 +137,80 @@ int init_server(void) {
     return listenFd;
 }
 
+STATIC struct pollfd * create_pfds(int capacity) {
+
+    if (!capacity) {
+        capacity = MAX_FDS;
+    }
+
+    struct pollfd *pfds = (struct pollfd *) malloc(capacity * sizeof(struct pollfd));
+    if (pfds == NULL) {
+        FAILED("Error allocating memory", NO_ERRCODE);  
+    }
+
+    for (int i = 0; i < capacity; i++) {
+        pfds[i].fd = -1;
+        pfds[i].events = POLLIN;
+    }
+
+    return pfds;
+}
+
+STATIC void delete_pfds(struct pollfd *pfds) {
+
+    free(pfds);
+}
+
+int are_pfds_empty(TCPServer *tcpServer) {
+
+    if (tcpServer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return tcpServer->count == 0;
+}
+
+int are_pfds_full(TCPServer *tcpServer) {
+
+    if (tcpServer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return tcpServer->count == tcpServer->capacity;
+}
+
+void set_fd(TCPServer *tcpServer, int fdIndex, int fd) {
+
+    if (tcpServer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    if (are_pfds_full(tcpServer) || fdIndex < 0 || fdIndex >= tcpServer->capacity) {
+        return;
+    }
+
+    tcpServer->pfds[fdIndex].fd = fd;
+    tcpServer->clients[fdIndex].fd = &tcpServer->pfds[fdIndex].fd;
+    tcpServer->count++;
+
+}
+
+void unset_fd(TCPServer *tcpServer, int fdIndex) {
+
+    if (tcpServer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    if (are_pfds_empty(tcpServer) || fdIndex < 0 || fdIndex >= tcpServer->capacity) {
+        return;
+    }
+
+    tcpServer->pfds[fdIndex].fd = -1;
+    tcpServer->clients[fdIndex].fd = NULL;
+    tcpServer->count--;
+
+}
+
 void add_message_to_queue(TCPServer *tcpServer, Client *client, const char *content) {
 
     if (tcpServer == NULL || client == NULL || content == NULL) {
@@ -240,26 +219,25 @@ void add_message_to_queue(TCPServer *tcpServer, Client *client, const char *cont
 
     if (strlen(content)) {
 
-        const char *nickname = get_client_nickname(client);
 
-        if (!is_client_registered(client)) {
+        if (!is_client_registered(client) && client->fd != NULL) {
 
-            ExtMessage *message = create_ext_message("", nickname, content);
+            char fdBuffer[INT_DIGITS + 1] = {'\0'};
+            uint_to_str(fdBuffer, INT_DIGITS + 1, *client->fd);
 
+            ExtMessage *message = create_ext_message("", fdBuffer, content);
             add_message_to_server_queue(tcpServer, message);
-
             delete_message(message); 
         }
         else {
 
+            const char *nickname = get_client_nickname(client);
             User *user = find_user_in_hash_table(get_session(tcpServer), nickname);
 
             if (user != NULL) {
 
                 RegMessage *message = create_reg_message(content);
-
                 add_message_to_user_queue(user, message);
-
                 delete_message(message); 
             }
         }
@@ -275,113 +253,49 @@ void add_message_to_server_queue(TCPServer *tcpServer, void *message) {
     enqueue(tcpServer->msgQueue, message);
 }
 
-void check_listening_pfd(PollFdSet *pollFdSet, TCPServer *tcpServer, int *fdsReady) {
+void * remove_message_from_server_queue(TCPServer *tcpServer) {
 
-    if (pollFdSet == NULL || tcpServer == NULL || fdsReady == NULL) {
+    if (tcpServer == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    if (pollFdSet->count && pollFdSet->pfds[0].revents & POLLIN) {
-
-        struct sockaddr_in clientaddr;
-        socklen_t clientLen = sizeof(clientaddr);
-
-        // accept connection request on listening socket
-        int connectFd = accept(pollFdSet->pfds[0].fd, (struct sockaddr*) &clientaddr, &clientLen);
-
-        if (connectFd < 0) {
-            FAILED("Error accepting connection", NO_ERRCODE);
-        }
-
-        int index = find_pfd_index(pollFdSet, -1);
-
-        if (index == -1) {
-            FAILED("No available pfds", NO_ERRCODE);
-        }
-
-        set_pfd(pollFdSet, tcpServer, index, connectFd);
-
-        start_timer(tcpServer->clients[index].timer);
-
-        // get client's IP address and port number
-        inet_ntop(AF_INET, &clientaddr.sin_addr, tcpServer->clients[index].ipv4Address, sizeof(tcpServer->clients[index].ipv4Address));
-        tcpServer->clients[index].port = ntohs(clientaddr.sin_port); 
-
-        LOG(INFO, "New connection (#%d) from client %s on port %d (fd: %d)", pollFdSet->count - 1, tcpServer->clients[index].ipv4Address, tcpServer->clients[index].port, tcpServer->clients[index].fd);
-
-        (*fdsReady)--;
-    }
+    return dequeue(tcpServer->msgQueue);
 }
 
-void check_connected_pfds(PollFdSet *pollFdSet, TCPServer *tcpServer, int *fdsReady, int echoServer)  {
 
-    if (pollFdSet == NULL || tcpServer == NULL || fdsReady == NULL) {
+int is_fd_ready(TCPServer *tcpServer, int fdIndex) {
+
+    if (tcpServer == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    for (int i = 1; i < pollFdSet->capacity && *fdsReady; i++) {
+    int ready = 0;
 
-        // check for events on connected sockets
-        if (pollFdSet->pfds[i].revents & (POLLIN | POLLERR)) { 
-
-            int fullMsg = server_read(pollFdSet, tcpServer, i);
-
-            /* if echo server is active and full message 
-            was received, send message back to the client */
-            if (fullMsg) {
-                
-                if (echoServer) {
-                    server_write(tcpServer, i);
-                }
-                else {
-
-                    CommandTokens *cmdTokens = create_command_tokens();
-
-                    parse_message(tcpServer, &tcpServer->clients[i], cmdTokens);
-                    CommandType commandType = string_to_command_type(get_cmd_from_cmd_tokens(cmdTokens));
-
-                    if (commandType != UNKNOWN_COMMAND_TYPE) {
-
-                        CommandFunction cmdFunction = get_command_function((CommandType)commandType);
-                        cmdFunction(tcpServer, &tcpServer->clients[i], cmdTokens);
-                    }
-
-                    memset(tcpServer->clients[i].inBuffer, '\0', MAX_CHARS + 1);
-
-                    delete_command_tokens(cmdTokens);
-                }
-            }
-            (*fdsReady)--;
-        }
+    if (tcpServer->count && tcpServer->pfds[fdIndex].revents & (POLLIN | POLLERR))  {
+        ready = 1;
     }
+
+    return ready;
 }
 
-void handle_inactive_clients(PollFdSet *pollFdSet, TCPServer *tcpServer) {
+int find_fd_index(TCPServer *tcpServer, int fd) {
 
-    if (pollFdSet == NULL || tcpServer == NULL) {
+    if (tcpServer == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
+    
+    int i = 0, found = 0;
 
-    for (int i = 1; i < tcpServer->capacity; i++) {
+    while (i < tcpServer->capacity && !found) {
 
-        if (tcpServer->clients[i].fd != -1) {
-            if (!is_client_registered(&tcpServer->clients[i])) {
-
-                stop_timer(tcpServer->clients[i].timer);
-
-                if (get_elapsed_time(tcpServer->clients[i].timer) >= MAX_WAITING_TIME) {
-                    close(tcpServer->clients[i].fd);
-                    unset_pfd(pollFdSet, tcpServer, i);
-                    reset_timer(tcpServer->clients[i].timer);
-                }
-            }
-            else {
-                if (get_elapsed_time(tcpServer->clients[i].timer)) {
-                    reset_timer(tcpServer->clients[i].timer);
-                }
-            }
+        if (tcpServer->pfds[i].fd == fd) {
+            found = 1;
+        }
+        else {
+            i++;
         }
     }
+    return found ? i : -1;
 }
 
 STATIC Client * create_clients(int capacity) {
@@ -393,12 +307,12 @@ STATIC Client * create_clients(int capacity) {
 
     for (int i = 0; i < capacity; i++) {
 
-        memset(clients[i].nickname, '\0', MAX_NICKNAME_LEN + 1);
-        memset(clients[i].inBuffer, '\0', MAX_CHARS + 1);
-        memset(clients[i].ipv4Address, '\0', INET_ADDRSTRLEN + 1);
+        memset(clients[i].nickname, '\0', sizeof(clients[i].nickname));
+        memset(clients[i].inBuffer, '\0', sizeof(clients[i].inBuffer));
+        memset(clients[i].ipv4Address, '\0', sizeof(clients[i].ipv4Address));
         clients[i].port = 0;
         clients[i].registered = 0;
-        clients[i].fd = -1;
+        clients[i].fd = NULL;
         clients[i].timer = create_timer();
     }
 
@@ -416,119 +330,187 @@ STATIC void delete_clients(Client *clients, int capacity) {
     free(clients);
 }
 
-STATIC int find_pfd_index(PollFdSet *pollFdSet, int fd) {
+void add_client(TCPServer *tcpServer, int listenFdIndex) {
 
-    if (pollFdSet == NULL) {
+    if (tcpServer == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
-    
-    int i = 0, found = 0;
 
-    while (i < pollFdSet->capacity && !found) {
+    struct sockaddr_in clientaddr;
+    socklen_t clientLen = sizeof(clientaddr);
 
-        if (pollFdSet->pfds[i].fd == fd) {
-            found = 1;
-        }
-        i++;
+    // accept connection request on listening socket
+    int connectFd = accept(tcpServer->pfds[listenFdIndex].fd, (struct sockaddr*) &clientaddr, &clientLen);
+
+    if (connectFd < 0) {
+        FAILED("Error accepting connection", NO_ERRCODE);
     }
 
-    return found ? i : -1;
+    int index = find_fd_index(tcpServer, -1);
+
+    if (index == -1) {
+        FAILED("No available pfds", NO_ERRCODE);
+    }
+
+    set_fd(tcpServer, index, connectFd);
+
+    start_timer(tcpServer->clients[index].timer);
+
+    // get client's IP address and port number
+    inet_ntop(AF_INET, &clientaddr.sin_addr, tcpServer->clients[index].ipv4Address, sizeof(tcpServer->clients[index].ipv4Address));
+    tcpServer->clients[index].port = ntohs(clientaddr.sin_port); 
+
+    LOG(INFO, "New connection (#%d) from %s:%d (fd: %d)", tcpServer->count - 1, tcpServer->clients[index].ipv4Address, tcpServer->clients[index].port, *tcpServer->clients[index].fd);
+
 }
 
-STATIC int server_read(PollFdSet *pollFdSet, TCPServer *tcpServer, int i) {
+void remove_client(TCPServer *tcpServer, int fdIndex) {
+
+    if (tcpServer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    close(*tcpServer->clients[fdIndex].fd);
+    unset_fd(tcpServer, fdIndex);
+    memset(tcpServer->clients[fdIndex].nickname, '\0', sizeof(tcpServer->clients[fdIndex].nickname));
+}
+
+Client * find_client(TCPServer *tcpServer, const char *nickname) {
+
+    if (tcpServer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    Client *client = NULL;
+
+    if (nickname != NULL) {
+
+        int found = 0;
+
+        for (int i = 0; i < tcpServer->capacity && !found; i++) {
+
+            if (tcpServer->clients[i].fd != NULL) {
+
+                if (strcmp(tcpServer->clients[i].nickname, nickname) == 0) {
+                    client = &tcpServer->clients[i];
+
+                    found = 1;
+                }
+            }
+        }
+    }
+    return client;
+}
+
+void remove_inactive_clients(TCPServer *tcpServer, int waitingTime) {
+
+    if (tcpServer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    for (int i = 0, count = 0; i < tcpServer->capacity && count < tcpServer->count; i++) {
+
+        if (tcpServer->clients[i].fd != NULL && is_timer_active(tcpServer->clients[i].timer)) {
+
+            if (!is_client_registered(&tcpServer->clients[i])) {
+
+                stop_timer(tcpServer->clients[i].timer);
+
+                if (get_elapsed_time(tcpServer->clients[i].timer) >= waitingTime) {
+
+                    LOG(INFO, "Inactive client removed (fd: %d) %d", *tcpServer->clients[i].fd);
+
+                    remove_client(tcpServer, i);
+                    reset_timer(tcpServer->clients[i].timer);
+                }
+            }
+            else {
+                reset_timer(tcpServer->clients[i].timer);
+            }
+            count++;
+        }
+    }
+}
+
+int server_read(TCPServer *tcpServer, int fdIndex) {
     
-    if (pollFdSet == NULL || tcpServer == NULL) {
+    if (tcpServer == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
     char readBuffer[MAX_CHARS + 1] = {'\0'};
 
-    ssize_t bytesRead = read(tcpServer->clients[i].fd, readBuffer, MAX_CHARS);
+    ssize_t bytesRead = read(*tcpServer->clients[fdIndex].fd, readBuffer, MAX_CHARS);
 
     int fullMsg = 0;
 
     if (bytesRead <= 0) {
 
         if (!bytesRead) {
-            LOG(INFO, "Client %s on port %d disconnected (fd: %d)", tcpServer->clients[i].ipv4Address, tcpServer->clients[i].port, tcpServer->clients[i].fd);
+            LOG(INFO, "Client %s on port %d disconnected (fd: %d)", tcpServer->clients[fdIndex].ipv4Address, tcpServer->clients[fdIndex].port, *tcpServer->clients[fdIndex].fd);
         }
         else if (errno != ECONNRESET) {
-            LOG(ERROR, "Error reading from socket: %d", tcpServer->clients[i].fd);
+            LOG(ERROR, "Error reading from socket: %d", *tcpServer->clients[fdIndex].fd);
         }
-        close(tcpServer->clients[i].fd);
-        unset_pfd(pollFdSet, tcpServer, i);
+        remove_client(tcpServer, fdIndex);
     }
     else {
 
-        int msgLength = strlen(tcpServer->clients[i].inBuffer);
+        int msgLength = strlen(tcpServer->clients[fdIndex].inBuffer);
         int copyBytes = msgLength + bytesRead <= MAX_CHARS ? bytesRead : MAX_CHARS - msgLength;
 
-        strncpy(tcpServer->clients[i].inBuffer + msgLength, readBuffer, copyBytes);
+        strncpy(tcpServer->clients[fdIndex].inBuffer + msgLength, readBuffer, copyBytes);
         msgLength += copyBytes;
 
         // full message received
-        if (tcpServer->clients[i].inBuffer[msgLength - 1] == '\n') {
+        if (is_crlf_terminated(tcpServer->clients[fdIndex].inBuffer)) {
 
-            LOG(INFO, "Message received from fd: %d", tcpServer->clients[i].fd);
+            LOG(INFO, "Message received: \"%s\" (fd: %d)", tcpServer->clients[fdIndex].inBuffer, *tcpServer->clients[fdIndex].fd);
 
             fullMsg = 1;
         }
 
         if (!fullMsg && msgLength == MAX_CHARS) {
-            memset(tcpServer->clients[i].inBuffer, '\0', MAX_CHARS + 1);
+            memset(tcpServer->clients[fdIndex].inBuffer, '\0', sizeof(tcpServer->clients[fdIndex].inBuffer));
         }
     }
     return fullMsg;
 }
 
-STATIC void server_write(TCPServer *tcpServer, int i) {
+void server_write(const char *message, int fd) {
 
-    if (tcpServer == NULL) {
+    if (message == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
     size_t bytesLeft; 
     ssize_t bytesWritten; 
-    char *msgPtr = tcpServer->clients[i].inBuffer; 
+
+    const char *msgPtr = message;
+    char fmtMessage[MAX_CHARS + 1] = {'\0'};
+
+    if (!is_crlf_terminated(msgPtr)) {
+
+        crlf_terminate(fmtMessage, MAX_CHARS + 1, msgPtr);
+        msgPtr = fmtMessage;
+    }
 
     bytesLeft = strlen(msgPtr); 
 
     while (bytesLeft) { 
 
-        if ((bytesWritten = write(tcpServer->clients[i].fd, msgPtr, bytesLeft)) <= 0) { 
+        if ((bytesWritten = write(fd, msgPtr, bytesLeft)) <= 0) { 
 
             if (bytesWritten < 0 && errno == EINTR) {
                 bytesWritten = 0;
             }
             else {
-                FAILED("Error writing to socket: %d", NO_ERRCODE, tcpServer->clients[i].fd);
-
+                FAILED("Error writing to socket: %d", NO_ERRCODE, fd);
             }
         }
         bytesLeft -= bytesWritten; 
         msgPtr += bytesWritten; 
     }
-
-    // reset input buffer
-    tcpServer->clients[i].inBuffer[0] = '\0';
-}
-
-struct pollfd * get_pfds(PollFdSet *pollFdSet) {
-
-    return pollFdSet->pfds;
-}
-
-int get_pfds_capacity(PollFdSet *pollFdSet) {
-    
-    return pollFdSet->capacity;
-}
-
-char * get_client_inbuffer(Client *client) {
-
-    if (client == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-    return client->inBuffer;
 }
 
 const char * get_client_nickname(Client *client) {
@@ -547,6 +529,22 @@ void set_client_nickname(Client *client, const char *nickname) {
     }
 
     strcpy(client->nickname, nickname);
+}
+
+char * get_client_inbuffer(Client *client) {
+
+    if (client == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return client->inBuffer;
+}
+
+void set_client_inbuffer(Client *client, const char *content) {
+
+    if (client == NULL || content == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    safe_copy(client->inBuffer, MAX_CHARS + 1, content);
 }
 
 int is_client_registered(Client *client) {
@@ -570,7 +568,7 @@ int get_client_fd(Client *client) {
     if (client == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
-    return client->fd;
+    return *client->fd;
 }
 
 const char * get_server_name(TCPServer *tcpServer) {
@@ -581,6 +579,14 @@ const char * get_server_name(TCPServer *tcpServer) {
     return tcpServer->serverName;
 }
 
+Client * get_client(TCPServer *tcpServer, int index) {
+
+    if (tcpServer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return &tcpServer->clients[index];
+}
+
 Session * get_session(TCPServer *tcpServer) {
 
     if (tcpServer == NULL) {
@@ -589,34 +595,72 @@ Session * get_session(TCPServer *tcpServer) {
     return tcpServer->session;
 }
 
+Queue * get_msg_queue(TCPServer *tcpServer) {
 
-// int is_client_ready(TCPServer *tcpServer, int fd) {
+    if (tcpServer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return tcpServer->msgQueue;
+}
 
-//     if (tcpServer == NULL) {
-//         FAILED(NULL, ARG_ERROR);
-//     }
+struct pollfd * get_fds(TCPServer *tcpServer) {
 
-//     int clientSet = 0;
+    if (tcpServer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return tcpServer->pfds;
+}
 
-//     for (int i = 0; i < tcpServer->readyClientsCount && !clientSet; i++) {
+int get_fds_capacity(TCPServer *tcpServer) {
+    
+    if (tcpServer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return tcpServer->capacity;
+}
 
-//         if (tcpServer->readyClients[i]) {
-//             clientSet = 1;
-//         }
-//     }
+void send_message_to_user(void *user, void *content) {
 
-//     return clientSet;
-// }
+    if (user == NULL || content == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
 
-// void add_ready_client(TCPServer *tcpServer, int fd) {
+    server_write((const char*) content, (get_user_fd((User*)user)));
+}
 
-//     if (tcpServer == NULL) {
-//         FAILED(NULL, ARG_ERROR);
-//     }
+void send_user_queue_messages(void *user, void *arg) {
 
-//     if (!is_client_ready(session, fd)) {
-//         tcpServer->readyClients[tcpServer->readyClientsCount] = fd;
-//         tcpServer->readyClientsCount++;
-//     }
-// }
+    if (user == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    Queue *queue = get_user_queue((User*)user);
+
+    while (!is_queue_empty(queue)) {
+
+        RegMessage *message = dequeue(queue);
+        char *content = get_reg_message_content(message);
+
+        server_write(content, get_user_fd((User*)user));
+    }
+}
+
+void send_channel_queue_messages(void *channel, void *session) {
+
+    if (channel == NULL || session == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    Queue *queue = get_channel_queue((Channel*)channel);
+
+    while (!is_queue_empty(queue)) {
+
+        RegMessage *message = dequeue(queue);
+        char *content = get_reg_message_content(message);
+
+        iterate_list(get_users_from_channel_users(find_channel_users((Session*)session, channel)), send_message_to_user, content);
+
+    }
+
+}
 

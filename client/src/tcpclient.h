@@ -3,6 +3,8 @@
 
 #include "../../shared/src/queue.h"
 
+#include <poll.h>
+
 #define DEFAULT_ADDRESS "127.0.0.1"
 #define DEFAULT_PORT "50100"
 
@@ -11,28 +13,26 @@ typedef struct TCPClient TCPClient;
 TCPClient * create_client(void);
 void delete_client(TCPClient *tcpClient);
 
-int connect_to_server(TCPClient *tcpClient, char *address, char *port);
+int client_connect(TCPClient *tcpClient, char *address, char *port);
 
 int client_read(TCPClient *tcpClient);
-void client_write(TCPClient *tcpClient);
-
-const char * client_get_servername(TCPClient *tcpClient);
-void client_set_servername(TCPClient *tcpClient, const char *servername);
-const char * client_get_channelname(TCPClient *tcpClient);
-void client_set_channelname(TCPClient *tcpClient, const char *channelname);
-
-Queue * client_get_queue(TCPClient *tcpClient);
-char * client_get_buffer(TCPClient *tcpClient);
-char client_get_char_in_buffer(TCPClient *tcpClient, int index);
-void client_set_char_in_buffer(TCPClient *tcpClient, char ch, int index);
-int client_get_fd(TCPClient *tcpClient);
-void client_set_fd(TCPClient *tcpClient, int fd);
-int client_is_connected(TCPClient *tcpClient);
-void client_set_connected(TCPClient *tcpClient, int connected);
-int client_is_inchannel(TCPClient *tcpClient);
-void client_set_inchannel(TCPClient *tcpClient, int inChannel);
+void client_write(const char *message, int fd);
 
 void add_message_to_client_queue(TCPClient *tcpClient, void *message);
-void * remove_message_from_client_queue(Queue *queue);
+void * remove_message_from_client_queue(TCPClient *tcpClient);
+
+struct pollfd * get_fds(TCPClient *tcpClient);
+const char * get_server_name(TCPClient *tcpClient);
+void set_server_name(TCPClient *tcpClient, const char *serverName);
+char * get_client_inbuffer(TCPClient *tcpClient);
+Queue * get_client_queue(TCPClient *tcpClient);
+char get_char_from_inbuffer(TCPClient *tcpClient, int index);
+void set_char_in_inbuffer(TCPClient *tcpClient, char ch, int index);
+void set_fd(TCPClient *tcpClient, int fdIndex, int fd);
+void unset_fd(TCPClient *tcpClient, int fdIndex);
+int is_client_connected(TCPClient *tcpClient);
+int is_stdin_event(TCPClient *tcpClient);
+int is_socket_event(TCPClient *tcpClient);
+int get_socket_fd(TCPClient *tcpClient);
 
 #endif

@@ -3,7 +3,7 @@
 
 #define NCURSES_WIDECHAR 1
 
-#include "../../shared/src/queue.h"
+#include "../../shared/src/priv_queue.h"
 #include "../../shared/src/priv_message.h"
 
 #include <ncursesw/curses.h>
@@ -15,11 +15,11 @@ typedef struct {
     int charCount;
 } LineEditor;
 
-typedef void (*LnEditorFunc)(LineEditor *lnEditor);
+typedef void (*LnEditorFunction)(LineEditor *lnEditor);
 
 typedef struct {
     int keyCode;
-    LnEditorFunc lnEditorFunc;
+    LnEditorFunction lnEditorFunc;
 } LnEditorCmd;
 
 LineEditor * create_line_editor(WINDOW *window);
@@ -37,7 +37,7 @@ void use_end(LineEditor *lnEditor);
 void display_previous_command(LineEditor *lnEditor);
 void display_next_command(LineEditor *lnEditor);
 
-LnEditorFunc use_line_editor_func(int index);
+LnEditorFunction get_lneditor_function(int index);
 int get_le_func_index(int keyCode);
 
 WINDOW * le_get_window(LineEditor *lnEditor);

@@ -54,6 +54,17 @@ START_TEST(test_set_char_in_message) {
 }
 END_TEST
 
+START_TEST(test_get_message_content_recipient) {
+
+    ExtMessage *message = create_ext_message("", "john", "message");
+
+    ck_assert_str_eq(get_ext_message_content(message), "message");
+    ck_assert_str_eq(get_ext_message_recipient(message), "john");
+
+    delete_message(message);
+}
+END_TEST
+
 Suite* message_suite(void) {
     Suite *s;
     TCase *tc_core;
@@ -66,6 +77,7 @@ Suite* message_suite(void) {
     tcase_add_test(tc_core, test_create_ext_message);
     tcase_add_test(tc_core, test_get_char_from_message);
     tcase_add_test(tc_core, test_set_char_in_message);
+    tcase_add_test(tc_core, test_get_message_content_recipient);
 
     suite_add_tcase(s, tc_core);
 

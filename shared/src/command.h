@@ -1,8 +1,9 @@
 #ifndef COMMAND_H
 #define COMMAND_H
 
+#include "string_utils.h"
+
 #define MAX_TOKENS 5
-#define MAX_CHARS 512
 
 typedef enum {
     HELP,
@@ -19,12 +20,19 @@ typedef enum {
 } CommandType;
 
 typedef enum {
-    CLIENT,
-    SERVER,
-    COMMON,
-    UNKNOWN_COMMAND_HANDLER,
-    COMMAND_HANDLER_COUNT
-} CommandHandler;
+    CLIENT_COMMAND,
+    SERVER_COMMAND,
+    COMMON_COMMAND,
+    UNKNOWN_COMMAND_USER,
+    COMMAND_USER_COUNT
+} CommandUser;
+
+typedef struct {
+    const char *prefix[MAX_TOKENS];
+    const char *body[MAX_TOKENS];
+    const char *suffix[MAX_TOKENS];
+    int useLeadChar;
+} MessageTokens;
 
 typedef struct {
     char input[MAX_CHARS + 1];
@@ -38,10 +46,16 @@ typedef struct Command Command;
 CommandTokens * create_command_tokens(void);
 void delete_command_tokens(CommandTokens *cmdTokens);
 
+void reset_cmd_tokens(CommandTokens *cmdTokens);
+
+void create_message(char *buffer, int size, MessageTokens *messageTokens);
+
 const char * command_type_to_string(CommandType commandType);
 CommandType string_to_command_type(const char *string);
 
 int is_valid_command(CommandType commandType);
+
+int has_command_prefix(const char *string);
 
 const Command * get_commands(void);
 const Command * get_command(CommandType commandType);
@@ -55,7 +69,5 @@ void get_command_examples(const Command *command, char **examplesArray, int size
 const char * get_cmd_from_cmd_tokens(CommandTokens *cmdTokens);
 const char * get_arg_from_cmd_tokens(CommandTokens *cmdTokens, int index);
 int get_arg_count_from_cmd_tokens(CommandTokens *cmdTokens);
-
-int has_command_prefix(const char *string);
 
 #endif

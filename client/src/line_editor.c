@@ -10,6 +10,10 @@
 #include "../../shared/src/error_control.h"
 #include "../../shared/src/logger.h"
 
+#ifdef TEST
+#include "../../shared/src/mock.h"
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,8 +23,9 @@
 #define STATIC static
 #endif
 
-#define MAX_CHARS 512
 #define MSG_HISTORY 10
+#define CRLF_LEN 2
+#define LEAD_CHAR_LEN 1
 
 STATIC void display_command_text(LineEditor *lnEditor, RegMessage *msg);
 
@@ -28,7 +33,7 @@ STATIC void display_command_text(LineEditor *lnEditor, RegMessage *msg);
 
 struct LnEditorCmd {
     int keyCode;
-    LnEditorFunc lnEditorFunc;
+    LnEditorFunction lnEditorFunc;
 };
 
 struct LineEditor {
@@ -118,7 +123,7 @@ void add_char(LineEditor *lnEditor, char ch) {
 
     int cols = get_wwidth(lnEditor->window);
 
-    if (lnEditor->cursor < cols && lnEditor->charCount + PROMPT_SIZE < cols && lnEditor->charCount < MAX_CHARS) {
+    if (lnEditor->cursor < cols && lnEditor->charCount + PROMPT_SIZE < cols && lnEditor->charCount < MAX_CHARS - CRLF_LEN - LEAD_CHAR_LEN) {
 
         char lastChPos = lnEditor->charCount + PROMPT_SIZE;
 
@@ -197,7 +202,6 @@ void display_previous_command(LineEditor *lnEditor) {
 
     RegMessage *msg = get_previous_item(lnEditor->buffer);
     display_command_text(lnEditor, msg);
-
 }
 
 void display_next_command(LineEditor *lnEditor) {
@@ -210,7 +214,7 @@ void display_next_command(LineEditor *lnEditor) {
     display_command_text(lnEditor, msg);
 }
 
-LnEditorFunc use_line_editor_func(int index) {
+LnEditorFunction get_lneditor_function(int index) {
 
     return lnEditorCmd[index].lnEditorFunc;
 }

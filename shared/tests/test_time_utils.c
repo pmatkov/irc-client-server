@@ -90,6 +90,26 @@ START_TEST(test_calculate_elapsed_time) {
 }
 END_TEST
 
+START_TEST(test_is_timer_active) {
+
+    Timer *timer = create_timer();
+
+    start_timer(timer);
+    stop_timer(timer);
+
+    int active = is_timer_active(timer);
+    ck_assert_int_eq(active, 1);
+
+    reset_timer(timer);
+
+    active = is_timer_active(timer);
+    ck_assert_int_eq(active, 0);
+
+    delete_timer(timer);
+
+}
+END_TEST
+
 Suite* time_utils_suite(void) {
     Suite *s;
     TCase *tc_core;
@@ -101,6 +121,7 @@ Suite* time_utils_suite(void) {
     tcase_add_test(tc_core, test_get_datetime);
     tcase_add_test(tc_core, test_create_timer);
     tcase_add_test(tc_core, test_calculate_elapsed_time);
+    tcase_add_test(tc_core, test_is_timer_active);
 
     suite_add_tcase(s, tc_core);
 

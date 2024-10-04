@@ -6,26 +6,27 @@
 
 START_TEST(test_create_channel) {
 
-    Channel *channel = create_channel("general", TEMPORARY, MAX_USERS_PER_CHANNEL);
+    Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
 
     ck_assert_ptr_ne(channel, NULL);
-    ck_assert_str_eq(channel->name, "channel");
+    ck_assert_str_eq(channel->name, "#general");
     ck_assert_int_eq(channel->channelType, TEMPORARY);
-    ck_assert_int_eq(channel->capacity, MAX_USERS_PER_CHANNEL);
-    ck_assert_int_eq(channel->count, 0);
 
     delete_channel(channel);
 }
 END_TEST
 
-START_TEST(test_add_message_to_channel) {
+START_TEST(test_add_remove_message_from_channel_queue) {
 
-    Channel *channel = create_channel("general", TEMPORARY, MAX_USERS_PER_CHANNEL);
+    Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
 
-    add_message_to_channel(channel, "message");
-
-    ck_assert_int_eq(channel->outQueue->capacity, MAX_USERS_PER_CHANNEL);
+    add_message_to_channel_queue(channel, "message");
     ck_assert_int_eq(channel->outQueue->count, 1);
+
+    RegMessage *message = remove_message_from_channel_queue(channel);
+    ck_assert_int_eq(channel->outQueue->count, 0);
+
+    ck_assert_str_eq(get_reg_message_content(message), "message");
 
     delete_channel(channel);
 }
@@ -33,8 +34,8 @@ END_TEST
 
 START_TEST(test_are_channels_equal) {
 
-    Channel *channel1 = create_channel("general", TEMPORARY, MAX_USERS_PER_CHANNEL);
-    Channel *channel2 = create_channel("general", TEMPORARY, MAX_USERS_PER_CHANNEL);
+    Channel *channel1 = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
+    Channel *channel2 = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
 
     int equal = are_channels_equal(channel1, channel2);
     ck_assert_int_eq(equal, 1);
@@ -46,7 +47,7 @@ END_TEST
 
 START_TEST(test_get_channel_type) {
 
-    Channel *channel = create_channel("general", TEMPORARY, MAX_USERS_PER_CHANNEL);
+    Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
 
     ChannelType type = get_channel_type(channel);
     ck_assert_int_eq(type, TEMPORARY);
@@ -55,7 +56,27 @@ START_TEST(test_get_channel_type) {
 }
 END_TEST
 
+START_TEST(test_get_channel_name) {
 
+    Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
+
+    const char *channelName = get_channel_name(channel);
+    ck_assert_str_eq(channelName, "#general");
+
+    delete_channel(channel);
+}
+END_TEST
+
+START_TEST(test_get_channel_queue) {
+
+    Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
+
+    Queue *queue = get_channel_queue(channel);
+    ck_assert_ptr_ne(queue, NULL);
+
+    delete_channel(channel);
+}
+END_TEST
 
 Suite* channel_suite(void) {
     Suite *s;
@@ -66,9 +87,11 @@ Suite* channel_suite(void) {
 
     // Add the test case to the test suite
     tcase_add_test(tc_core, test_create_channel);
-    tcase_add_test(tc_core, test_add_message_to_channel);
+    tcase_add_test(tc_core, test_add_remove_message_from_channel_queue);
     tcase_add_test(tc_core, test_are_channels_equal);
     tcase_add_test(tc_core, test_get_channel_type);
+    tcase_add_test(tc_core, test_get_channel_name);
+    tcase_add_test(tc_core, test_get_channel_queue);
     
     suite_add_tcase(s, tc_core);
 

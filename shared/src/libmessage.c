@@ -4,16 +4,17 @@
 #include "message.h"
 #endif
 
-#include "string_utils.h"
 #include "error_control.h"
 #include "logger.h"
 
 #include <stdlib.h>
 #include <string.h>
 
+#define CRLF_LEN 2
+#define LEAD_CHAR_LEN 1
+
 #ifndef TEST
 
-#define MAX_CHARS 512
 #define MAX_NICKNAME_LEN 9
 #define MAX_CHANNEL_LEN 50
 
@@ -40,7 +41,7 @@ RegMessage * create_reg_message(const char *content) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    safe_copy(regMessage->content, MAX_CHARS + 1, content);
+    safe_copy(regMessage->content, sizeof(regMessage->content), content);
 
     return regMessage;
 }
@@ -56,9 +57,9 @@ ExtMessage * create_ext_message(const char *sender, const char *recipient, const
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    safe_copy(extMessage->sender, MAX_NICKNAME_LEN + 1, sender);
-    safe_copy(extMessage->recipient, MAX_CHANNEL_LEN + 1, recipient);
-    safe_copy(extMessage->content, MAX_CHARS + 1, content); 
+    safe_copy(extMessage->sender, sizeof(extMessage->sender), sender);
+    safe_copy(extMessage->recipient, sizeof(extMessage->recipient), recipient);
+    safe_copy(extMessage->content, sizeof(extMessage->content), content); 
 
     return extMessage;
 }
@@ -68,13 +69,13 @@ void delete_message(void *message) {
     free(message);
 }
 
-char get_char_from_message(void *message, int index, GetMessageContent getMessageContent) {
+char get_char_from_message(void *message, int index, ContentRetrieveFunc contentRetrieveFunc) {
 
     if (message == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    char *content = getMessageContent(message);
+    char *content = contentRetrieveFunc(message);
     
     char ch = '\0';
 
@@ -85,33 +86,58 @@ char get_char_from_message(void *message, int index, GetMessageContent getMessag
     return ch;
 }
 
-void set_char_in_message(void *message, char ch, int index, GetMessageContent getMessageContent) {
+void set_char_in_message(void *message, char ch, int index, ContentRetrieveFunc contentRetrieveFunc) {
 
     if (message == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    char *content = getMessageContent(message);
+    char *content = contentRetrieveFunc(message);
 
-    if (strlen(content) < MAX_CHARS) {
+    if (strlen(content) < MAX_CHARS - CRLF_LEN - LEAD_CHAR_LEN) {
         content[index] = ch;
     }
 }
 
 char * get_reg_message_content(void *message) {
 
-    if (message == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    char *content = NULL;
+
+    RegMessage *regMessage = message;
+
+    if (regMessage != NULL) {
+
+        content = regMessage->content;
     }
-    RegMessage *regMessage = (RegMessage *)message;
-    return regMessage->content;
+    
+    return content;
 }
 
 char * get_ext_message_content(void *message) {
 
-    if (message == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    char *content = NULL;
+
+    ExtMessage *extMessage = message;
+
+    if (extMessage != NULL) {
+
+        content = extMessage->content;
     }
-    ExtMessage *extMessage = (ExtMessage *)message;
-    return extMessage->content;
+    
+    return content;
 }
+
+char * get_ext_message_recipient(void *message) {
+
+    char *recipient = NULL;
+
+    ExtMessage *extMessage = message;
+
+    if (extMessage != NULL) {
+
+        recipient = extMessage->recipient;
+    }
+    
+    return recipient;
+}
+

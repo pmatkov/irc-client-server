@@ -27,25 +27,25 @@ END_TEST
 
 START_TEST(test_traverse_up_path) {
 
-    char output[MAX_PATH + 1] = {'\0'};  
+    char buffer[MAX_PATH + 1] = {'\0'};  
     char path[] = "/home/pmatkov/programming/c/buzz/shared/tests/bin/test_logger";
 
-    int status = traverse_up_path(output, MAX_PATH, path, 2);
+    int status = traverse_up_path(buffer, MAX_PATH, path, 2);
 
     ck_assert_int_eq(status, 1);
-    ck_assert_str_eq(output, "/home/pmatkov/programming/c/buzz/shared/tests");
+    ck_assert_str_eq(buffer, "/home/pmatkov/programming/c/buzz/shared/tests");
 
 }
 END_TEST
 
 START_TEST(test_set_default_path) {
 
-    char output[MAX_PATH + 1] = {'\0'};  
+    char buffer[MAX_PATH + 1] = {'\0'};  
 
-    int status = set_default_path(output, MAX_PATH, "/log");
+    int status = set_default_path(buffer, MAX_PATH, "/log");
 
     ck_assert_int_eq(status, 1);
-    ck_assert_str_eq(output, "/home/pmatkov/programming/c/buzz/shared/log");
+    ck_assert_str_eq(buffer, "/home/pmatkov/programming/c/buzz/shared/log");
 
 }
 END_TEST

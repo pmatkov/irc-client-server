@@ -14,9 +14,9 @@
 #define PORT_MIN 49152
 #define PORT_MAX 65535
 
-int convert_hostname_to_ip(const char *input, char *result, int size) {
+int convert_hostname_to_ip_address(char *buffer, int size, const char *hostname) {
 
-    if (input == NULL || result == NULL) {
+    if (buffer == NULL || hostname == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
@@ -27,7 +27,7 @@ int convert_hostname_to_ip(const char *input, char *result, int size) {
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
-    if (getaddrinfo(input, NULL, &hints, &res) != 0) {
+    if (getaddrinfo(hostname, NULL, &hints, &res) != 0) {
         FAILED("Error converting hostname to IP address", NO_ERRCODE);
     }
 
@@ -35,7 +35,7 @@ int convert_hostname_to_ip(const char *input, char *result, int size) {
     if (p != NULL) {
 
         struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
-        if (inet_ntop(p->ai_family, &ipv4->sin_addr, result, size) != NULL) {
+        if (inet_ntop(p->ai_family, &ipv4->sin_addr, buffer, size) != NULL) {
             converted = 1;
         }
     }
@@ -45,9 +45,9 @@ int convert_hostname_to_ip(const char *input, char *result, int size) {
     return converted;
 }
 
-int convert_ip_to_hostname(const char *input, char *result, int size) {
+int convert_ip_to_hostname(char *buffer, int size, const char *ipv4Address) {
 
-    if (input == NULL || result == NULL) {
+    if (buffer == NULL || ipv4Address == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
@@ -57,11 +57,11 @@ int convert_ip_to_hostname(const char *input, char *result, int size) {
 
     int converted = 0;
 
-    if (inet_pton(AF_INET, input, &sa.sin_addr) <= 0) {
+    if (inet_pton(AF_INET, ipv4Address, &sa.sin_addr) <= 0) {
         FAILED("Error converting string to numerical IP address", NO_ERRCODE);
     }
 
-    if (getnameinfo((struct sockaddr *)&sa, sizeof(struct sockaddr_in), result, size, NULL, 0, 0) != 0) {
+    if (getnameinfo((struct sockaddr *)&sa, sizeof(struct sockaddr_in), buffer, size, NULL, 0, 0) != 0) {
         FAILED("Error resolving IP address to hostname", NO_ERRCODE);
     } else {
         converted = 1;
@@ -70,26 +70,26 @@ int convert_ip_to_hostname(const char *input, char *result, int size) {
     return converted;
 }
 
-void get_localhost_ip(char *result, int size, int fd) {
+void get_client_ip(char *buffer, int size, int fd) {
 
-    if (result == NULL) {
+    if (buffer == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
     struct sockaddr_in sa;
-    socklen_t sa_len = sizeof(sa);
+    socklen_t saLen = sizeof(sa);
 
-    if (getsockname(fd, (struct sockaddr *)&sa, &sa_len) == -1) {
+    if (getsockname(fd, (struct sockaddr *)&sa, &saLen) == -1) {
         FAILED("Error getting local IP address", NO_ERRCODE);
     }
 
-    if (inet_ntop(AF_INET, &(sa.sin_addr), result, size) <= 0) {
+    if (inet_ntop(AF_INET, &(sa.sin_addr), buffer, size) <= 0) {
         FAILED("Error resolving IP address to hostname", NO_ERRCODE);
     }
 }
 
 // checks if string is valid IPv4 address
-int is_ipv4address(const char *string) {
+int is_valid_ip_address(const char *string) {
     
     int octets = 0;
     char *copy, *token, *savePtr;
@@ -116,7 +116,7 @@ int is_ipv4address(const char *string) {
 }
 
 // checks if string is valid port number (in defined range)
-int is_port(const char *string) {
+int is_valid_port(const char *string) {
 
     long n = str_to_uint(string);
 

@@ -4,7 +4,9 @@
 #include "tcpserver.h"
 #include "../../shared/src/command.h"
 
-typedef void (*CommandFunction)(TCPServer *, Client *, CommandTokens *);
+typedef void (*CommandFunction)(TCPServer *tcpServer, Client *, CommandTokens *);
+
+typedef struct ResponseTokens ResponseTokens;
 
 void parse_message(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 

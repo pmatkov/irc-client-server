@@ -6,6 +6,89 @@
 #include <ctype.h>
 #include <errno.h>
 
+StringList * create_string_list(int capacity, int stringLength) {
+    
+    StringList *stringList = (StringList *) malloc(sizeof(StringList));
+    if (stringList == NULL) {
+        FAILED("Error allocating memory", NO_ERRCODE);
+    }
+
+    stringList->strings = (char **) malloc(capacity * sizeof(char *));
+    if (stringList->strings  == NULL) {
+        FAILED("Error allocating memory", NO_ERRCODE);
+    }
+
+    for (int i = 0; i < capacity; i++) {
+
+        stringList->strings[i] = (char*) malloc((stringLength + 1) * sizeof(char));
+        if (stringList->strings[i] == NULL) {
+            FAILED("Error allocating memory", NO_ERRCODE);
+        }
+    }
+
+    stringList->stringLength = stringLength;
+    stringList->capacity = capacity;
+    stringList->count = 0;
+
+    return stringList; 
+}
+
+void delete_string_list(StringList *stringList) {
+
+    if (stringList != NULL) {
+
+        for (int i = 0; i < stringList->capacity; i++) {
+            free(stringList->strings[i]);
+        }
+        free(stringList->strings);
+    }
+
+    free(stringList);   
+}
+
+int is_string_list_empty(StringList *stringList) {
+
+    if (stringList == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return stringList->count == 0;
+}
+
+int is_string_list_full(StringList *stringList) {
+
+    if (stringList == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    return stringList->count == stringList->capacity;
+}
+
+void add_string_to_string_list(StringList *stringList, const char* string) {
+
+    if (stringList == NULL || string == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    if (!is_string_list_full(stringList)) {
+
+        safe_copy(stringList->strings[stringList->count], stringList->stringLength + 1, string);
+
+        stringList->count++;
+    }
+}
+
+void remove_string_from_string_list(StringList *stringList) {
+
+    if (stringList == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    if (!is_string_list_full(stringList)) {
+
+        memset(stringList->strings[stringList->count - 1], '\0', stringList->stringLength + 1);
+        stringList->count--;
+    }
+}
+
 /* splits string to tokens. If tkCount is less than word
  count, the last token will contain all the reamining words. */
 int split_input_string(char *input, const char **tokens, int tkCount, int sep) {
@@ -41,7 +124,7 @@ int split_input_string(char *input, const char **tokens, int tkCount, int sep) {
 
 }
 
-// concatenates tokens into string
+// concatenates tokens into a string
 int concat_tokens(char *buffer, int size, const char **tokens, int tkCount, const char *sep) {
 
     if (buffer == NULL || tokens == NULL) {
@@ -52,37 +135,19 @@ int concat_tokens(char *buffer, int size, const char **tokens, int tkCount, cons
 
     while (i < tkCount && tokens[i] != NULL) {
 
-        strncat(buffer, tokens[i], size - strlen(buffer) - 1);
-        strncat(buffer, sep, size - strlen(buffer) - 1);
-        i++;
+        if (strlen(tokens[i])) {
 
+            strncat(buffer, tokens[i], size - strlen(buffer) - 1);
+            strncat(buffer, sep, size - strlen(buffer) - 1);
+        }
+        i++;
     }
 
-    if (buffer[strlen(buffer)-1] == sep[0]) {
-        buffer[strlen(buffer)-1] = '\0'; 
+    if (strlen(buffer) && buffer[strlen(buffer) - 1] == sep[0]) {
+        buffer[strlen(buffer) - 1] = '\0'; 
     }
 
     return i;
-}
-
-// prepends char to string
-void prepend_char(char *buffer, int size, const char *string, char ch) {
-
-    if (buffer == NULL || string == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    int len = strlen(string);
-
-    if (size >= len + 1) {
-
-        for (int i = 0; i < len; i++) {
-            buffer[i + 1] = string[i];
-        }
-
-        buffer[0] = ch;
-    }
-
 }
 
 // counts tokens before delimiter
@@ -108,7 +173,54 @@ int count_tokens(const char *input, char delimiter) {
     }
 
     return count;
+}
 
+// prepends char to string
+void prepend_char(char *buffer, int size, const char *string, char ch) {
+
+    if (buffer == NULL || string == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    int len = strlen(string);
+
+    if (size >= len + 1) {
+
+        for (int i = len; i >= 0; i--) {
+            buffer[i + 1] = string[i];
+        }
+
+        buffer[0] = ch;
+    }
+}
+
+void crlf_terminate(char *buffer, int size, const char *string) {
+
+    if (buffer == NULL || string == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    if (strlen(string) + strlen("\r\n") < size) {
+
+        strcat(buffer, string);
+        strcat(buffer, "\r\n");
+    }
+}
+
+int is_crlf_terminated(const char *string) {
+
+    if (string == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    int terminated = 0;
+    int len = strlen(string);
+
+    if (len > strlen("\r\n") && string[len-2] == '\r' && string[len-1] == '\n') {
+        terminated = 1;
+    }
+
+    return terminated;
 }
 
 /* checks if nickname or channel name 
@@ -155,20 +267,25 @@ int safe_copy(char *buffer, int size, const char *string) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    int status = 0;
+    int copied = 0;
 
     if (string == NULL) {
         string = "";
     }
+
+    int len = strnlen(string, size);
     
-    if (strnlen(string, size) != size) {
+    if (len < size) {
 
         strcpy(buffer, string);
 
-        status = 1;
+        copied = 1;
+    }
+    else if (size) {
+        buffer[0] = '\0';
     }
 
-    return status;
+    return copied;
 }
 
 // converts number from string representation to unsigned int
@@ -189,9 +306,9 @@ int str_to_uint(const char *string) {
 }
 
 // converts number from unsigned int to string representation 
-int uint_to_str(char *string, int size, unsigned number) {
+int uint_to_str(char *buffer, int size, unsigned number) {
 
-    if (string == NULL || !size) {
+    if (buffer == NULL || !size) {
         return 0;
     }
 
@@ -208,11 +325,11 @@ int uint_to_str(char *string, int size, unsigned number) {
     }
 
     for (int i = 0; i < digits; i++) {
-        string[digits-i-1] = number % 10 + '0';
+        buffer[digits-i-1] = number % 10 + '0';
         number /= 10;
     }
 
-    string[digits] = '\0';
+    buffer[digits] = '\0';
 
     return 1;
 }

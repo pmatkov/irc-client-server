@@ -1,10 +1,10 @@
 #include "../src/priv_linked_list.h"
+#include "../src/string_utils.h"
 
 #include <check.h>
 #include <stdlib.h>
 
 #define QUEUE_CAPACITY 3
-#define MAX_CHARS 512
 
 typedef struct {
     char *name;

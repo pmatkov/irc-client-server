@@ -23,10 +23,9 @@
 #endif
 
 #define MAX_LINES 25
-#define MAX_CHARS 512
 
 #define MAX_FILE_NAME 100
-#define MAX_PATH 64
+#define MAX_PATH_LEN 64
 #define MAX_IDENTIFIER 16
 
 struct Logger {
@@ -112,11 +111,11 @@ void delete_logger(Logger *logger) {
 
 STATIC FILE * open_log_file(char *dirPath, char *identifier) {
 
-    char basePath[MAX_PATH + 1] = {'\0'};
+    char basePath[MAX_PATH_LEN + 1] = {'\0'};
 
     if (dirPath == NULL) {
 
-        if (set_default_path(basePath, MAX_PATH, "/log/")) {
+        if (set_default_path(basePath, MAX_PATH_LEN, "/log/")) {
             dirPath = basePath;
         }
         else {
@@ -136,7 +135,7 @@ STATIC FILE * open_log_file(char *dirPath, char *identifier) {
     char logFileName[MAX_FILE_NAME + 1] = {'\0'};
 
     // set dir path
-    strncat(logFileName, dirPath, MAX_PATH);
+    strncat(logFileName, dirPath, MAX_PATH_LEN);
 
     // set date prefix
     get_datetime(get_format_function(DATE), logFileName + strlen(logFileName), DATE_LENGTH);

@@ -20,11 +20,10 @@ int is_queue_empty(Queue *queue);
 int is_queue_full(Queue *queue);
 
 void enqueue(Queue *queue, void *item);
-void *dequeue(Queue *queue);
+void * dequeue(Queue *queue);
 
 void * get_previous_item(Queue *queue);
 void * get_next_item(Queue *queue);
 void * get_current_item(Queue *queue);
-
 
 #endif

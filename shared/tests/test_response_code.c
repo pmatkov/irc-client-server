@@ -4,7 +4,7 @@
 
 START_TEST(test_get_response_type) {
 
-    ResponseType responseType = get_response_type(403);
+    ResponseType responseType = get_response_type("403");
 
     ck_assert_int_eq(responseType, ERR_NOSUCHCHANNEL);
 }
@@ -12,7 +12,7 @@ END_TEST
 
 START_TEST(test_get_response_message) {
 
-    const char *message = get_response_message(403);
+    const char *message = get_response_message("403");
 
     ck_assert_ptr_ne(message, NULL);
     ck_assert_str_eq(message, "No such channel");
@@ -21,9 +21,9 @@ END_TEST
 
 START_TEST(test_get_response_code) {
 
-    int code = get_response_code(ERR_NOSUCHCHANNEL);
+    const char *code = get_response_code(ERR_NOSUCHCHANNEL);
 
-    ck_assert_int_eq(code, 403);
+    ck_assert_str_eq(code, "403");
 }
 END_TEST
 

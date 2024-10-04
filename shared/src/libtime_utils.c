@@ -10,6 +10,7 @@
 struct Timer {
     time_t startTime;
     time_t endTime;
+    int isActive;
 };
 
 static void fhmtime(char *timestamp, size_t length, struct tm *timeInfo);
@@ -68,6 +69,7 @@ Timer * create_timer(void) {
 
     timer->startTime = 0;
     timer->endTime = 0;
+    timer->isActive = 0;
 
     return timer;
 }
@@ -77,13 +79,13 @@ void delete_timer(Timer *timer) {
     free(timer);
 }
 
-
 void start_timer(Timer *timer) {
 
     if (timer == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
     timer->startTime = time(NULL);
+    timer->isActive = 1;
 }
 
 void stop_timer(Timer *timer)  {
@@ -101,6 +103,7 @@ void reset_timer(Timer *timer) {
     }
     timer->startTime = 0;
     timer->endTime = 0;
+    timer->isActive = 0;
 }
 
 int get_elapsed_time(Timer *timer) {
@@ -108,5 +111,23 @@ int get_elapsed_time(Timer *timer) {
     if (timer == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
-    return timer->endTime - timer->startTime;
+    
+    int elapsedTime = 0;
+
+    if (timer->endTime - timer->startTime > 0) {
+        elapsedTime = timer->endTime - timer->startTime;
+    }
+    else if (timer->endTime - timer->startTime < 0) {
+        elapsedTime = time(NULL) - timer->startTime;
+    }
+    return elapsedTime;
+}
+
+int is_timer_active(Timer *timer) {
+
+    if (timer == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    
+    return timer->isActive;
 }

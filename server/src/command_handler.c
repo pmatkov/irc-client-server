@@ -2,14 +2,16 @@
 #include "priv_command_handler.h"
 #else
 #include "command_handler.h"
+#include "../../shared/src/response_code.h"
 #endif
 
 #include "user.h"
 #include "channel.h"
 #include "session.h"
+#include "tcpserver.h"
+#include "../../shared/src/settings.h"
 #include "../../shared/src/linked_list.h"
 #include "../../shared/src/priv_message.h"
-#include "../../shared/src/response_code.h"
 #include "../../shared/src/string_utils.h"
 #include "../../shared/src/logger.h"
 #include "../../shared/src/error_control.h"
@@ -17,17 +19,12 @@
 #include <stddef.h>
 #include <string.h>
 
-#define ARR_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
-
 #ifdef TEST
 #define STATIC
 #else
 #define STATIC static
 #endif
 
-#define MSG_PARTS 2
-#define MAX_COMMAND_LEN 32
-#define MAX_RESPONSE_CODE_LEN 32
 #define MAX_NICKNAME_LEN 9
 
 STATIC void cmd_nick(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
@@ -38,18 +35,12 @@ STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmd
 STATIC void cmd_quit(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 STATIC void cmd_unknown(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 
-STATIC void create_fwd_message(char *buffer, int size, const char *prefix, const char *body, const char *suffix);
-STATIC void create_response(char *buffer, int size, const char *prefix, const char *body, ResponseType responseType);
 STATIC void create_client_info(char *buffer, int size, const char *nickname, const char *username, const char *hostname);
 
-typedef struct {
-    const char *prefix;
-    const char *param1;
-    const char *param2;
-    ResponseType responseType;
-} ErrorMessage;
-
 static const CommandFunction COMMAND_FUNCTIONS[] = {
+    NULL,
+    NULL,
+    NULL,
     cmd_nick,
     cmd_user,
     cmd_join,
@@ -59,55 +50,54 @@ static const CommandFunction COMMAND_FUNCTIONS[] = {
     cmd_unknown
 };
 
+_Static_assert(sizeof(COMMAND_FUNCTIONS) / sizeof(COMMAND_FUNCTIONS[0]) == COMMAND_TYPE_COUNT, "Array size mismatch");
+
 STATIC void cmd_nick(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
     char message[MAX_CHARS + 1] = {'\0'};
-    const char *servername = get_server_name(tcpServer);
+    const char *servername = get_property_value(HOSTNAME);
 
     if (!cmdTokens->argCount) {
 
         // :server 431 * :No nickname given
-        create_response(message, MAX_CHARS, servername, "*", ERR_NONICKNAMEGIVEN);
+        const char *code = get_response_code(ERR_NONICKNAMEGIVEN);
+        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
     }
     else if (cmdTokens->argCount >= 1) {
 
-        // if (strlen(cmdTokens->args[0]) > MAX_NICKNAME_LEN) {
-
-        //     cmdTokens->args[0][MAX_NICKNAME_LEN] = '\0';
-        // }
-        if (!is_valid_name(cmdTokens->args[0], 0)) {
+        if (strlen(cmdTokens->args[0]) > MAX_NICKNAME_LEN || !is_valid_name(cmdTokens->args[0], 0)) {
 
             // :server 432 <nickname> :Erroneous nickname
-            create_response(message, MAX_CHARS, servername, cmdTokens->args[0], ERR_ERRONEUSNICKNAME);
+            const char *code = get_response_code(ERR_ERRONEUSNICKNAME);
+            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, cmdTokens->args[0]}, {get_response_message(code)}, 1});
         }
         else if (find_user_in_hash_table(get_session(tcpServer), cmdTokens->args[0]) != NULL) {
 
             // :server 433 <nickname> :Nickname is already in use
-            create_response(message, MAX_CHARS, servername, cmdTokens->args[0], ERR_NICKNAMEINUSE);
+            const char *code = get_response_code(ERR_NICKNAMEINUSE);
+            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, cmdTokens->args[0]}, {get_response_message(code)}, 1});
         }
         else {
 
             if (is_client_registered(client)) {
 
-                User *user = find_user_in_hash_table(get_session(tcpServer), cmdTokens->args[0]);
+                User *user = find_user_in_hash_table(get_session(tcpServer), get_client_nickname(client));
                 User *newUser = create_user(cmdTokens->args[0], get_username(user), get_hostname(user), get_realname(user), get_client_fd(client));
 
                 UserChannels *userChannels = find_user_channels(get_session(tcpServer), user);
 
-                 /* notify channels that the user
-                  has changed his nickname */
-
+                 // notify channels of nickname change
                 if (userChannels != NULL) {
 
-                    // :old_nick!user@host NICK :new_nick
                     char clientInfo[MAX_CHARS + 1] = {'\0'};
-                    char fwdMessage[MAX_CHARS + 1] = {'\0'};
-
                     create_client_info(clientInfo, MAX_CHARS, get_user_nickname(user), get_username(user), get_hostname(user));
 
-                    create_fwd_message(fwdMessage, MAX_CHARS, clientInfo, cmdTokens->command, cmdTokens->args[0]);
+                    char fwdMessage[MAX_CHARS + 1] = {'\0'};
 
-                    iterate_list(get_channels_from_user_channels(userChannels), add_message_to_channel, fwdMessage);
+                    create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
+
+                    iterate_list(get_channels_from_user_channels(userChannels), add_message_to_channel_queue, fwdMessage);
+                    iterate_list(get_channels_from_user_channels(userChannels), add_channel_to_ready_channels, get_ready_list(get_session(tcpServer)));
 
                     change_user_in_user_channels(userChannels, newUser);
 
@@ -124,29 +114,27 @@ STATIC void cmd_nick(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 STATIC void cmd_user(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
     char message[MAX_CHARS + 1] = {'\0'};
-    const char *servername = get_server_name(tcpServer);
+    const char *servername = get_property_value(HOSTNAME);
     const char *nickname = get_client_nickname(client);
 
     if (!strlen(get_client_nickname(client))) {
 
-        // :server 451 <nickname> :You have not registered
-        create_response(message, MAX_CHARS, servername, "*", ERR_NOTREGISTERED);
+        // :server 451 * :You have not registered
+        const char *code = get_response_code(ERR_NOTREGISTERED);
+        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
     }
     else if (is_client_registered(client)) {
 
-        // :server 462 <nickname> :You may not reregister
-        create_response(message, MAX_CHARS, servername, nickname, ERR_ALREADYREGISTRED);
+        // :server 462 <nickname> :Already registered
+        const char *code = get_response_code(ERR_ALREADYREGISTRED);
+        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname}, {get_response_message(code)}, 1});
     }
     else {
         if (cmdTokens->argCount < 4) {
-            char msgBody[MAX_CHARS + 1] = {'\0'};
-            const char *tokens[] = {nickname, cmdTokens->command};  
 
-            concat_tokens(msgBody, MAX_CHARS + 1, tokens, ARR_SIZE(tokens), " ");
-
-            // :server 461 <nickname> <cmd> :Not enough parameters
-            create_response(message, MAX_CHARS, servername, msgBody, ERR_NEEDMOREPARAMS);
-
+            // create_message(message, MAX_CHARS, servername, msgBody, ERR_NEEDMOREPARAMS);
+            const char *code = get_response_code(ERR_NEEDMOREPARAMS);
+            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
         }
         else {
 
@@ -159,7 +147,9 @@ STATIC void cmd_user(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
             set_client_registered(client, 1);
 
-            create_response(message, MAX_CHARS, servername, nickname, RPL_WELCOME);
+            // :server 001 <nickname> :Welcome to the IRC Network
+            const char *code = get_response_code(RPL_WELCOME);
+            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname}, {get_response_message(code)}, 1});
         }
     }
     add_message_to_queue(tcpServer, client, message);
@@ -168,69 +158,129 @@ STATIC void cmd_user(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
     char message[MAX_CHARS + 1] = {'\0'};
-    const char *servername = get_server_name(tcpServer);
+    const char *servername = get_property_value(HOSTNAME);
     const char *nickname = get_client_nickname(client);
 
     if (!is_client_registered(client)) {
 
-        create_response(message, MAX_CHARS, servername, "*", ERR_NOTREGISTERED); 
+        const char *code = get_response_code(ERR_NOTREGISTERED);
+        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
     }
     else {
 
         if (!cmdTokens->argCount) {
 
-            char msgBody[MAX_CHARS + 1] = {'\0'};
-            const char *tokens[] = {nickname, cmdTokens->command};  
-
-            concat_tokens(msgBody, MAX_CHARS + 1, tokens, ARR_SIZE(tokens), " ");
-
             // :server 461 <nickname> <cmd> :Not enough parameters
-            create_response(message, MAX_CHARS, servername, msgBody, ERR_NEEDMOREPARAMS);
+            const char *code = get_response_code(ERR_NEEDMOREPARAMS);
+            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
         }
         else {
 
             User *user = find_user_in_hash_table(get_session(tcpServer), nickname);
-            Channel *channel = find_channel_in_hash_table(get_session(tcpServer), cmdTokens->args[0]);
 
             char clientInfo[MAX_CHARS + 1] = {'\0'};
-            char fwdMessage[MAX_CHARS + 1] = {'\0'};
-
             create_client_info(clientInfo, MAX_CHARS, get_user_nickname(user), get_username(user), get_hostname(user));
 
-            create_fwd_message(fwdMessage, MAX_CHARS, clientInfo, cmdTokens->command, cmdTokens->args[0]);
-            
+            char fwdMessage[MAX_CHARS + 1] = {'\0'};
+
+            // <:nickname!username@hostname> JOIN <channel>
+            create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
+
+            UserChannels *userChannels = find_user_channels(get_session(tcpServer), user);
+            Channel *channel = find_channel_in_hash_table(get_session(tcpServer), cmdTokens->args[0]);
+
             if (channel != NULL) {
 
                 ChannelUsers *channelUsers = find_channel_users(get_session(tcpServer), channel);
 
                 if (find_user_in_channel_users(channelUsers, user) == NULL) {
 
-                    int added = add_user_to_channel_users(channelUsers, user);
-
-                    if (!added) {
-                        char msgBody[MAX_CHARS + 1] = {'\0'};
-                        const char *tokens[] = {nickname, cmdTokens->args[0]};  
-
-                        concat_tokens(msgBody, MAX_CHARS + 1, tokens, ARR_SIZE(tokens), " ");
+                    if (is_channel_full(channelUsers)) {
 
                         // :server 471 <nickname> <channel> :Cannot join channel
-                        create_response(message, MAX_CHARS, servername, msgBody, ERR_CHANNELISFULL);
+                        const char *code = get_response_code(ERR_CHANNELISFULL);
+                        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
                     }
                     else {
-                        add_message_to_channel(channel, fwdMessage);
+
+                        add_user_to_channel_users(channelUsers, user);
+                        add_channel_to_user_channels(userChannels, channel);
+                        add_message_to_channel_queue(channel, fwdMessage);
+        
+                        char topicMessage[MAX_CHARS + 1] = {'\0'};
+
+                        if (!strlen(get_channel_topic(channel))) {
+
+                            // :server 331 <nickname> <channel> :No topic is set
+                            const char *code = get_response_code(RPL_NOTOPIC);
+                            create_message(topicMessage, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                        }
+                        else {
+
+                            // :server 332 <nickname> <channel> :<topic>
+                            const char *code = get_response_code(RPL_TOPIC);
+                            create_message(topicMessage, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_channel_topic(channel)}, 1});
+
+                        }
+                        add_message_to_queue(tcpServer, client, topicMessage);
+
+                        int usersCount = get_users_count_from_channel_users(channelUsers);
+                        StringList *stringlist = create_string_list(usersCount, MAX_NICKNAME_LEN);
+
+                        iterate_list(get_users_from_channel_users(channelUsers), add_nickname_to_list, stringlist);
+
+                        char names[MAX_CHARS + 1] = {'\0'}; 
+                        concat_tokens(names, MAX_CHARS + 1, (const char**) stringlist->strings, stringlist->count, " ");
+
+                        delete_string_list(stringlist);
+
+                        char namesMessage1[MAX_CHARS + 1] = {'\0'};
+
+                        // :server 353 <nickname> <channel> :<nicknames list>
+                        const char *code = get_response_code(RPL_NAMREPLY);
+                        create_message(namesMessage1, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {names}, 1});
+
+                        add_message_to_queue(tcpServer, client, namesMessage1);
+
+                        char namesMessage2[MAX_CHARS + 1] = {'\0'};
+
+                        // :server 366 <nickname> <channel> :<End of NAMES list>
+                        code = get_response_code(RPL_ENDOFNAMES);
+                        create_message(namesMessage2, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+
+                        add_message_to_queue(tcpServer, client, namesMessage2);
                     }
                 }
             }
             else {
 
-                Channel *channel = create_channel(cmdTokens->args[0], TEMPORARY, MAX_USERS_PER_CHANNEL);
+                if (strlen(cmdTokens->args[0]) > MAX_CHANNEL_LEN || !is_valid_name(cmdTokens->args[0], 1)) {
 
-                add_channel_to_hash_table(get_session(tcpServer), channel);
-                ChannelUsers *channelUsers = create_channel_users(channel);
-                add_channel_users(get_session(tcpServer), channelUsers);
-                add_user_to_channel_users(channelUsers, user);
+                    // :server 479 <nickname> <channel> :Illegal channel name
+                    const char *code = get_response_code(ERR_BADCHANNAME);
+                    create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                }
+                else {
 
-                add_message_to_channel(channel, fwdMessage);
+                    Channel *newChannel = create_channel(cmdTokens->args[0], NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
+                    add_channel_to_hash_table(get_session(tcpServer), newChannel);
+
+                    ChannelUsers *channelUsers = create_channel_users(newChannel);
+                    add_channel_users(get_session(tcpServer), channelUsers);
+
+                    add_user_to_channel_users(channelUsers, user);
+                    add_channel_to_user_channels(userChannels, newChannel);
+                    add_message_to_channel_queue(newChannel, fwdMessage);
+
+                    // :server 331 <nickname> <channel> :No topic is set
+                    const char *code = get_response_code(RPL_NOTOPIC);
+                    create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+
+                }
+            }
+
+            if (channel != NULL && !is_queue_empty(get_channel_queue(channel))) {
+                add_channel_to_ready_channels(channel, get_ready_list(get_session(tcpServer)));
             }
         }
     }
@@ -241,56 +291,46 @@ STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 STATIC void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
     char message[MAX_CHARS + 1] = {'\0'};
-    const char *servername = get_server_name(tcpServer);
+    const char *servername = get_property_value(HOSTNAME);
     const char *nickname = get_client_nickname(client);
 
     if (!is_client_registered(client)) {
 
-        create_response(message, MAX_CHARS, servername, "*", ERR_NOTREGISTERED); 
+        const char *code = get_response_code(ERR_NOTREGISTERED);
+        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
     }
     else {
 
         if (!cmdTokens->argCount) {
 
-            char msgBody[MAX_CHARS + 1] = {'\0'};
-            const char *tokens[] = {nickname, cmdTokens->command};  
-
-            concat_tokens(msgBody, MAX_CHARS + 1, tokens, ARR_SIZE(tokens), " ");
-
             // :server 461 <nickname> <cmd> :Not enough parameters
-            create_response(message, MAX_CHARS, servername, msgBody, ERR_NEEDMOREPARAMS);
+            const char *code = get_response_code(ERR_NEEDMOREPARAMS);
+            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
         }
         else {
             User *user = find_user_in_hash_table(get_session(tcpServer), nickname);
             Channel *channel = find_channel_in_hash_table(get_session(tcpServer), cmdTokens->args[0]);
 
             char clientInfo[MAX_CHARS + 1] = {'\0'};
-            char fwdMessage[MAX_CHARS + 1] = {'\0'};
-
             create_client_info(clientInfo, MAX_CHARS, get_user_nickname(user), get_username(user), get_hostname(user));
+
+            char fwdMessage[MAX_CHARS + 1] = {'\0'};
 
             if (cmdTokens->argCount == 1) {
 
-                create_fwd_message(fwdMessage, MAX_CHARS, clientInfo, cmdTokens->command, cmdTokens->args[0]);
+                // <nickname!username@hostname> PART <channel_name>
+                create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
             }
             else {
-
-                char msgSuffix[MAX_CHARS + 1] = {'\0'};
-                const char *tokens[] = {cmdTokens->args[0], cmdTokens->args[1]};  
-
-                concat_tokens(msgSuffix, MAX_CHARS + 1, tokens, ARR_SIZE(tokens), " ");
-                create_fwd_message(fwdMessage, MAX_CHARS, clientInfo, "PART", msgSuffix);
+                // <:nickname!username@hostname> PART <channel_name> <:message>
+                create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command, cmdTokens->args[0]}, {cmdTokens->args[1]}, 0});
             }
-
-            char msgBody[MAX_CHARS + 1] = {'\0'};
-            const char *tokens[] = {nickname, cmdTokens->args[0]};  
-
-            concat_tokens(msgBody, MAX_CHARS + 1, tokens, ARR_SIZE(tokens), " ");
             
             if (channel == NULL) {
 
-                // :server 403  <nickname> <channel> :No such channel
-                create_response(message, MAX_CHARS, servername, msgBody, ERR_NOSUCHCHANNEL);
+                // :server 403 <nickname> <channel> :No such channel
+                const char *code = get_response_code(ERR_NOSUCHCHANNEL);
+                create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
             }
             else {
 
@@ -298,8 +338,9 @@ STATIC void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
                 if (find_user_in_channel_users(channelUsers, user) == NULL) {
 
-                    // :server 442  <nickname> <channel> :You're not on that channel
-                    create_response(message, MAX_CHARS, servername, msgBody, ERR_NOTONCHANNEL);
+                    // :server 442 <nickname> <channel> :You're not on that channel
+                    const char *code = get_response_code(ERR_NOTONCHANNEL);
+                    create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
                 }
                 else {
 
@@ -311,7 +352,7 @@ STATIC void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
                         remove_channel_from_hash_table(get_session(tcpServer), channel);
                     }
                     else {
-                        add_message_to_channel(channel, fwdMessage);
+                        add_message_to_channel_queue(channel, fwdMessage);
                     }
 
                     UserChannels *userChannels = find_user_channels(get_session(tcpServer), user);
@@ -319,6 +360,10 @@ STATIC void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
                     remove_channel_in_user_channels(userChannels, channel);
 
                 }
+            }
+
+            if (channel != NULL && !is_queue_empty(get_channel_queue(channel))) {
+                add_channel_to_ready_channels(channel, get_ready_list(get_session(tcpServer)));
             }
         }
     }
@@ -328,40 +373,33 @@ STATIC void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
     char message[MAX_CHARS + 1] = {'\0'};
-    const char *servername = get_server_name(tcpServer);
+    const char *servername = get_property_value(HOSTNAME);
     const char *nickname = get_client_nickname(client);
 
     if (!is_client_registered(client)) {
 
-        create_response(message, MAX_CHARS, servername, "*", ERR_NOTREGISTERED);
+        const char *code = get_response_code(ERR_NOTREGISTERED);
+        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
     }
     else {
 
         if (cmdTokens->argCount < 2) {
 
-            char msgBody[MAX_CHARS + 1] = {'\0'};
-            const char *tokens[] = {nickname, cmdTokens->command};  
-
-            concat_tokens(msgBody, MAX_CHARS + 1, tokens, ARR_SIZE(tokens), " ");
-
             // :server 461 <nickname> <cmd> :Not enough parameters
-            create_response(message, MAX_CHARS, servername, msgBody, ERR_NEEDMOREPARAMS);
+            const char *code = get_response_code(ERR_NEEDMOREPARAMS);
+            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
         }
         else {
 
             User *user = find_user_in_hash_table(get_session(tcpServer), nickname);
 
-            char msgBody[MAX_CHARS + 1] = {'\0'};
-            const char *tokens[] = {cmdTokens->command, cmdTokens->args[0]};  
-
-            concat_tokens(msgBody, MAX_CHARS + 1, tokens, ARR_SIZE(tokens), " ");
-
             char clientInfo[MAX_CHARS + 1] = {'\0'};
+            create_client_info(clientInfo, MAX_CHARS, get_user_nickname(user), get_username(user), get_hostname(user));
+                        
             char fwdMessage[MAX_CHARS + 1] = {'\0'};
 
-            create_client_info(clientInfo, MAX_CHARS, get_user_nickname(user), get_username(user), get_hostname(user));
-
-            create_fwd_message(fwdMessage, MAX_CHARS, clientInfo, msgBody, cmdTokens->args[1]);
+            // <:nickname!username@hostname> PRIVMSG <nickname | channel> <:message>
+            create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command, cmdTokens->args[0]}, {cmdTokens->args[1]}, 0});
 
             if (cmdTokens->args[0][0] == '#') {
 
@@ -369,8 +407,9 @@ STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmd
 
                 if (channel == NULL) {
 
-                    // :server 403  <nickname> <channel> :No such channel
-                    create_response(message, MAX_CHARS, servername, msgBody, ERR_NOSUCHCHANNEL);
+                    // :server 403 <nickname> <channel> :No such channel
+                    const char *code = get_response_code(ERR_NOSUCHCHANNEL);
+                    create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
                 }
                 else {
 
@@ -378,14 +417,31 @@ STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmd
 
                     if (find_user_in_channel_users(channelUsers, user) == NULL) {
 
-                        // :server 442  <nickname> <channel> :You're not on that channel
-                        create_response(message, MAX_CHARS, servername, msgBody, ERR_NOTONCHANNEL);
+                        // :server 442 <nickname> <channel> :You're not on that channel
+                        const char *code = get_response_code(ERR_NOTONCHANNEL);
+                        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
                     }
                     else {
-
-                        add_message_to_channel(channel, fwdMessage);
+                        add_message_to_channel_queue(channel, fwdMessage);
                     }
                 } 
+
+                if (channel != NULL && is_queue_empty(get_channel_queue(channel))) {
+                    add_channel_to_ready_channels(channel, get_ready_list(get_session(tcpServer)));
+                }
+            }
+            else {
+                User *recipient = find_user_in_hash_table(get_session(tcpServer), cmdTokens->args[0]);
+
+                if (recipient == NULL) {
+
+                    // :server 401 <nickname> <nickname> :No such nick
+                    const char *code = get_response_code(ERR_NOSUCHNICK);
+                    create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                }
+                else {
+                    add_message_to_user_queue(recipient, fwdMessage);
+                }
             }
         }
     }
@@ -395,23 +451,26 @@ STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmd
 STATIC void cmd_quit(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
     char message[MAX_CHARS + 1] = {'\0'};
-    const char *servername = get_server_name(tcpServer);
+    const char *servername = get_property_value(HOSTNAME);
     const char *nickname = get_client_nickname(client);
 
     if (!is_client_registered(client)) {
 
-        create_response(message, MAX_CHARS, servername, "*", ERR_NOTREGISTERED);
+        const char *code = get_response_code(ERR_NOTREGISTERED);
+        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
+        add_message_to_queue(tcpServer, client, message);
     }
     else {
 
         User *user = find_user_in_hash_table(get_session(tcpServer), nickname);
 
         char clientInfo[MAX_CHARS + 1] = {'\0'};
-        char fwdMessage[MAX_CHARS + 1] = {'\0'};
-
         create_client_info(clientInfo, MAX_CHARS, get_user_nickname(user), get_username(user), get_hostname(user));
 
-        create_fwd_message(fwdMessage, MAX_CHARS, clientInfo, "QUIT", cmdTokens->args[0]);
+        char fwdMessage[MAX_CHARS + 1] = {'\0'};
+
+        // <:nickname!username@hostname> QUIT <:message>
+        create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
 
         UserChannels *userChannels = find_user_channels(get_session(tcpServer), user);
         
@@ -420,14 +479,14 @@ STATIC void cmd_quit(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
             struct Data {
                 Session *session;
                 Channel *channels[MAX_CHANNELS_PER_USER];
-                int index;
+                int count;
             };
 
             struct Data data = {get_session(tcpServer), {NULL}, 0};
 
-            iterate_list(get_channels_from_user_channels(userChannels), find_single_user_channels, &data);
+            iterate_list(get_channels_from_user_channels(userChannels), find_removable_channels, &data);
 
-            for (int i = 0; i < data.index; i++) {
+            for (int i = 0; i < data.count; i++) {
 
                 remove_channel_in_user_channels(userChannels, data.channels[i]);
                 ChannelUsers *channelUsers = find_channel_users(data.session, data.channels[i]);
@@ -435,14 +494,14 @@ STATIC void cmd_quit(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
                 remove_channel_from_hash_table(data.session, data.channels[i]);
             }
 
-            iterate_list(get_channels_from_user_channels(userChannels), add_message_to_channel, fwdMessage);
-
+            iterate_list(get_channels_from_user_channels(userChannels), add_message_to_channel_queue, fwdMessage);
+            iterate_list(get_channels_from_user_channels(userChannels), add_channel_to_ready_channels, get_ready_list(get_session(tcpServer)));
             remove_user_channels(get_session(tcpServer), userChannels);
-
         }
         remove_user_from_hash_table(get_session(tcpServer), user);
+        remove_client(tcpServer, find_fd_index(tcpServer, get_client_fd(client)));
     }
-    add_message_to_queue(tcpServer, client, message);
+
 }
 
 STATIC void cmd_unknown(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
@@ -452,7 +511,7 @@ STATIC void cmd_unknown(TCPServer *tcpServer, Client *client, CommandTokens *cmd
 // parse received messages
 void parse_message(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
-    if (tcpServer == NULL || client == NULL) {
+    if (tcpServer == NULL || client == NULL || cmdTokens == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
@@ -468,6 +527,7 @@ void parse_message(TCPServer *tcpServer, Client *client, CommandTokens *cmdToken
     split_input_string(cmdTokens->input, tokens, tkCount, ' ');
 
     cmdTokens->command = tokens[0];
+    cmdTokens->argCount = tkCount - 1;
 
     for (int i = 0; i < tkCount - 1; i++) {
         cmdTokens->args[i] = tokens[i+1];
@@ -483,48 +543,6 @@ CommandFunction get_command_function(CommandType commandType) {
 }
 
 
-/*  Message formats
-    - server response (when client sends an invalid command):
-        " <:prefix> <response code> <param 1> ... [param n] [:response message]"
-        example: ":irc.server.com 431 * :No nickname given"
-    - forwarded message (when client sends messsage to the channel or another user directly): 
-        " <:prefix> <message>"
-        example: "john!john@irc.client.com PRIVMSG #general :Hello"  */
-
-STATIC void create_fwd_message(char *buffer, int size, const char *prefix, const char *body, const char *suffix) {
-
-    if (buffer == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    char msgPrefix[MAX_CHARS + 1] = {'\0'};  
-    prepend_char(msgPrefix, MAX_CHARS, prefix, ':');
-
-    const char *noticeTokens[] = {msgPrefix, body, suffix};  
-
-    concat_tokens(buffer, size, noticeTokens, ARR_SIZE(noticeTokens), " ");
-
-}
-
-STATIC void create_response(char *buffer, int size, const char *prefix, const char *body, ResponseType responseType) {
-
-    if (buffer == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    char msgPrefix[MAX_CHARS + 1] = {'\0'};  
-    prepend_char(msgPrefix, MAX_CHARS, prefix, ':');
-
-    char responseCode[MAX_RESPONSE_CODE_LEN + 1];
-    uint_to_str(responseCode, MAX_RESPONSE_CODE_LEN + 1, get_response_code(responseType));
-
-    char msgSuffix[MAX_CHARS + 1] = {'\0'}; 
-    prepend_char(msgSuffix, MAX_CHARS, get_response_message(get_response_code(responseType)), ':');
-
-    const char *msgTokens[] = {msgPrefix, responseCode, body, msgSuffix};  
-
-    concat_tokens(buffer, size, msgTokens, ARR_SIZE(msgTokens), " ");
-}
 
 STATIC void create_client_info(char *buffer, int size, const char *nickname, const char *username, const char *hostname) {
 

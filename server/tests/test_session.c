@@ -1,7 +1,7 @@
 #include "../src/priv_session.h"
 #include "../src/priv_user.h"
 #include "../src/priv_channel.h"
-#include "../src/priv_linked_list.h"
+#include "../../shared/src/priv_linked_list.h"
 
 #include <check.h>
 
@@ -19,6 +19,7 @@ START_TEST(test_create_session) {
     Session *session = create_session();
 
     ck_assert_ptr_ne(session, NULL);
+    ck_assert_ptr_ne(session->readyList, NULL);
     ck_assert_ptr_ne(session->users, NULL);
     ck_assert_ptr_ne(session->channels, NULL);
     ck_assert_ptr_ne(session->userChannelsLL, NULL);
@@ -104,6 +105,51 @@ START_TEST(test_change_user_in_hash_table) {
 }
 END_TEST
 
+START_TEST(test_create_ready_list) {
+
+    ReadyList *readyList = create_ready_list();
+
+    ck_assert_ptr_ne(readyList->readyUsers, NULL);
+    ck_assert_ptr_ne(readyList->readyChannels, NULL);
+    ck_assert_int_eq(readyList->readyUsers->count, 0);
+    ck_assert_int_eq(readyList->readyUsers->count, 0);
+
+    delete_ready_list(readyList);
+}
+END_TEST
+
+START_TEST(test_add_user_to_ready_users) {
+
+    ReadyList *readyList = create_ready_list();
+    User *user = create_user("john", NULL, NULL, NULL, 0);
+
+    add_user_to_ready_users(user, readyList);
+    ck_assert_int_eq(readyList->readyUsers->count, 1);
+
+    add_user_to_ready_users(user, readyList);
+    ck_assert_int_eq(readyList->readyUsers->count, 1);
+
+    delete_user(user);
+    delete_ready_list(readyList);
+}
+END_TEST
+
+START_TEST(test_add_channel_to_ready_channels) {
+
+    ReadyList *readyList = create_ready_list();
+    Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
+
+    add_channel_to_ready_channels(channel, readyList);
+    ck_assert_int_eq(readyList->readyChannels->count, 1);
+
+    add_channel_to_ready_channels(channel, readyList);
+    ck_assert_int_eq(readyList->readyChannels->count, 1);
+
+    delete_user(channel);
+    delete_ready_list(readyList);
+}
+END_TEST
+
 START_TEST(test_create_user_channels) {
 
     User *user = create_user("john", NULL, NULL, NULL, 0);
@@ -157,6 +203,7 @@ START_TEST(test_remove_user_channels) {
 
     delete_user(user1);
     delete_user(user2);
+    
     delete_session(session);
 }
 END_TEST
@@ -190,14 +237,16 @@ END_TEST
 START_TEST(test_add_channel_to_user_channels) {
 
     User *user = create_user("john", NULL, NULL, NULL, 0);
-    Channel *channel = create_channel("general", TEMPORARY, MAX_USERS_PER_CHANNEL);
-
     UserChannels *userChannels = create_user_channels(user);
+
+    Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
     add_channel_to_user_channels(userChannels, channel);    
 
     ck_assert_int_eq(userChannels->count, 1);
 
     delete_user_channels(userChannels);
+
+    delete_channel(channel);
     delete_user(user);
 }
 END_TEST
@@ -205,10 +254,11 @@ END_TEST
 START_TEST(test_find_channel_in_user_channels) {
 
     User *user = create_user("john", NULL, NULL, NULL, 0);
-    Channel *channel1 = create_channel("general", TEMPORARY, MAX_USERS_PER_CHANNEL);
-    Channel *channel2 = create_channel("linux", TEMPORARY, MAX_USERS_PER_CHANNEL);
-
     UserChannels *userChannels = create_user_channels(user);
+
+    Channel *channel1 = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
+    Channel *channel2 = create_channel("#linux", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
+
     add_channel_to_user_channels(userChannels, channel1);    
     add_channel_to_user_channels(userChannels, channel2);   
 
@@ -218,7 +268,35 @@ START_TEST(test_find_channel_in_user_channels) {
     ck_assert_ptr_eq(channel, channel2);
 
     delete_user_channels(userChannels);
+
+    delete_channel(channel1);
+    delete_channel(channel2);
     delete_user(user);
+}
+END_TEST
+
+START_TEST(test_remove_channel_in_user_channels) {
+
+    User *user = create_user("john", NULL, NULL, NULL, 0);
+    UserChannels *userChannels = create_user_channels(user);
+
+    Channel *channel1 = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
+    Channel *channel2 = create_channel("#linux", NULL,  TEMPORARY, MAX_USERS_PER_CHANNEL);
+
+    add_channel_to_user_channels(userChannels, channel1);    
+    add_channel_to_user_channels(userChannels, channel2);  
+
+    ck_assert_int_eq(userChannels->count, 2);
+    remove_channel_in_user_channels(userChannels, channel2);
+
+    ck_assert_int_eq(userChannels->count, 1);
+
+    delete_user_channels(userChannels);
+
+    delete_channel(channel1);
+    delete_channel(channel2);
+    delete_user(user);
+    
 }
 END_TEST
 
@@ -226,17 +304,79 @@ START_TEST(test_change_user_in_user_channels) {
 
     User *oldUser = create_user("john", NULL, NULL, NULL, 0);
     User *newUser = create_user("mark", NULL, NULL, NULL, 0);
-    UserChannels *userChannels = create_user_channels(oldUser);    
+    UserChannels *userChannels = create_user_channels(oldUser);
 
-    ck_assert_int_eq(userChannels->user->nickname, "john");
+    ck_assert_str_eq(userChannels->user->nickname, "john");
 
     change_user_in_user_channels(userChannels, newUser);
 
-    ck_assert_int_eq(userChannels->user->nickname, "mark");
+    ck_assert_str_eq(userChannels->user->nickname, "mark");
 
     delete_user_channels(userChannels);
     delete_user(oldUser);
     delete_user(newUser);
+
+}
+END_TEST
+
+START_TEST(test_find_removable_channels) {
+
+    Session *session = create_session();
+
+    User *user1 = create_user("john", NULL, NULL, NULL, 0);
+    User *user2 = create_user("mark", NULL, NULL, NULL, 0);
+
+    UserChannels *userChannels1 = create_user_channels(user1);
+    UserChannels *userChannels2 = create_user_channels(user2);
+
+    Channel *channel1 = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
+    Channel *channel2 = create_channel("#linux", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
+    
+    add_channel_to_user_channels(userChannels1, channel1);  
+    add_channel_to_user_channels(userChannels1, channel2); 
+    add_channel_to_user_channels(userChannels2, channel1);
+
+    ck_assert_int_eq(userChannels1->count, 2);
+    ck_assert_int_eq(userChannels2->count, 1);
+
+    ChannelUsers *channelUsers1 = create_channel_users(channel1);
+    ChannelUsers *channelUsers2 = create_channel_users(channel2);
+
+    add_channel_users(session, channelUsers1);
+    add_channel_users(session, channelUsers2);
+
+    add_user_to_channel_users(channelUsers1, user1);  
+    add_user_to_channel_users(channelUsers1, user2); 
+    add_user_to_channel_users(channelUsers2, user1);
+
+    ck_assert_int_eq(channelUsers1->count, 2);
+    ck_assert_int_eq(channelUsers2->count, 1);
+
+    struct Data {
+        Session *session;
+        Channel *channels[MAX_CHANNELS_PER_USER];
+        int count;
+    };
+
+    struct Data data = {session, {NULL}, 0};
+
+    iterate_list(get_channels_from_user_channels(userChannels1), find_removable_channels, &data);
+    ck_assert_int_eq(data.count, 1);
+
+    data.count = 0;
+
+    iterate_list(get_channels_from_user_channels(userChannels2), find_removable_channels, &data);
+    ck_assert_int_eq(data.count, 0);
+
+    delete_user_channels(userChannels1);
+    delete_user_channels(userChannels2);
+
+    delete_channel(channel1);
+    delete_channel(channel2);
+    delete_user(user1);
+    delete_user(user2);
+
+    delete_session(session);
 }
 END_TEST
 
@@ -272,6 +412,10 @@ Suite* session_suite(void) {
     tcase_add_test(tc_core, test_add_user_to_hash_table);
     tcase_add_test(tc_core, test_remove_user_from_hash_table);
     tcase_add_test(tc_core, test_find_user_in_hash_table);
+    tcase_add_test(tc_core, test_change_user_in_hash_table);    
+    tcase_add_test(tc_core, test_create_ready_list);
+    tcase_add_test(tc_core, test_add_user_to_ready_users);
+    tcase_add_test(tc_core, test_add_channel_to_ready_channels);
     tcase_add_test(tc_core, test_create_user_channels);
     tcase_add_test(tc_core, test_add_user_channels);
     tcase_add_test(tc_core, test_remove_user_channels);
@@ -279,6 +423,8 @@ Suite* session_suite(void) {
     tcase_add_test(tc_core, test_add_channel_to_user_channels);
     tcase_add_test(tc_core, test_find_channel_in_user_channels);
     tcase_add_test(tc_core, test_change_user_in_user_channels);
+    tcase_add_test(tc_core, test_find_removable_channels);
+    tcase_add_test(tc_core, test_remove_channel_in_user_channels);
     tcase_add_test(tc_core, test_are_user_channels_equal);
 
     suite_add_tcase(s, tc_core);
