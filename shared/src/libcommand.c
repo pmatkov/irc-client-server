@@ -24,10 +24,10 @@
 struct Command {
     CommandType commandType;
     CommandUser commandUser;     
-    char *label;
-    char *syntax;
-    char *description[MAX_TOKENS];
-    char *examples[MAX_TOKENS];
+    const char *label;
+    const char *syntax;
+    const char * const description[MAX_TOKENS];
+    const char * const examples[MAX_TOKENS];
 };
 
 #endif
@@ -173,11 +173,13 @@ void create_message(char *buffer, int size, MessageTokens *messageTokens) {
 
 const char * command_type_to_string(CommandType commandType) {
 
+    const char *string = NULL;
+
     if (is_valid_command(commandType)) {
-        return COMMANDS[commandType].label;
+        string = COMMANDS[commandType].label;
     };
 
-    return NULL;
+    return string;
 }
 
 CommandType string_to_command_type(const char *string) {
@@ -207,10 +209,18 @@ int is_valid_command(CommandType commandType) {
 // command strings start with '/'
 int has_command_prefix(const char *string) {
 
-    if (string == NULL || !strlen(string)) {
+    if (string == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
-    return string[0] == '/' ? 1 : 0;
+
+    int prefix = 0;
+
+    if (strlen(string) && string[0] == '/' ) {
+
+        prefix = 1;
+    }
+
+    return prefix;
 }
 
 const Command * get_commands(void) {
@@ -250,31 +260,22 @@ const char * get_command_syntax(const Command *command) {
     return command->syntax;
 }
 
-void get_command_description(const Command *command, char **descriptionArray, int size) {
+const char ** get_command_description(const Command *command) {
 
-    if (command == NULL || descriptionArray == NULL) {
+    if (command == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    int i = 0;
-    while (command->description[i] != NULL) {
-        
-        descriptionArray[i] = command->description[i];
-        i++;
-    }
+    return (const char **) command->description;
 }
 
-void get_command_examples(const Command *command, char **examplesArray, int size) {
+const char ** get_command_examples(const Command *command) {
 
-    if (command == NULL || examplesArray == NULL) {
+    if (command == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    int i = 0;
-    while (command->examples[i] != NULL) {
-        examplesArray[i] = command->examples[i];
-        i++;
-    }
+    return (const char **) command->examples;
 }
 
 const char * get_cmd_from_cmd_tokens(CommandTokens *cmdTokens) {

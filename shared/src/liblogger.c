@@ -39,15 +39,15 @@ struct Logger {
 
 STATIC FILE * open_log_file(char *dirPath, char *identifier);
 STATIC void write_log_to_file(void);
-STATIC int is_valid_log_level(LogLevel logLevel);
 
 STATIC Logger *logger = NULL;
 
 STATIC const char *LOGLEVEL_STRINGS[] = {
-    "Debug",
-    "Info",
-    "Warning",
-    "Error",
+    "debug",
+    "info",
+    "warning",
+    "error",
+    "unknown"
 };
 
 _Static_assert(sizeof(LOGLEVEL_STRINGS) / sizeof(LOGLEVEL_STRINGS[0]) == LOGLEVEL_COUNT, "Array size mismatch");
@@ -268,8 +268,35 @@ void set_stdout_allowed(int allowed) {
     logger->stdoutAllowed = allowed;
 }
 
-STATIC int is_valid_log_level(LogLevel logLevel) {
+int is_valid_log_level(LogLevel logLevel) {
 
-    return logLevel >= 0 && logLevel < LOGLEVEL_COUNT;
+    return logLevel >= 0 && logLevel < LOGLEVEL_COUNT - 1;
 
+}
+
+const char * log_level_to_string(LogLevel logLevel) {
+
+
+    if (is_valid_log_level(logLevel)) {
+        return LOGLEVEL_STRINGS[logLevel];
+    };
+
+    return NULL;
+}
+
+LogLevel string_to_log_level(const char *string) {
+
+    if (string == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    LogLevel logLevel = UNKNOWN_LOGLEVEL;
+
+    for (int i = 0; i < LOGLEVEL_COUNT; i++) {
+
+        if (strcmp(LOGLEVEL_STRINGS[i], string) == 0) {
+            logLevel = (LogLevel) i;
+        }
+    }
+    return logLevel;
 }

@@ -1,3 +1,6 @@
+/* --INTERNAL HEADER--
+    used for unit testing */
+
 #ifndef LINE_EDITOR_H
 #define LINE_EDITOR_H
 
@@ -34,6 +37,7 @@ void use_delete(LineEditor *lnEditor);
 void use_home(LineEditor *lnEditor);
 void use_end(LineEditor *lnEditor);
 
+void display_current_command(LineEditor *lnEditor);
 void display_previous_command(LineEditor *lnEditor);
 void display_next_command(LineEditor *lnEditor);
 

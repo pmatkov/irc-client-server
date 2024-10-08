@@ -1,3 +1,6 @@
+/* --INTERNAL HEADER--
+   used for unit testing */
+
 #ifndef CHANNEL_H
 #define CHANNEL_H
 

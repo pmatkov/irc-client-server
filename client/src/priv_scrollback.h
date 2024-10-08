@@ -1,3 +1,6 @@
+/* --INTERNAL HEADER--
+    used for unit testing */
+
 #ifndef SCROLLBACK_H
 #define SCROLLBACK_H
 
@@ -10,7 +13,8 @@ typedef struct {
     cchar_t **buffer;
     int tail;
     int head;
-    int currentLine;
+    int topLine;
+    int bottomLine;
     int capacity;
     int count;
 } Scrollback;
@@ -22,15 +26,12 @@ typedef struct {
     ScrollbackFunction scrollbackFunc;
 } ScrollbackCmd;
 
-Scrollback * create_scrollback(WINDOW *window, int sbMultiplier);
+Scrollback * create_scrollback(WINDOW *window, int sizeMultiplier);
 void delete_scrollback(Scrollback *scrollback); 
 
-WINDOW * sb_get_window(Scrollback *scrollback);
-int sb_get_head(Scrollback *scrollback);
-
-int sb_is_empty(Scrollback *scrollback);
-int sb_is_full(Scrollback *scrollback);
-int get_preceding_ln_count(Scrollback *scrollback);
+int is_scrollback_empty(Scrollback *scrollback);
+int is_scrollback_full(Scrollback *scrollback);
+int get_preceding_line_count(Scrollback *scrollback);
 
 void add_to_scrollback(Scrollback *scrollback, const cchar_t *string, int length);
 void print_from_scrollback(Scrollback *scrollback, int lineWnd, int lineSb);
@@ -45,5 +46,16 @@ ScrollbackFunction get_scrollback_function(int index);
 int get_sb_func_index(int keyCode);
 
 int remap_ctrl_key(int ch);
+
+WINDOW * get_scrollback_window(Scrollback *scrollback);
+int get_scrollback_head(Scrollback *scrollback);
+
+#ifdef TEST
+
+int count_visible_lines(Scrollback *scrollback);
+int count_remaining_top_lines(Scrollback *scrollback);
+int count_remaining_bottom_lines(Scrollback *scrollback);
+
+#endif
 
 #endif

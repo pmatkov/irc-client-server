@@ -71,8 +71,24 @@ END_TEST
 START_TEST(test_is_valid_log_level) {
 
     ck_assert_int_eq(is_valid_log_level(DEBUG), 1);
-    ck_assert_int_eq(is_valid_log_level(10), 0);
+    ck_assert_int_eq(is_valid_log_level(UNKNOWN_LOGLEVEL), 0);
     
+}
+END_TEST
+
+START_TEST(test_log_level_to_string) {
+
+    ck_assert_str_eq(log_level_to_string(DEBUG), "debug");
+    ck_assert_ptr_eq(log_level_to_string(10), NULL);
+
+}
+END_TEST
+
+START_TEST(test_string_to_log_level) {
+
+    ck_assert_int_eq(string_to_log_level("debug"), DEBUG);
+    ck_assert_int_eq(string_to_log_level("level"), UNKNOWN_LOGLEVEL);
+
 }
 END_TEST
 
@@ -90,6 +106,8 @@ Suite* logger_suite(void) {
     tcase_add_test(tc_core, test_log_error);
     tcase_add_test(tc_core, test_set_stdout_allowed);
     tcase_add_test(tc_core, test_is_valid_log_level);
+    tcase_add_test(tc_core, test_log_level_to_string);
+    tcase_add_test(tc_core, test_string_to_log_level);
 
     suite_add_tcase(s, tc_core);
 

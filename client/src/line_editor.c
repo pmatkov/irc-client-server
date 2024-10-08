@@ -23,7 +23,10 @@
 #define STATIC static
 #endif
 
-#define MSG_HISTORY 10
+/* defines how many previous commands 
+    will be stored in the queue */
+#define COMMAND_HISTORY 10
+
 #define CRLF_LEN 2
 #define LEAD_CHAR_LEN 1
 
@@ -31,11 +34,23 @@ STATIC void display_command_text(LineEditor *lnEditor, RegMessage *msg);
 
 #ifndef TEST
 
+/* line editor command manipulates text and 
+    cursor in the "input window". each line editor 
+    command is mapped to a function which 
+    performs a desired line editor action */
+
 struct LnEditorCmd {
     int keyCode;
     LnEditorFunction lnEditorFunc;
 };
 
+/* line editor uses a queue data structure (implemented
+    as circular array) to store input text and 
+    some of the previously entered commands (input 
+    text is considered a command if it's sent to the 
+    command parser). The editor also tracks cursor
+    position and character count of current input 
+    text */
 struct LineEditor {
     WINDOW *window;
     Queue *buffer;
@@ -56,7 +71,6 @@ static const LnEditorCmd lnEditorCmd[] = {
     {KEY_END, use_end}
 };
 
-// line editor stores user input to enable line editing
 LineEditor * create_line_editor(WINDOW *window) {
 
     LineEditor *lnEditor = (LineEditor *) malloc(sizeof(LineEditor));
@@ -64,7 +78,7 @@ LineEditor * create_line_editor(WINDOW *window) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    lnEditor->buffer = create_queue(MSG_HISTORY, sizeof(RegMessage));
+    lnEditor->buffer = create_queue(COMMAND_HISTORY, sizeof(RegMessage));
     lnEditor->window = window;
     lnEditor->cursor = PROMPT_SIZE;
     lnEditor->charCount = 0;
@@ -137,7 +151,7 @@ void add_char(LineEditor *lnEditor, char ch) {
             set_char_in_message(regMessage, ch, i-PROMPT_SIZE, get_reg_message_content);
 
         }
-        mvwaddch(lnEditor->window, 0, lnEditor->cursor, ch);  
+        mvwaddch(lnEditor->window, 0, lnEditor->cursor, ch);   
 
         RegMessage *regMessage = get_current_item(lnEditor->buffer);
         set_char_in_message(regMessage, ch, lnEditor->cursor-PROMPT_SIZE, get_reg_message_content);
@@ -194,6 +208,18 @@ void use_end(LineEditor *lnEditor) {
     wmove(lnEditor->window, 0, lnEditor->charCount + PROMPT_SIZE);
 }
 
+/* displays current command in the command queue */
+void display_current_command(LineEditor *lnEditor) {
+
+    if (lnEditor == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    RegMessage *msg = get_current_item(lnEditor->buffer);
+    display_command_text(lnEditor, msg);
+}
+
+/* displays previous command in the command queue */
 void display_previous_command(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
@@ -204,6 +230,7 @@ void display_previous_command(LineEditor *lnEditor) {
     display_command_text(lnEditor, msg);
 }
 
+/* displays next command in the command queue */
 void display_next_command(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
@@ -232,6 +259,8 @@ int get_le_func_index(int keyCode) {
     return cmdIndex;
 }
 
+/* displays command text from the line editor
+    command queue */
 STATIC void display_command_text(LineEditor *lnEditor, RegMessage *msg) {
 
     if (lnEditor == NULL) {

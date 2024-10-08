@@ -16,9 +16,10 @@ START_TEST(test_create_sb) {
 
     ck_assert_ptr_ne(sb, NULL);
     ck_assert_ptr_eq(sb->window, NULL);
-    ck_assert_int_eq(sb->head, 0);
     ck_assert_int_eq(sb->tail, 0);
-    ck_assert_int_eq(sb->currentLine, 0);
+    ck_assert_int_eq(sb->head, 0);
+    ck_assert_int_eq(sb->topLine, 0);
+    ck_assert_int_eq(sb->bottomLine, 0);
     ck_assert_int_eq(sb->capacity, 100);
     ck_assert_int_eq(sb->count, 0);
 
@@ -26,51 +27,51 @@ START_TEST(test_create_sb) {
 }
 END_TEST
 
-START_TEST(test_sb_is_empty) {
+START_TEST(test_is_scrollback_empty) {
 
     Scrollback *sb = create_scrollback(NULL, 100);
 
-    ck_assert(sb_is_empty(sb));
+    ck_assert(is_scrollback_empty(sb));
 
     delete_scrollback(sb); 
 }
 END_TEST
 
-START_TEST(test_sb_is_full) {
+START_TEST(test_is_scrollback_full) {
 
     Scrollback *sb = create_scrollback(NULL, 100);
     sb->count = 100;
 
-    ck_assert(sb_is_full(sb)); 
+    ck_assert(is_scrollback_full(sb)); 
 
     delete_scrollback(sb);
 }
 END_TEST
 
-START_TEST(test_get_preceding_ln_count) {
+START_TEST(test_get_preceding_line_count) {
 
     Scrollback *sb = create_scrollback(NULL, 100);
 
     sb->tail = 0;
     sb->head = 5;
-    sb->currentLine = 5;
+    sb->bottomLine = 5;
     sb->count = 5;
 
-    ck_assert_int_eq(get_preceding_ln_count(sb), 5);
+    ck_assert_int_eq(get_preceding_line_count(sb), 5);
 
     sb->tail = 1;
     sb->head = 0;
-    sb->currentLine = 0;
+    sb->bottomLine = 0;
     sb->count = 100;
 
-    ck_assert_int_eq(get_preceding_ln_count(sb), 100);
+    ck_assert_int_eq(get_preceding_line_count(sb), 100);
 
     sb->tail = 5;
     sb->head = 4;
-    sb->currentLine = 1;
+    sb->bottomLine = 1;
     sb->count = 100;
 
-    ck_assert_int_eq(get_preceding_ln_count(sb), 97);
+    ck_assert_int_eq(get_preceding_line_count(sb), 97);
 
     delete_scrollback(sb); 
 }
@@ -107,11 +108,8 @@ END_TEST
 
 START_TEST(test_print_from_scrollback) {
 
-    FILE *outfp = fopen("/dev/null", "w");
-    FILE *infp = fopen("/dev/null", "r");
-
-    SCREEN *screen = newterm(NULL, outfp, infp);
-    set_term(screen); 
+    SCREEN *screen = create_terminal();
+    set_mock_stdscr(stdscr);
 
     Scrollback *sb = create_scrollback(stdscr, 5);
 
@@ -136,9 +134,7 @@ START_TEST(test_print_from_scrollback) {
     delete_scrollback(sb);
 
     endwin();
-    delscreen(screen);
-    fclose(outfp);
-    fclose(infp);
+    delete_terminal(screen);
 }
 END_TEST
 
@@ -151,9 +147,9 @@ Suite* scrollback_suite(void) {
 
     // Add the test case to the test suite
     tcase_add_test(tc_core, test_create_sb);
-    tcase_add_test(tc_core, test_sb_is_empty);
-    tcase_add_test(tc_core, test_sb_is_full);
-    tcase_add_test(tc_core, test_get_preceding_ln_count);
+    tcase_add_test(tc_core, test_is_scrollback_empty);
+    tcase_add_test(tc_core, test_is_scrollback_full);
+    tcase_add_test(tc_core, test_get_preceding_line_count);
     tcase_add_test(tc_core, test_add_to_scrollback);
     tcase_add_test(tc_core, test_print_from_scrollback);
 

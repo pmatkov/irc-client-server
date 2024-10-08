@@ -1,3 +1,6 @@
+/* --INTERNAL HEADER--
+   used for unit testing */
+
 #ifndef LINKED_LIST_H
 #define LINKED_LIST_H
 

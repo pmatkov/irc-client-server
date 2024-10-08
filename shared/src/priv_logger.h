@@ -1,3 +1,6 @@
+/* --INTERNAL HEADER--
+   used for unit testing */
+
 #ifndef LOGGER_H
 #define LOGGER_H
 
@@ -13,6 +16,7 @@ typedef enum {
     INFO,
     WARNING,
     ERROR,
+    UNKNOWN_LOGLEVEL,
     LOGLEVEL_COUNT
 } LogLevel;
 
@@ -25,8 +29,6 @@ typedef struct {
     int usedLines;
 } Logger;
 
-const char * get_log_level_string(LogLevel logLevel);
-
 Logger * create_logger(char *dirPath, char *identifier, LogLevel logLevel);
 void delete_logger(Logger *logger);
 
@@ -35,11 +37,15 @@ void log_error(const char *msg, ErrorCode errorCode, const char *func, const cha
 
 void set_stdout_allowed(int allowed);
 
+const char * log_level_to_string(LogLevel logLevel);
+LogLevel string_to_log_level(const char *string);
+
+int is_valid_log_level(LogLevel logLevel);
+
 #ifdef TEST
 
 FILE * open_log_file(char *dirPath, char *identifier);
 void write_log_to_file(void);
-int is_valid_log_level(LogLevel logLevel);
 
 #endif
 

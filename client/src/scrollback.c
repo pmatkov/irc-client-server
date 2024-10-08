@@ -12,29 +12,52 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define DEFAULT_SB_MULTIPLIER 5
-
 #define KEY_CTRLUP 1
 #define KEY_CTRLDOWN 2
 
+#ifdef TEST
+#define STATIC
+#else
+#define STATIC static
+#endif
+
 #ifndef TEST
+
+/* scrollback command manipulates scrollback
+    postion on the screen. each scrollback 
+    command is mapped to a function which 
+    performs a desired scrollback action */
 
 struct ScrollbackCmd {
     int keyCode;
     ScrollbackFunction scrollbackFunc;
 };
 
+/* scrollback uses a fixed size circular buffer. 
+    when this buffer is full, the next line to
+    be added will overwrite the previous line, 
+    from the oldest to the newest. the head 
+    refers to the last added line and the tail
+    is the first line in the buffer. a visible 
+    part of the scrollback is the space between 
+    the topLine and the bottomLine */
+
 struct Scrollback {
     WINDOW *window;
     cchar_t **buffer;
     int tail;
     int head;
-    int currentLine;
+    int topLine;
+    int bottomLine;
     int capacity;
     int count;
 };
 
 #endif
+
+STATIC int count_visible_lines(Scrollback *scrollback);
+STATIC int count_remaining_top_lines(Scrollback *scrollback);
+STATIC int count_remaining_bottom_lines(Scrollback *scrollback);
 
 static const ScrollbackCmd scrollbackCmd[] = {
     {KEY_PPAGE, scroll_page_up},
@@ -43,20 +66,28 @@ static const ScrollbackCmd scrollbackCmd[] = {
     {KEY_CTRLDOWN, scroll_line_down},
 };
 
-// scrollback stores off screen data
-Scrollback * create_scrollback(WINDOW *window, int sbMultiplier) {
+/* scrollback size can be adjusted with the  
+    sizeMultiplier. A minimum scrollback size
+    is usually at least one "chat window". the 
+    sizeMultiplier indicates how much space 
+    the scrollback will use use relative to the 
+    size of that window. if the sizeMultiplier is
+    0, a default value will be used */
+
+Scrollback * create_scrollback(WINDOW *window, int sizeMultiplier) {
 
     int windowHeight = 1;
+    const int DEFAULT_SIZE_MULTIPLIER = 5;
 
     if (window != NULL) {
         windowHeight = get_wheight(window);
     }
 
-    if (sbMultiplier <= 0) {
-        sbMultiplier = DEFAULT_SB_MULTIPLIER;
+    if (sizeMultiplier <= 0) {
+        sizeMultiplier = DEFAULT_SIZE_MULTIPLIER;
     }
 
-    int sbSize = windowHeight * sbMultiplier;
+    int sbSize = windowHeight * sizeMultiplier;
 
     Scrollback *scrollback = (Scrollback*) malloc(sizeof(Scrollback));
     if (scrollback == NULL) {
@@ -79,7 +110,8 @@ Scrollback * create_scrollback(WINDOW *window, int sbMultiplier) {
     scrollback->window = window;
     scrollback->head = 0;
     scrollback->tail = 0;
-    scrollback->currentLine = 0;
+    scrollback->topLine = 0;
+    scrollback->bottomLine = 0;
     scrollback->capacity = sbSize;
     scrollback->count = 0; 
 
@@ -98,15 +130,7 @@ void delete_scrollback(Scrollback *scrollback) {
     free(scrollback);
 }
 
-WINDOW * sb_get_window(Scrollback *scrollback) {
-    return scrollback->window;
-}
-
-int sb_get_head(Scrollback *scrollback) {
-    return scrollback->head;
-}
-
-int sb_is_empty(Scrollback *scrollback) {
+int is_scrollback_empty(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -115,7 +139,7 @@ int sb_is_empty(Scrollback *scrollback) {
     return scrollback->count == 0;
 }
 
-int sb_is_full(Scrollback *scrollback) {
+int is_scrollback_full(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -124,29 +148,31 @@ int sb_is_full(Scrollback *scrollback) {
     return scrollback->count == scrollback->capacity;
 }
 
-// get line count from start until current
-int get_preceding_ln_count(Scrollback *scrollback) {
+int get_preceding_line_count(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    if (scrollback->currentLine >= scrollback->tail) {
-        return scrollback->currentLine - scrollback->tail;
+    int lineCount = 0;
+
+    if (scrollback->bottomLine >= scrollback->tail) {
+        lineCount = scrollback->bottomLine - scrollback->tail;
     }
     else {
-        return (scrollback->count - scrollback->tail) + scrollback->currentLine + 1;
+        lineCount = (scrollback->capacity - scrollback->tail) + scrollback->bottomLine + 1;
     }
+
+    return lineCount;
 }
 
-// add line to scrollback buffer
 void add_to_scrollback(Scrollback *scrollback, const cchar_t *string, int length) {
 
     if (scrollback == NULL || string == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    if (sb_is_full(scrollback)) {
+    if (is_scrollback_full(scrollback)) {
         scrollback->tail = (scrollback->tail + 1) % scrollback->capacity; 
     } else {
         scrollback->count++;
@@ -157,22 +183,43 @@ void add_to_scrollback(Scrollback *scrollback, const cchar_t *string, int length
     }
 
     scrollback->head = (scrollback->head + 1) % scrollback->capacity;
-    scrollback->currentLine = scrollback->head;
+
+    scrollback->bottomLine = scrollback->head;
+
+    if (scrollback->count > get_wheight(scrollback->window)) {
+       scrollback->topLine = (scrollback->topLine + 1) % scrollback->capacity;
+    }
 }
 
-// print line from scrollback buffer
 void print_from_scrollback(Scrollback *scrollback, int lineWnd, int lineSb) {
 
     if (scrollback == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
+    if (lineWnd < -1 || lineWnd > get_wheight(scrollback->window)) {
+        FAILED("Invalid window line %d", NO_ERRCODE, lineWnd);
+    }
+
+    if (lineSb < 1 || lineSb > scrollback->capacity) {
+        FAILED("Invalid scrollback line %d", NO_ERRCODE, lineSb);
+    }
+
     int y, x;
-    save_cursor(scrollback->window, y, x);
 
     if (lineWnd == -1) {
 
-        if (scrollback->count > 1) {
+        /* if the cursor is initially not in the first row,
+            a new line will be added (moves the cursor one  
+            row below at position x = 0). wadd_ch is used 
+            here instead of wadd_wchstr because it moves
+            cursor to a new position after each char.
+            that leaves the cursor at the end of the string
+            when the whole text is printed  */
+
+        save_cursor(scrollback->window, y, x);
+
+        if (x > 0) {
             waddch(scrollback->window, '\n');
         }
 
@@ -183,34 +230,52 @@ void print_from_scrollback(Scrollback *scrollback, int lineWnd, int lineSb) {
             wadd_wch(scrollback->window, &scrollback->buffer[lineSb-1][i++]);
         }
     }
-    else { 
+    else {
+        /* used primarly for scrolling. when the window is 
+            scrolled, a blank space on top or at the bottom of 
+            the window has to be filled with lines from the 
+            scrollback. initial cursor position is saved so 
+            that the cursor can be returned to that position 
+            after the lines are printed */
+
+        save_cursor(scrollback->window, y, x);
+
         wmove(scrollback->window, lineWnd, 0);
         wadd_wchstr(scrollback->window, scrollback->buffer[lineSb-1]);
+
         restore_cursor(scrollback->window, y, x);
     }
 }
 
-// restore lines from scrollback buffer on window resize
 void restore_from_scrollback(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
+    /* scrollback will be restored if at least one 
+        line of the "chat window" is visible. the 
+        bottomLine marker (representing the last 
+        visible line in the scrollback) is 
+        adjusted accordingly */
+
     int rows = get_wheight(scrollback->window);
-    int cols  = get_wwidth(scrollback->window);
 
-    int linesToPrint = (scrollback->count < rows) ? scrollback->count : rows;
-    int startLine = (scrollback->count < rows) ? scrollback->tail : (scrollback->head - rows) % scrollback->capacity;
+    if (rows) {
 
-    scrollback->currentLine = startLine;
+        wmove(scrollback->window, 0, 0);
 
-    for (int i = 0; i < linesToPrint; i++) {
-        
-        scrollback->currentLine = (scrollback->currentLine + 1) % scrollback->capacity;
-        print_from_scrollback(scrollback, i, scrollback->currentLine);
+        LOG(INFO, "tl: %d ", scrollback->topLine, scrollback->bottomLine);
+
+        for (int i = scrollback->topLine; i < rows && i < scrollback->head; i++) {
+
+            print_from_scrollback(scrollback, -1, i + 1);
+            scrollback->bottomLine = (i + 1) % scrollback->capacity;
+        }
+        wrefresh(scrollback->window);
     }
-    wmove(scrollback->window, linesToPrint - 1, cols - 1);
+
+    LOG(INFO, "tl: %d bl: %d, rows: %d, capacity: %d, count: %d", scrollback->topLine, scrollback->bottomLine, rows, scrollback->capacity, scrollback->count);
 }
 
 void scroll_line_up(Scrollback *scrollback) {
@@ -221,12 +286,24 @@ void scroll_line_up(Scrollback *scrollback) {
 
     int rows = get_wheight(scrollback->window);
 
-    if (scrollback->count > rows && get_preceding_ln_count(scrollback) - rows) {
+    /* bottomLine position won't be adjusted
+        if the window was expanded and the 
+        available space can accept additional 
+        lines from the scrollback  */
+
+    int topLines = count_remaining_top_lines(scrollback);
+    int fixed = count_visible_lines(scrollback) < rows;
+
+    if (topLines) {
 
         wscrl(scrollback->window, -1);
-        print_from_scrollback(scrollback, 0, get_preceding_ln_count(scrollback) - rows);
+        print_from_scrollback(scrollback, 0, scrollback->topLine);
         wrefresh(scrollback->window);
-        scrollback->currentLine = (scrollback->currentLine - 1) % scrollback->capacity;
+        scrollback->topLine = (scrollback->topLine - 1) % scrollback->capacity;
+
+        if (!fixed) {
+            scrollback->bottomLine = (scrollback->bottomLine - 1) % scrollback->capacity;
+        }
     }
 }
 
@@ -237,13 +314,19 @@ void scroll_line_down(Scrollback *scrollback) {
     }
 
     int rows = get_wheight(scrollback->window);
+    int bottomLines = count_remaining_bottom_lines(scrollback);
 
-    if (scrollback->count > rows && scrollback->count - get_preceding_ln_count(scrollback)) {
+    if (bottomLines) {
+
+        LOG(INFO, "bl: %d head: %d bottomLines: %d", scrollback->bottomLine, scrollback->head, bottomLines);
+
 
         wscrl(scrollback->window, 1);
-        print_from_scrollback(scrollback, rows-1, (scrollback->currentLine + 1) % scrollback->capacity);
+        print_from_scrollback(scrollback, rows - 1, scrollback->bottomLine + 1);
         wrefresh(scrollback->window);
-        scrollback->currentLine = (scrollback->currentLine + 1) % scrollback->capacity;
+        scrollback->topLine = (scrollback->topLine + 1) % scrollback->capacity;
+        scrollback->bottomLine = (scrollback->bottomLine + 1) % scrollback->capacity;
+
     }
 }
 
@@ -254,15 +337,18 @@ void scroll_page_up(Scrollback *scrollback) {
     }
 
     int rows = get_wheight(scrollback->window);
+    int topLines = count_remaining_top_lines(scrollback);
 
-    if (scrollback->count > rows && get_preceding_ln_count(scrollback) - rows) {
+    if (topLines) {
 
-        int shift = (get_preceding_ln_count(scrollback) >= rows * 2) ? rows : get_preceding_ln_count(scrollback) - rows;
+        int shift = topLines >= rows ? rows : topLines;
+
         wscrl(scrollback->window, -shift);
 
         for (int i = 0; i < shift; i++) {
-            print_from_scrollback(scrollback, shift - i - 1, get_preceding_ln_count(scrollback) - rows);
-            scrollback->currentLine = (scrollback->currentLine - 1) % scrollback->capacity;
+            print_from_scrollback(scrollback, shift - i - 1, scrollback->topLine % scrollback->capacity);
+            scrollback->topLine = (scrollback->topLine - 1) % scrollback->capacity;
+            scrollback->bottomLine = (scrollback->bottomLine - 1) % scrollback->capacity;
         }
         wrefresh(scrollback->window);
     }
@@ -275,18 +361,74 @@ void scroll_page_down(Scrollback *scrollback) {
     }
 
     int rows = get_wheight(scrollback->window);
+    int bottomLines = count_remaining_bottom_lines(scrollback);
 
-    if (scrollback->count > rows && scrollback->count - get_preceding_ln_count(scrollback)) {
+    if (bottomLines) {
 
-        int shift = (scrollback->count - get_preceding_ln_count(scrollback)) >= rows ? rows : scrollback->count - get_preceding_ln_count(scrollback);
+        int shift = bottomLines >= rows ? rows : bottomLines;
         wscrl(scrollback->window, shift);
         
         for (int i = 0; i < shift; i++) {
-            print_from_scrollback(scrollback, rows - shift + i, (scrollback->currentLine + 1) % scrollback->capacity);
-            scrollback->currentLine = (scrollback->currentLine + 1) % scrollback->capacity;
+            print_from_scrollback(scrollback, rows - shift + i, (scrollback->bottomLine + 1) % scrollback->capacity);
+            scrollback->topLine = (scrollback->topLine + 1) % scrollback->capacity;
+            scrollback->bottomLine = (scrollback->bottomLine + 1) % scrollback->capacity;
         }
         wrefresh(scrollback->window);
     }
+}
+
+STATIC int count_visible_lines(Scrollback *scrollback) {
+
+    if (scrollback == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    int count = 0;
+
+    if (scrollback->bottomLine - scrollback->topLine >= 0) {
+        count = scrollback->bottomLine - scrollback->topLine;
+    }
+    else {
+        count = scrollback->bottomLine + scrollback->capacity - scrollback->topLine;
+    }
+
+    return count;
+}
+
+STATIC int count_remaining_top_lines(Scrollback *scrollback) {
+
+    if (scrollback == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    int count = 0;
+    int topLine = scrollback->topLine;
+
+    while (topLine != scrollback->tail) {
+
+        topLine = (topLine - 1) % scrollback->capacity;
+        count++;
+    }
+
+    return count; 
+}
+
+STATIC int count_remaining_bottom_lines(Scrollback *scrollback) {
+
+    if (scrollback == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    int count = 0;
+    int bottomLine = scrollback->bottomLine;
+
+    while (bottomLine != scrollback->head) {
+
+        bottomLine= (bottomLine + 1) % scrollback->capacity;
+        count++;
+    }
+
+    return count; 
 }
 
 ScrollbackFunction get_scrollback_function(int index) {
@@ -309,6 +451,9 @@ int get_sb_func_index(int keyCode) {
 
 int remap_ctrl_key(int ch) {
 
+    /* kUP5 and kDN5 are predefined identifiers
+         for key combinations CTRL + arrow up
+         or down key */
     const char *keystr = keyname(ch);
 
     if (keystr != NULL) {
@@ -320,4 +465,12 @@ int remap_ctrl_key(int ch) {
         }
     }
     return ch;
+}
+
+WINDOW * get_scrollback_window(Scrollback *scrollback) {
+    return scrollback->window;
+}
+
+int get_scrollback_head(Scrollback *scrollback) {
+    return scrollback->head;
 }

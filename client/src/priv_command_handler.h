@@ -1,3 +1,6 @@
+/* --INTERNAL HEADER--
+    used for unit testing */
+
 #ifndef COMMAND_HANDLER_H
 #define COMMAND_HANDLER_H
 
@@ -16,6 +19,11 @@ CommandFunction get_command_function(CommandType commandType);
 
 void cmd_connect(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
 void cmd_disconnect(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
+void cmd_nick(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
+void cmd_user(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
+void cmd_join(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
+void cmd_part(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
+void cmd_privmsg(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
 
 #endif
 

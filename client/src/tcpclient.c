@@ -50,7 +50,7 @@ TCPClient * create_client(void) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    tcpClient->pfds[0].fd = fileno(stdin);
+    tcpClient->pfds[0].fd = STDIN_FILENO;
     tcpClient->pfds[0].events = POLLIN;
     tcpClient->pfds[1].fd = -1;
     tcpClient->pfds[1].events = POLLIN;

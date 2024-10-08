@@ -11,6 +11,7 @@ static size_t mockLen;
 static void *mockBuffer;
 static int mockPort;
 static struct sockaddr_in *sockaddr;
+static WINDOW * mockStdscr;
 
 static int fdCount = 0;
 
@@ -62,6 +63,16 @@ struct sockaddr_in * get_sockaddr(void) {
 void set_sockaddr(struct sockaddr_in *sa) {
 
    sockaddr = sa; 
+}
+
+WINDOW * get_mock_stdscr(void) {
+
+    return mockStdscr;
+}
+
+void set_mock_stdscr(WINDOW *stdscr) {
+
+   mockStdscr = stdscr; 
 }
 
 ssize_t mock_read(int fd, void *buffer, size_t len) {
@@ -164,6 +175,27 @@ void mock_get_client_ip(char *buffer, int size, int fd) {
 
         inet_ntop(AF_INET, &sockaddr->sin_addr, buffer, size);
     }
+}
+
+WINDOW * mock_initscr(void) {
+
+    return get_mock_stdscr();
+}
+
+SCREEN * create_terminal(void) {
+
+    FILE *outfp = fopen("/dev/null", "w");
+    FILE *infp = fopen("/dev/null", "r");
+
+    SCREEN *screen = newterm(NULL, outfp, infp);
+    set_term(screen); 
+
+    return screen;
+}
+
+void delete_terminal(SCREEN *screen) {
+
+    delscreen(screen);
 }
 
 void set_initial_fd_count(int count) {

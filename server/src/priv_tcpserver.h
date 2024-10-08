@@ -1,3 +1,6 @@
+/* --INTERNAL HEADER--
+   used for unit testing */
+
 #ifndef TCPSERVER_H
 #define TCPSERVER_H
 

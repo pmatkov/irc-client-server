@@ -1,3 +1,6 @@
+/* --INTERNAL HEADER--
+   used for unit testing */
+
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
@@ -7,7 +10,6 @@ typedef enum {
     NICKNAME,
     USERNAME,
     REALNAME,
-    COLOR,
     HOSTNAME,
     PORT,
     MAX_CLIENTS,

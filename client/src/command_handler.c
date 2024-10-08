@@ -309,7 +309,7 @@ STATIC void cmd_unknown(Scrollback *scrollback, TCPClient *tcpClient, CommandTok
 
     create_message(message, MAX_CHARS, &(MessageTokens){{NULL}, {cmdTokens->command}, {notice}, 0});
 
-    display_response(scrollback, "Unknown command: %s", &message[1]);
+    display_response(scrollback, "Unknown command: %s", message);
 }
 
 CommandFunction get_command_function(CommandType commandType) {

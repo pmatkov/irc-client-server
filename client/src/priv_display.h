@@ -1,9 +1,12 @@
+/* --INTERNAL HEADER--
+    used for unit testing */
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
 #define NCURSES_WIDECHAR 1
 
 #include "priv_scrollback.h"
+#include "priv_line_editor.h"
 #include "../../shared/src/priv_command.h"
 
 #include <ncursesw/curses.h>
@@ -61,47 +64,50 @@ typedef enum {
 
 typedef struct {
     WINDOW *stdscr;
-    WINDOW *mainwin;
+    WINDOW *titlewin;
     WINDOW *chatwin;
     WINDOW *statuswin;
     WINDOW *inputwin;
 } WindowManager;
 
 typedef struct {
-    int timestamp;
+    int useTimestamp;
     const char *separator;
     const char *origin;
     const char *message;
-} MessageParams;
+} PrintTokens;
 
 WindowManager * create_windows(void);
 void delete_windows(WindowManager *);
 
-WINDOW *get_chatwin(WindowManager *windowManager);
-WINDOW *get_inputwin(WindowManager *windowManager);
-
-MessageParams * create_message_params(int timestamp, const char *separator, const char *origin, const char *message);
+PrintTokens * create_print_tokens(int useTimestamp, const char *separator, const char *origin, const char *message);
+void delete_print_tokens(PrintTokens *printTokens);
 
 void set_windows_options(WindowManager *windowManager);
-void init_colors(void);
-void create_layout(WindowManager *windowManager, Scrollback *scrollback);
-void draw_window_borders(WindowManager *windowManager);
+void init_colors(int useColor);
+void create_layout(WindowManager *windowManager, Scrollback *scrollback, int useColor);
 
-void printmsg(Scrollback *scrollback, MessageParams *msgParams, uint32_t attr);
-int string_to_complex_string(const char *string, cchar_t *buffer, int len, uint32_t attr);
+void printmsg(Scrollback *scrollback, PrintTokens *printTokens, uint32_t attributes);
+int string_to_complex_string(const char *string, cchar_t *buffer, int len, uint32_t attributes);
+int count_complex_chars(cchar_t *string);
 
 void display_commands(Scrollback *scrollback, const Command *commands, int count);
 void display_usage(Scrollback *scrollback, const Command *command);
 void display_response(Scrollback *scrollback, const char *response, ...);
-void display_status(WindowManager *windowManager, const char *status, ...);
 void display_settings(Scrollback *scrollback);
+void display_status(WindowManager *windowManager, const char *status, ...);
 
-void handle_resize(WindowManager *windowManager, Scrollback *scrollback);
+void repaint_ui(WindowManager *windowManager, Scrollback *scrollback, LineEditor *lnEditor, int useColors);
+
+WINDOW *get_chatwin(WindowManager *windowManager);
+WINDOW *get_statuswin(WindowManager *windowManager);
+WINDOW *get_inputwin(WindowManager *windowManager);
 
 #ifdef TEST
 
-int get_message_length(MessageParams *msgParams);
-void display_string_list(Scrollback *scrollback, char **stringList, int size, const char *title);
+int get_message_length(PrintTokens *printTokens);
+void draw_window_borders(WindowManager *windowManager, int useColor);
+void display_string_list(Scrollback *scrollback, const char **stringList, int count, const char *title);
 
 #endif
 

@@ -102,6 +102,20 @@ START_TEST(test_mock_get_client_ip) {
 }
 END_TEST
 
+START_TEST(test_mock_initscr) {
+
+    SCREEN *screen = create_terminal();
+    set_mock_stdscr(stdscr);
+
+    WINDOW *window = initscr();
+    ck_assert_ptr_ne(window, NULL);
+
+    endwin();
+    delete_terminal(screen);
+
+}
+END_TEST
+
 Suite* mocks_suite(void) {
     Suite *s;
     TCase *tc_core;
@@ -117,6 +131,7 @@ Suite* mocks_suite(void) {
     tcase_add_test(tc_core, test_mock_connect);
     tcase_add_test(tc_core, test_mock_accept);
     tcase_add_test(tc_core, test_mock_get_client_ip);
+    tcase_add_test(tc_core, test_mock_initscr);
 
     suite_add_tcase(s, tc_core);
 

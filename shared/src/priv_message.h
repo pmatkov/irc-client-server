@@ -1,3 +1,6 @@
+/* --INTERNAL HEADER--
+   used for unit testing */
+
 #ifndef MESSAGE_H
 #define MESSAGE_H
 

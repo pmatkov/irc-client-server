@@ -5,7 +5,6 @@ typedef enum {
     NICKNAME,
     USERNAME,
     REALNAME,
-    COLOR,
     HOSTNAME,
     PORT,
     MAX_CLIENTS,

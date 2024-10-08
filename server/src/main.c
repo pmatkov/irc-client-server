@@ -58,7 +58,11 @@ int main(int argc, char **argv)
     set_default_settings();
     read_settings(NULL, SERVER_PROPERTY);
 
-    // get server options
+    // set default options
+    appState.options.echo = 0;
+    appState.options.daemon = 0;
+
+    // get cli options
     get_options(argc, argv, &appState.options);
 
     // create daemon process
@@ -115,7 +119,7 @@ int main(int argc, char **argv)
                     int fullMsg = server_read(appState.tcpServer, fdIndex);
 
                     /* if echo server is active and full message 
-                    was received, echo message back to the client */
+                    was received, send message back to the client */
                     if (fullMsg) {
 
                         Client *client = get_client(appState.tcpServer, fdIndex);

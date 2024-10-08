@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <signal.h>
 
+static int windowResized = 0;
+
 void set_sigaction(void (*handler)(int), int sig) {
 
     struct sigaction sa;
@@ -23,4 +25,19 @@ void set_sigaction(void (*handler)(int), int sig) {
 void handle_sigint(int sig) {
 
     exit(EXIT_SUCCESS);
+}
+
+void handle_sigwinch(int sig) {
+
+    windowResized = 1;
+}
+
+int get_resized(void) {
+
+    return windowResized;
+}
+
+void set_resized(int resized) {
+
+    windowResized = resized;
 }

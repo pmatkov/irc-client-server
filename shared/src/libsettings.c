@@ -46,7 +46,6 @@ static Property PROPERTIES[] = {
     {NICKNAME, CLIENT_PROPERTY, "nickname", ""},
     {USERNAME, CLIENT_PROPERTY, "username", ""},
     {REALNAME, CLIENT_PROPERTY, "realname", ""},
-    {COLOR, CLIENT_PROPERTY, "color", ""},
     {HOSTNAME, SERVER_PROPERTY, "hostname", ""},
     {PORT, SERVER_PROPERTY, "port", ""},
     {MAX_CLIENTS, SERVER_PROPERTY, "max_clients", ""},
@@ -68,7 +67,6 @@ void set_default_settings(void) {
     }
 
     set_property_value(REALNAME, "anonymous");
-    set_property_value(COLOR, "1");
     set_property_value(HOSTNAME, "irc.example.com");
     set_property_value(PORT, "50100");
     set_property_value(MAX_CLIENTS, "1024");

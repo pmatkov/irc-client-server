@@ -1,3 +1,6 @@
+/* --INTERNAL HEADER--
+    used for unit testing */
+
 #ifndef TCPCLIENT_H
 #define TCPCLIENT_H
 

@@ -1,3 +1,6 @@
+/* --INTERNAL HEADER--
+   used for unit testing */
+
 #ifndef COMMAND_H
 #define COMMAND_H
 
@@ -44,10 +47,10 @@ typedef struct {
 typedef struct {
     CommandType commandType;
     CommandUser commandUser;     
-    char *label;
-    char *syntax;
-    char *description[MAX_TOKENS];
-    char *examples[MAX_TOKENS];
+    const char *label;
+    const char *syntax;
+    const char * const description[MAX_TOKENS];
+    const char * const examples[MAX_TOKENS];
 } Command;
 
 CommandTokens * create_command_tokens(void);
@@ -70,8 +73,8 @@ int get_command_size(void);
 
 const char * get_command_label(const Command *command);
 const char * get_command_syntax(const Command *command);
-void get_command_description(const Command *command, char **descriptionArray, int size);
-void get_command_examples(const Command *command, char **examplesArray, int size);
+const char ** get_command_description(const Command *command);
+const char ** get_command_examples(const Command *command);
 
 const char * get_cmd_from_cmd_tokens(CommandTokens *cmdTokens);
 const char * get_arg_from_cmd_tokens(CommandTokens *cmdTokens, int index);
