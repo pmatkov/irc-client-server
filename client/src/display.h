@@ -6,7 +6,7 @@
 
 #include "scrollback.h"
 #include "line_editor.h"
-#include "../../shared/src/command.h"
+#include "../../libs/src/command.h"
 
 #include <ncursesw/curses.h>
 

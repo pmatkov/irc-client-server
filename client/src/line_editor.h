@@ -3,28 +3,28 @@
 
 #define NCURSES_WIDECHAR 1
 
-#include "../../shared/src/queue.h"
+#include "../../libs/src/queue.h"
 
 #include <ncursesw/curses.h>
 
-/* LnEditorCmd represents a map of line editor commands 
+/* a LnEditorCmd represents a map of line editor commands 
     and functions */
 typedef struct LnEditorCmd LnEditorCmd;
 
-/* Line editor enables editing of user input text.  
+/* a line editor is used to edit the input text.  
     basic editing functionalities are supported.
     
     the text can be edited in the following ways:
-    - add one char with standard character key,
-    - delete previous char with BACKSPACE key, 
-    - delete current char with DELETE key,
-    - move cursor to the start of the line with HOME key,
-    - move cursor to the end of the line with END key,
-    - move cursor one char to the left with LEFT ARROW key,
-    - move cursor one char to the right with RIGHT ARROW  key. 
+    - standard character keys add one char,
+    - BACKSPACE deletes previous char, 
+    - DELETE deletes current char,
+    - HOME moves cursor to the start of the line,
+    - END moves cursor to the end of the line,
+    - LEFT ARROW moves cursor one char to the left,
+    - RIGHT ARROW moves cursor one char to the right. 
     
-    Also supported is command history functionality which
-    can be accessed with up and down arrow keys. */
+    Additionally, a command history can be accessed
+    with up and down arrows. */
 typedef struct LineEditor LineEditor;
 
 typedef void (*LnEditorFunction)(LineEditor *lnEditor);
@@ -32,8 +32,8 @@ typedef void (*LnEditorFunction)(LineEditor *lnEditor);
 LineEditor * create_line_editor(WINDOW *window);
 void delete_line_editor(LineEditor *lnEditor);
 
-/* below functions mainuplate input text and cursor
-    position on screen */
+/* below functions operate on the input text and adjust
+    cursor position on the screen */
 void move_cursor_left(LineEditor *lnEditor);
 void move_cursor_right(LineEditor *lnEditor);
 void delete_char(LineEditor *lnEditor);
@@ -43,7 +43,7 @@ void use_delete(LineEditor *lnEditor);
 void use_home(LineEditor *lnEditor);
 void use_end(LineEditor *lnEditor);
 
-/* below functions provide access to command history */
+/* below functions provide access to the command history */
 void display_current_command(LineEditor *lnEditor);
 void display_previous_command(LineEditor *lnEditor);
 void display_next_command(LineEditor *lnEditor);

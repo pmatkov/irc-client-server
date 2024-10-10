@@ -1,8 +1,8 @@
 #ifndef CHANNEL_H
 #define CHANNEL_H
 
-#include "../../shared/src/queue.h"
-#include "../../shared/src/string_utils.h"
+#include "../../libs/src/queue.h"
+#include "../../libs/src/string_utils.h"
 
 #define MAX_USERS_PER_CHANNEL 100
 

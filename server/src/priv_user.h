@@ -4,7 +4,7 @@
 #ifndef USER_H
 #define USER_H
 
-#include "../../shared/src/priv_queue.h"
+#include "../../libs/src/priv_queue.h"
 
 #define MAX_NICKNAME_LEN 9
 #define MAX_USERNAME_LEN 9

@@ -1,9 +1,9 @@
 #include "../src/priv_display.h"
 #include "../src/priv_scrollback.h"
 
-#include "../../shared/src/string_utils.h"
-#include "../../shared/src/error_control.h"
-#include "../../shared/src/mock.h"
+#include "../../libs/src/string_utils.h"
+#include "../../libs/src/error_control.h"
+#include "../../libs/src/mock.h"
 
 #include <check.h>
 

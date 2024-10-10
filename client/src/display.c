@@ -1,15 +1,15 @@
 #ifdef TEST
 #include "priv_display.h"
-#include "../../shared/src/mock.h"
+#include "../../libs/src/mock.h"
 #else
 #include "display.h"
 #endif
 
-#include "../../shared/src/settings.h"
-#include "../../shared/src/time_utils.h"
-#include "../../shared/src/string_utils.h"
-#include "../../shared/src/error_control.h"
-#include "../../shared/src/logger.h"
+#include "../../libs/src/settings.h"
+#include "../../libs/src/time_utils.h"
+#include "../../libs/src/string_utils.h"
+#include "../../libs/src/error_control.h"
+#include "../../libs/src/logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -317,10 +317,10 @@ int string_to_complex_string(const char *string, cchar_t *buffer, int len, uint3
         FAILED("String is too long for conversion.", NO_ERRCODE);
     }
 
-    /* color is extracted from the last 12 bits
-        of the bit field and style from the next
-        12 bits. each 4 bits represent style or 
-        color of individual token */
+    /* the color is extracted from the last 12 bits
+        of the bit field and the style from the next
+        12 bits. each 4 bits represent the style or 
+        the color of a token */
     int color = (attributes & 0x00000FFF);
     attr_t style = (attributes & 0x00FFF000) >> 12;
 
@@ -334,7 +334,7 @@ int string_to_complex_string(const char *string, cchar_t *buffer, int len, uint3
     wchar_t wstring[MAX_CHARS + 1] = {L'\0'};
     int charsConverted = 0;
 
-    // converts chars to wide chars (wchar_t)
+    /* converts chars to wide chars (wchar_t) */
     if ((charsConverted = mbstowcs(wstring, string, MAX_CHARS)) == -1) {
         FAILED("Error converting char to wchar", NO_ERRCODE);
     }
@@ -342,7 +342,7 @@ int string_to_complex_string(const char *string, cchar_t *buffer, int len, uint3
     wchar_t temp[2];
     i = 0;
 
-    // converts wide chars to complex chars (cchar_t)
+    /* converts wide chars to complex chars (cchar_t) */
     while (i < charsConverted && wstring[i] != L'\0') {
 
         temp[0] = wstring[i];

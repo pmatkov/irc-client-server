@@ -1,7 +1,7 @@
 #ifndef USER_H
 #define USER_H
 
-#include "../../shared/src/queue.h"
+#include "../../libs/src/queue.h"
 
 #define MAX_CHANNELS_PER_USER 5
 

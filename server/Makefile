@@ -1,37 +1,37 @@
 # Makefile
 CC = gcc
 CFLAGS = -g -Wall
-LDFLAGS = -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIBCOM))
+LDFLAGS = -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB))
 
 SRCDIR = src
 OBJDIR = obj
 BINDIR = bin
 TESTDIR = tests
-LIBDIR = ../shared/lib
+LIBDIR = ../libs/bin
 
 EXCLUDE_SRCS = 
-EXCLUDE_TSRCS =
 SRCS = $(filter-out $(EXCLUDE_SRCS), $(wildcard $(SRCDIR)/*.c))
-TSRCS = $(filter-out $(EXCLUDE_TSRCS), $(wildcard $(TESTDIR)/*.c))
-
 OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
+
+EXCLUDE_TEST_SRCS =
+TEST_SRCS = $(filter-out $(EXCLUDE_TEST_SRCS), $(wildcard $(TESTDIR)/*.c))
 TEST_OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%_test.o, $(SRCS))
 
 DEPS = $(OBJS:.o=.d)
 
-LIBCOM = $(LIBDIR)/libcommon.a
-TEST_LIBCOM = $(LIBDIR)/libtestcommon.a
-LIBMOCK = $(LIBDIR)/libmock.a
+LIB = $(LIBDIR)/libcommon.a
+LIB_TEST = $(LIBDIR)/libtest.a
+LIB_MOCK = $(LIBDIR)/libmock.a
 
 BIN = $(BINDIR)/server
-TBINS = $(patsubst $(TESTDIR)/%.c, $(TESTDIR)/bin/%, $(TSRCS))
+TBINS = $(patsubst $(TESTDIR)/%.c, $(TESTDIR)/bin/%, $(TEST_SRCS))
 
 TEST_CFLAGS = $(CFLAGS) -DTEST
-TEST_LDFLAGS = -lcheck -lm -lpthread -lrt -lsubunit -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(TEST_LIBCOM) $(LIBMOCK))
+TEST_LDFLAGS = -lcheck -lm -lpthread -lrt -lsubunit -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB_TEST) $(LIB_MOCK)) -lncursesw
 
 all: $(BIN)
 
-$(BIN): $(OBJS) $(LIBCOM)
+$(BIN): $(OBJS) $(LIB)
 	$(CC) $(CFLAGS) $(OBJS) -o $@ $(LDFLAGS)
 
 # -MM flag tels the compiler to auto generate dependency rules but omit prerequisites on system header files
@@ -48,7 +48,7 @@ $(OBJDIR)/%_test.o: $(SRCDIR)/%.c
 test: $(TBINS)
 	for test in $(TBINS); do ./$$test; done
 
-$(TESTDIR)/bin/%: $(TESTDIR)/%.c $(TEST_OBJS) $(TEST_LIBCOM) $(LIBMOCK)
+$(TESTDIR)/bin/%: $(TESTDIR)/%.c $(TEST_OBJS) $(LIB_TEST) $(LIB_MOCK)
 	$(CC) $(TEST_CFLAGS) $< $(TEST_OBJS) -o $@ $(TEST_LDFLAGS)
 
 clean:

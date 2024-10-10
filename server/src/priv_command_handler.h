@@ -5,8 +5,8 @@
 #define COMMAND_HANDLER_H
 
 #include "priv_tcpserver.h"
-#include "../../shared/src/priv_command.h"
-#include "../../shared/src/response_code.h"
+#include "../../libs/src/priv_command.h"
+#include "../../libs/src/response_code.h"
 
 typedef void (*CommandFunction)(TCPServer *tcpServer, Client *, CommandTokens *);
 

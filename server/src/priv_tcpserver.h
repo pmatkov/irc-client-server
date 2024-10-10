@@ -5,10 +5,10 @@
 #define TCPSERVER_H
 
 #include "priv_session.h"
-#include "../../shared/src/command.h"
-#include "../../shared/src/priv_queue.h"
-#include "../../shared/src/string_utils.h"
-#include "../../shared/src/time_utils.h"
+#include "../../libs/src/command.h"
+#include "../../libs/src/priv_queue.h"
+#include "../../libs/src/string_utils.h"
+#include "../../libs/src/time_utils.h"
 
 #include <poll.h>
 #include <arpa/inet.h>

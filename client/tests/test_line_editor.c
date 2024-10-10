@@ -1,5 +1,5 @@
 #include "../src/priv_line_editor.h"
-#include "../../shared/src/mock.h"
+#include "../../libs/src/mock.h"
 
 #include <check.h>
 

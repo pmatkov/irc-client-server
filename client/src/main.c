@@ -4,13 +4,13 @@
 #include "scrollback.h"
 #include "line_editor.h"
 #include "command_handler.h"
-#include "../../shared/src/settings.h"
-#include "../../shared/src/command.h"
-#include "../../shared/src/message.h"
-#include "../../shared/src/string_utils.h"
-#include "../../shared/src/signal_handler.h"
-#include "../../shared/src/error_control.h"
-#include "../../shared/src/logger.h"
+#include "../../libs/src/settings.h"
+#include "../../libs/src/command.h"
+#include "../../libs/src/message.h"
+#include "../../libs/src/string_utils.h"
+#include "../../libs/src/signal_handler.h"
+#include "../../libs/src/error_control.h"
+#include "../../libs/src/logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -98,18 +98,16 @@ int main(int argc, char **argv)
         user commands */
     appState.cmdTokens = create_command_tokens();
 
-    /* the main program flow consists of the following:
+    /* the main program flow consists of the following actions:
         1. read keyboard input,
         2. parse input,
-        3. if input is an IRC command, format it 
-            and add it to the message queue,
-        4. send messages from the queue to the server,
-        5. read incoming messages from the server
-
-        - whenever a command is received, either from
-        the user or from the server, the client app 
-        will perform the required actions and display 
-        the results to the user */
+        3.a if the input is a local command, execute it,
+        3.b if the input is an IRC command, add it to the
+            message queue,
+        4. send messages from the local queue to the IRC 
+            server,
+        5. read messages from the IRC server and
+            perform appropriate action if necessary */
 
     while (1) {
 
@@ -125,7 +123,8 @@ int main(int argc, char **argv)
         if (fdsReady < 0) {
 
             /* repaints windows if poll() was interrupted
-                by SIGWINCH signal (i.e. window was resized) */
+                by SIGWINCH signal (i.e. the window was 
+                resized) */
 
             if (errno == EINTR) {
 
@@ -140,7 +139,7 @@ int main(int argc, char **argv)
             }
         }
 
-        // check for keyboard events
+        /* checks for keyboard events */
         if (is_stdin_event(appState.tcpClient)) {
 
             /* reads char from the terminal buffer and 
@@ -166,14 +165,13 @@ int main(int argc, char **argv)
                 parse_input(appState.lnEditor, appState.cmdTokens);
             }           
             else if (isprint(ch)) {
-                LOG(INFO, "%d", ch);
                 add_char(appState.lnEditor, ch);
             }
 
             if (appState.cmdTokens->command != NULL) {
 
-                /* checks which command was parsed and
-                 executes the appropriate action */
+                /* checks if a valid command was parsed,
+                    and if it was, executes it */
                 CommandType commandType = string_to_command_type(get_cmd_from_cmd_tokens(appState.cmdTokens));
                 CommandFunction cmdFunction = get_command_function(commandType);
 
@@ -186,7 +184,7 @@ int main(int argc, char **argv)
         }
 
         /* checks connection status and displays
-            the status message */
+            it on the screen */
         if (is_client_connected(appState.tcpClient)) {
 
             display_status(appState.windowManager, "[%s]  [%s]", get_property_value(NICKNAME), get_server_name(appState.tcpClient));
@@ -195,7 +193,7 @@ int main(int argc, char **argv)
             display_status(appState.windowManager, "");
         }
 
-        /* sends outbound messages to the server */
+        /* sends outgoing messages to the server */
         while (!is_queue_empty(get_client_queue(appState.tcpClient))) {
 
             RegMessage *message = remove_message_from_client_queue(appState.tcpClient);
@@ -208,7 +206,7 @@ int main(int argc, char **argv)
         if (is_socket_event(appState.tcpClient)) {
 
             /* reads data from the socket and displays
-                received messages on the screen */
+                incoming messages on the screen */
             int fullMsg = client_read(appState.tcpClient);
 
             if (fullMsg) {
@@ -228,7 +226,7 @@ int main(int argc, char **argv)
 
 
 /* releases memory allocated on the
-     heap */
+    heap */
 static void cleanup(void) {
 
     delete_command_tokens(appState.cmdTokens);

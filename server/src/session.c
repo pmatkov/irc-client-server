@@ -2,11 +2,11 @@
 #include "priv_session.h"
 #else
 #include "session.h"
-#include "../../shared/src/hash_table.h"
+#include "../../libs/src/hash_table.h"
 #endif
 
-#include "../../shared/src/error_control.h"
-#include "../../shared/src/logger.h"
+#include "../../libs/src/error_control.h"
+#include "../../libs/src/logger.h"
 
 #include <stdlib.h>
 

@@ -1,7 +1,7 @@
 #include "../src/priv_scrollback.h"
 #include "../src/priv_display.h"
-#include "../../shared/src/string_utils.h"
-#include "../../shared/src/mock.h"
+#include "../../libs/src/string_utils.h"
+#include "../../libs/src/mock.h"
 
 #include <check.h>
 
@@ -45,35 +45,6 @@ START_TEST(test_is_scrollback_full) {
     ck_assert(is_scrollback_full(sb)); 
 
     delete_scrollback(sb);
-}
-END_TEST
-
-START_TEST(test_get_preceding_line_count) {
-
-    Scrollback *sb = create_scrollback(NULL, 100);
-
-    sb->tail = 0;
-    sb->head = 5;
-    sb->bottomLine = 5;
-    sb->count = 5;
-
-    ck_assert_int_eq(get_preceding_line_count(sb), 5);
-
-    sb->tail = 1;
-    sb->head = 0;
-    sb->bottomLine = 0;
-    sb->count = 100;
-
-    ck_assert_int_eq(get_preceding_line_count(sb), 100);
-
-    sb->tail = 5;
-    sb->head = 4;
-    sb->bottomLine = 1;
-    sb->count = 100;
-
-    ck_assert_int_eq(get_preceding_line_count(sb), 97);
-
-    delete_scrollback(sb); 
 }
 END_TEST
 
@@ -149,7 +120,6 @@ Suite* scrollback_suite(void) {
     tcase_add_test(tc_core, test_create_sb);
     tcase_add_test(tc_core, test_is_scrollback_empty);
     tcase_add_test(tc_core, test_is_scrollback_full);
-    tcase_add_test(tc_core, test_get_preceding_line_count);
     tcase_add_test(tc_core, test_add_to_scrollback);
     tcase_add_test(tc_core, test_print_from_scrollback);
 

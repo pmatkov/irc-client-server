@@ -1,8 +1,8 @@
 #include "../src/priv_tcpserver.h"
-#include "../../shared/src/settings.h"
-#include "../../shared/src/priv_message.h"
-#include "../../shared/src/string_utils.h"
-#include "../../shared/src/mock.h"
+#include "../../libs/src/settings.h"
+#include "../../libs/src/priv_message.h"
+#include "../../libs/src/string_utils.h"
+#include "../../libs/src/mock.h"
 
 #include <check.h>
 #include <unistd.h>

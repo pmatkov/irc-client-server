@@ -3,12 +3,12 @@
 #include "channel.h"
 #include "command_handler.h"
 
-#include "../../shared/src/settings.h"
-#include "../../shared/src/command.h"
-#include "../../shared/src/message.h"
-#include "../../shared/src/signal_handler.h"
-#include "../../shared/src/error_control.h"
-#include "../../shared/src/logger.h"
+#include "../../libs/src/settings.h"
+#include "../../libs/src/command.h"
+#include "../../libs/src/message.h"
+#include "../../libs/src/signal_handler.h"
+#include "../../libs/src/error_control.h"
+#include "../../libs/src/logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -206,7 +206,7 @@ static void daemonize(void) {
     }
 
     set_stderr_allowed(0);
-    set_stdout_allowed(0);
+    set_use_stdout(0);
 
     close(STDIN_FILENO);
     close(STDOUT_FILENO);

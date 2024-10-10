@@ -2,10 +2,6 @@
 *.png
 *.log
 
-client/bin/
-client/obj/
-client/tests/bin/
-
-server/bin/
-server/obj/
-server/tests/bin/
+*/bin/
+*/obj/
+*/tests/bin/

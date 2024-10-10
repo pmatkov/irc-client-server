@@ -31,7 +31,6 @@ void delete_scrollback(Scrollback *scrollback);
 
 int is_scrollback_empty(Scrollback *scrollback);
 int is_scrollback_full(Scrollback *scrollback);
-int get_preceding_line_count(Scrollback *scrollback);
 
 void add_to_scrollback(Scrollback *scrollback, const cchar_t *string, int length);
 void print_from_scrollback(Scrollback *scrollback, int lineWnd, int lineSb);

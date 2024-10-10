@@ -4,13 +4,10 @@
 #ifndef TCPCLIENT_H
 #define TCPCLIENT_H
 
-#include "../../shared/src/priv_queue.h"
-#include "../../shared/src/string_utils.h"
+#include "../../libs/src/priv_queue.h"
+#include "../../libs/src/string_utils.h"
 
 #include <poll.h>
-
-#define DEFAULT_ADDRESS "127.0.0.1"
-#define DEFAULT_PORT "50100"
 
 #define FD_COUNT 2
 
@@ -45,5 +42,11 @@ int is_client_connected(TCPClient *tcpClient);
 int is_stdin_event(TCPClient *tcpClient);
 int is_socket_event(TCPClient *tcpClient);
 int get_socket_fd(TCPClient *tcpClient);
+
+#ifdef TEST
+
+void client_disconnect(TCPClient *tcpClient);
+
+#endif
 
 #endif

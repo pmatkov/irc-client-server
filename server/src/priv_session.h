@@ -3,8 +3,8 @@
 
 #include "priv_user.h"
 #include "priv_channel.h"
-#include "../../shared/src/priv_hash_table.h"
-#include "../../shared/src/priv_linked_list.h"
+#include "../../libs/src/priv_hash_table.h"
+#include "../../libs/src/priv_linked_list.h"
 
 #define LOAD_FACTOR 2.0
 

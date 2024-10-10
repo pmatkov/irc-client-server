@@ -5,9 +5,9 @@
 #endif
 
 #include "display.h"
-#include "../../shared/src/string_utils.h"
-#include "../../shared/src/error_control.h"
-#include "../../shared/src/logger.h"
+#include "../../libs/src/string_utils.h"
+#include "../../libs/src/error_control.h"
+#include "../../libs/src/logger.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -23,24 +23,23 @@
 
 #ifndef TEST
 
-/* scrollback command manipulates scrollback
-    postion on the screen. each scrollback 
+/* a ScrollbackCmd adjusts a visible portion 
+    of the scrollback. each scrollback 
     command is mapped to a function which 
     performs a desired scrollback action */
-
 struct ScrollbackCmd {
     int keyCode;
     ScrollbackFunction scrollbackFunc;
 };
 
-/* scrollback uses a fixed size circular buffer. 
-    when this buffer is full, the next line to
-    be added will overwrite the previous line, 
-    from the oldest to the newest. the head 
-    refers to the last added line and the tail
-    is the first line in the buffer. a visible 
-    part of the scrollback is the space between 
-    the topLine and the bottomLine */
+/* a scrollback is implemented as a fixed size 
+    circular buffer. when this buffer is full,
+    the next line to be added will overwrite 
+    the previous line, from the oldest to the
+    newest. the head refers to the last added 
+    line and the tail is the first line in the 
+    buffer. the topLine and the bottomLine 
+    designate the visible part of the scrollback */
 
 struct Scrollback {
     WINDOW *window;
@@ -66,13 +65,14 @@ static const ScrollbackCmd scrollbackCmd[] = {
     {KEY_CTRLDOWN, scroll_line_down},
 };
 
-/* scrollback size can be adjusted with the  
-    sizeMultiplier. A minimum scrollback size
-    is usually at least one "chat window". the 
+/* the size of the scrollback can be defined on 
+    initialization. A minimum scrollback size
+    is usually the size of one "chat window". the 
     sizeMultiplier indicates how much space 
-    the scrollback will use use relative to the 
-    size of that window. if the sizeMultiplier is
-    0, a default value will be used */
+    will be allocated to the scrollback
+    relative to the size of that window. 
+    if the sizeMultiplier is 0, a default
+    value will be used */
 
 Scrollback * create_scrollback(WINDOW *window, int sizeMultiplier) {
 
@@ -148,29 +148,15 @@ int is_scrollback_full(Scrollback *scrollback) {
     return scrollback->count == scrollback->capacity;
 }
 
-int get_preceding_line_count(Scrollback *scrollback) {
-
-    if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    int lineCount = 0;
-
-    if (scrollback->bottomLine >= scrollback->tail) {
-        lineCount = scrollback->bottomLine - scrollback->tail;
-    }
-    else {
-        lineCount = (scrollback->capacity - scrollback->tail) + scrollback->bottomLine + 1;
-    }
-
-    return lineCount;
-}
-
 void add_to_scrollback(Scrollback *scrollback, const cchar_t *string, int length) {
 
     if (scrollback == NULL || string == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
+
+    /* when the scrollback reaches full capacity, 
+        the tail will move to make room for additional
+        lines, overwriting oldest lines */
 
     if (is_scrollback_full(scrollback)) {
         scrollback->tail = (scrollback->tail + 1) % scrollback->capacity; 
@@ -209,13 +195,11 @@ void print_from_scrollback(Scrollback *scrollback, int lineWnd, int lineSb) {
 
     if (lineWnd == -1) {
 
-        /* if the cursor is initially not in the first row,
-            a new line will be added (moves the cursor one  
-            row below at position x = 0). wadd_ch is used 
-            here instead of wadd_wchstr because it moves
-            cursor to a new position after each char.
-            that leaves the cursor at the end of the string
-            when the whole text is printed  */
+        /*  the first task of this function is to move 
+            the cursor to the next row, unless it is 
+            already on the first row. specifically, 
+            when text is printed, the cursor will be
+            positioned at the end of the text */
 
         save_cursor(scrollback->window, y, x);
 
@@ -225,18 +209,23 @@ void print_from_scrollback(Scrollback *scrollback, int lineWnd, int lineSb) {
 
         int i = 0;
 
+        /* wadd_ch is used here instead of wadd_wchstr 
+            because it moves the cursor when a new char
+            is added to the window */
+
         while (scrollback->buffer[lineSb-1] && scrollback->buffer[lineSb-1][i].chars[0]) {
 
             wadd_wch(scrollback->window, &scrollback->buffer[lineSb-1][i++]);
         }
     }
     else {
-        /* used primarly for scrolling. when the window is 
-            scrolled, a blank space on top or at the bottom of 
-            the window has to be filled with lines from the 
-            scrollback. initial cursor position is saved so 
-            that the cursor can be returned to that position 
-            after the lines are printed */
+        /* this option is used for scrolling. when the 
+            window is scrolled, a blank space is created 
+            which has to be filled with the lines from the
+            scrollback. just  before that, the cursor 
+            position will be saved so that it can be 
+            returned to the initial position after the lines
+            are printed */
 
         save_cursor(scrollback->window, y, x);
 
@@ -253,11 +242,11 @@ void restore_from_scrollback(Scrollback *scrollback) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    /* scrollback will be restored if at least one 
-        line of the "chat window" is visible. the 
-        bottomLine marker (representing the last 
-        visible line in the scrollback) is 
-        adjusted accordingly */
+    /* the visible part of the scrollback will be
+        repainted on the screen on resize event,
+        if at least one line of the "chat window"
+        is visible. the bottomLine marker poosition
+        will be adjusted accordingly */
 
     int rows = get_wheight(scrollback->window);
 
@@ -286,10 +275,11 @@ void scroll_line_up(Scrollback *scrollback) {
 
     int rows = get_wheight(scrollback->window);
 
-    /* bottomLine position won't be adjusted
-        if the window was expanded and the 
-        available space can accept additional 
-        lines from the scrollback  */
+    /* the bottomLine position will not be adjusted
+        if the window was extended and there is now 
+        additional space on the screen which can be
+        used to display more lines from the 
+        scrollback  */
 
     int topLines = count_remaining_top_lines(scrollback);
     int fixed = count_visible_lines(scrollback) < rows;
@@ -377,6 +367,8 @@ void scroll_page_down(Scrollback *scrollback) {
     }
 }
 
+/* counts the lines between the topLIne and the bottomLine
+    markers (the visible part of the scrollback) */
 STATIC int count_visible_lines(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
@@ -395,6 +387,8 @@ STATIC int count_visible_lines(Scrollback *scrollback) {
     return count;
 }
 
+/* counts remaining lines above the topLine 
+    (hidden part of the scrollback) */
 STATIC int count_remaining_top_lines(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
@@ -413,6 +407,8 @@ STATIC int count_remaining_top_lines(Scrollback *scrollback) {
     return count; 
 }
 
+/* counts remaining lines below the bottomLine 
+    (hidden part of the scrollback) */
 STATIC int count_remaining_bottom_lines(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
@@ -451,9 +447,9 @@ int get_sb_func_index(int keyCode) {
 
 int remap_ctrl_key(int ch) {
 
-    /* kUP5 and kDN5 are predefined identifiers
-         for key combinations CTRL + arrow up
-         or down key */
+    /* kUP5 and kDN5 are ncurses identifiers
+         for key combinations CTRL + up and 
+         down arrows */
     const char *keystr = keyname(ch);
 
     if (keystr != NULL) {

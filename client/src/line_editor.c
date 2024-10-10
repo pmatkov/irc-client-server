@@ -2,16 +2,16 @@
 #include "priv_line_editor.h"
 #else
 #include "line_editor.h"
-#include "../../shared/src/priv_message.h"
+#include "../../libs/src/priv_message.h"
 #endif
 
 #include "display.h"
-#include "../../shared/src/string_utils.h"
-#include "../../shared/src/error_control.h"
-#include "../../shared/src/logger.h"
+#include "../../libs/src/string_utils.h"
+#include "../../libs/src/error_control.h"
+#include "../../libs/src/logger.h"
 
 #ifdef TEST
-#include "../../shared/src/mock.h"
+#include "../../libs/src/mock.h"
 #endif
 
 #include <stdlib.h>
@@ -23,8 +23,6 @@
 #define STATIC static
 #endif
 
-/* defines how many previous commands 
-    will be stored in the queue */
 #define COMMAND_HISTORY 10
 
 #define CRLF_LEN 2
@@ -34,7 +32,7 @@ STATIC void display_command_text(LineEditor *lnEditor, RegMessage *msg);
 
 #ifndef TEST
 
-/* line editor command manipulates text and 
+/* a LnEditorCmd operates on the text and the
     cursor in the "input window". each line editor 
     command is mapped to a function which 
     performs a desired line editor action */
@@ -44,13 +42,12 @@ struct LnEditorCmd {
     LnEditorFunction lnEditorFunc;
 };
 
-/* line editor uses a queue data structure (implemented
-    as circular array) to store input text and 
-    some of the previously entered commands (input 
-    text is considered a command if it's sent to the 
-    command parser). The editor also tracks cursor
-    position and character count of current input 
-    text */
+/* a line editor is imeplemented as a circular
+    buffer with a queue data structure. it stores
+    text input and commands (input text is considered
+    a command if it's sent to the command parser).
+    the editor also tracks cursor position and 
+    character count of the input text */
 struct LineEditor {
     WINDOW *window;
     Queue *buffer;
@@ -135,16 +132,33 @@ void add_char(LineEditor *lnEditor, char ch) {
         FAILED(NULL, ARG_ERROR);
     }
 
+    /* the mxamimum number of chars that can be 
+        entered in a one commmand is either the 
+        width of the window in columns or the 
+        constant MAX_CHARS, whichever number 
+        is lower */
     int cols = get_wwidth(lnEditor->window);
 
     if (lnEditor->cursor < cols && lnEditor->charCount + PROMPT_SIZE < cols && lnEditor->charCount < MAX_CHARS - CRLF_LEN - LEAD_CHAR_LEN) {
 
+        /* if the cursor is not at the end of 
+            the text input, the other chars
+            will be moved to enable line 
+            editing */
         char lastChPos = lnEditor->charCount + PROMPT_SIZE;
 
         for (int i = lastChPos; i > lnEditor->cursor; i--) {
 
-            char shiftCh = mvwinch(lnEditor->window, 0, i-1);
+            /* mvwinch is used to get char value from the 
+                window so that it can be moved to a 
+                different position */
+
+            char shiftCh = mvwinch(lnEditor->window, 0, i - 1);
             mvwaddch(lnEditor->window, 0, i, shiftCh);
+
+            /* each command in the line editor queue
+                is stored as the type RegMessage which
+                represents a string container */
 
             RegMessage *regMessage = get_current_item(lnEditor->buffer);
             char ch = get_char_from_message(regMessage, i-PROMPT_SIZE-1, get_reg_message_content);
@@ -208,7 +222,6 @@ void use_end(LineEditor *lnEditor) {
     wmove(lnEditor->window, 0, lnEditor->charCount + PROMPT_SIZE);
 }
 
-/* displays current command in the command queue */
 void display_current_command(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
@@ -219,7 +232,6 @@ void display_current_command(LineEditor *lnEditor) {
     display_command_text(lnEditor, msg);
 }
 
-/* displays previous command in the command queue */
 void display_previous_command(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
@@ -230,7 +242,6 @@ void display_previous_command(LineEditor *lnEditor) {
     display_command_text(lnEditor, msg);
 }
 
-/* displays next command in the command queue */
 void display_next_command(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
@@ -259,7 +270,7 @@ int get_le_func_index(int keyCode) {
     return cmdIndex;
 }
 
-/* displays command text from the line editor
+/* displays command in the line editor
     command queue */
 STATIC void display_command_text(LineEditor *lnEditor, RegMessage *msg) {
 

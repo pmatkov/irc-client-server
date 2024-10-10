@@ -2,8 +2,8 @@
 #define TCPSERVER_H
 
 #include "session.h"
-#include "../../shared/src/queue.h"
-#include "../../shared/src/string_utils.h"
+#include "../../libs/src/queue.h"
+#include "../../libs/src/string_utils.h"
 
 #include <poll.h>
 #include <arpa/inet.h>

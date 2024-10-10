@@ -2,11 +2,11 @@
 #include "../src/priv_line_editor.h"
 #include "../src/priv_scrollback.h"
 #include "../src/priv_tcpclient.h"
-#include "../../shared/src/priv_command.h"
-#include "../../shared/src/priv_message.h"
-#include "../../shared/src/priv_settings.h"
-#include "../../shared/src/string_utils.h"
-#include "../../shared/src/mock.h"
+#include "../../libs/src/priv_command.h"
+#include "../../libs/src/priv_message.h"
+#include "../../libs/src/priv_settings.h"
+#include "../../libs/src/string_utils.h"
+#include "../../libs/src/mock.h"
 
 #include <check.h>
 #include <arpa/inet.h>
@@ -26,7 +26,7 @@ void set_message(LineEditor *lnEditor, const char *content) {
     delete_message(message);
 }
 
-void process_command(TCPClient *tcpClient, CommandTokens *cmdTokens, CommandFunction cmdFunction, const char *content) {
+void execute_command(TCPClient *tcpClient, CommandTokens *cmdTokens, CommandFunction cmdFunction, const char *content) {
 
     Scrollback *sb = create_scrollback(stdscr, 0);
     LineEditor *lnEditor = create_line_editor(NULL);
@@ -101,7 +101,7 @@ START_TEST(test_cmd_connect) {
 
     set_sockaddr(&sa);
 
-    process_command(tcpClient, cmdTokens, get_command_function(CONNECT), "/CONNECT");
+    execute_command(tcpClient, cmdTokens, get_command_function(CONNECT), "/CONNECT");
     RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
     ck_assert_str_eq(get_reg_message_content(regMessage), "NICK pmatkov");
     regMessage = remove_message_from_client_queue(tcpClient);
@@ -121,7 +121,7 @@ START_TEST(test_cmd_disconnect) {
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
-    process_command(tcpClient, cmdTokens, get_command_function(DISCONNECT), "/DISCONNECT see you tomorrow again");
+    execute_command(tcpClient, cmdTokens, get_command_function(DISCONNECT), "/DISCONNECT see you tomorrow again");
     RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
     ck_assert_str_eq(get_reg_message_content(regMessage), "DISCONNECT :see you tomorrow again");
     reset_cmd_tokens(cmdTokens);
@@ -141,7 +141,7 @@ START_TEST(test_cmd_nick) {
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
-    process_command(tcpClient, cmdTokens, get_command_function(NICK), "/NICK john");
+    execute_command(tcpClient, cmdTokens, get_command_function(NICK), "/NICK john");
     RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
     ck_assert_str_eq(get_reg_message_content(regMessage), "NICK john");
     ck_assert_str_eq(get_property_value(NICKNAME), "john");
@@ -162,10 +162,10 @@ START_TEST(test_cmd_user) {
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
-    process_command(tcpClient, cmdTokens, get_command_function(USER), "/USER jjones");
+    execute_command(tcpClient, cmdTokens, get_command_function(USER), "/USER jjones");
     ck_assert_str_eq(get_property_value(USERNAME), "jjones");
 
-    process_command(tcpClient, cmdTokens, get_command_function(USER), "/USER jjones john jones");
+    execute_command(tcpClient, cmdTokens, get_command_function(USER), "/USER jjones john jones");
     ck_assert_str_eq(get_property_value(USERNAME), "jjones");
     ck_assert_str_eq(get_property_value(REALNAME), "john jones");
     reset_cmd_tokens(cmdTokens);
@@ -185,7 +185,7 @@ START_TEST(test_cmd_join) {
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
-    process_command(tcpClient, cmdTokens, get_command_function(JOIN), "/JOIN #general");
+    execute_command(tcpClient, cmdTokens, get_command_function(JOIN), "/JOIN #general");
     RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
     ck_assert_str_eq(get_reg_message_content(regMessage), "JOIN #general");
     reset_cmd_tokens(cmdTokens);
@@ -205,11 +205,11 @@ START_TEST(test_cmd_part) {
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
-    process_command(tcpClient, cmdTokens, get_command_function(PART), "/PART #general");
+    execute_command(tcpClient, cmdTokens, get_command_function(PART), "/PART #general");
     RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
     ck_assert_str_eq(get_reg_message_content(regMessage), "PART #general");
 
-    process_command(tcpClient, cmdTokens, get_command_function(PART), "/PART #general see you tomorrow again");
+    execute_command(tcpClient, cmdTokens, get_command_function(PART), "/PART #general see you tomorrow again");
     regMessage = remove_message_from_client_queue(tcpClient);
     ck_assert_str_eq(get_reg_message_content(regMessage), "PART #general :see you tomorrow again");
     reset_cmd_tokens(cmdTokens);
@@ -229,7 +229,7 @@ START_TEST(test_cmd_privmsg) {
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
-    process_command(tcpClient, cmdTokens, get_command_function(PRIVMSG), "/PRIVMSG #general hello");
+    execute_command(tcpClient, cmdTokens, get_command_function(PRIVMSG), "/PRIVMSG #general hello");
     RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
     ck_assert_str_eq(get_reg_message_content(regMessage), "PRIVMSG #general :hello");
 
@@ -238,6 +238,44 @@ START_TEST(test_cmd_privmsg) {
     delete_command_tokens(cmdTokens);
     delete_client(tcpClient);
 
+}
+END_TEST
+
+START_TEST(test_cmd_address) {
+
+    set_default_settings();
+
+    TCPClient *tcpClient = create_client();
+    CommandTokens *cmdTokens = create_command_tokens();
+
+    set_fd(tcpClient, SOCKET_FD_INDEX, 1);
+
+    execute_command(tcpClient, cmdTokens, get_command_function(SERVER_ADDRESS), "/ADDRESS irc.freenode.net");
+    ck_assert_str_eq(get_property_value(ADDRESS), "irc.freenode.net");
+
+    reset_cmd_tokens(cmdTokens);
+
+    delete_command_tokens(cmdTokens);
+    delete_client(tcpClient);
+}
+END_TEST
+
+START_TEST(test_cmd_port) {
+
+    set_default_settings();
+
+    TCPClient *tcpClient = create_client();
+    CommandTokens *cmdTokens = create_command_tokens();
+
+    set_fd(tcpClient, SOCKET_FD_INDEX, 1);
+
+    execute_command(tcpClient, cmdTokens, get_command_function(SERVER_PORT), "/PORT 50100");
+    ck_assert_str_eq(get_property_value(PORT), "50100");
+
+    reset_cmd_tokens(cmdTokens);
+
+    delete_command_tokens(cmdTokens);
+    delete_client(tcpClient);
 }
 END_TEST
 
@@ -257,6 +295,8 @@ Suite* command_handler_suite(void) {
     tcase_add_test(tc_core, test_cmd_join);
     tcase_add_test(tc_core, test_cmd_part);
     tcase_add_test(tc_core, test_cmd_privmsg);
+    tcase_add_test(tc_core, test_cmd_address);
+    tcase_add_test(tc_core, test_cmd_port);
 
     suite_add_tcase(s, tc_core);
 

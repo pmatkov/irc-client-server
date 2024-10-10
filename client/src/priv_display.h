@@ -7,7 +7,7 @@
 
 #include "priv_scrollback.h"
 #include "priv_line_editor.h"
-#include "../../shared/src/priv_command.h"
+#include "../../libs/src/priv_command.h"
 
 #include <ncursesw/curses.h>
 

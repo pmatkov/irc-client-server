@@ -1,7 +1,7 @@
 #include "../src/priv_session.h"
 #include "../src/priv_user.h"
 #include "../src/priv_channel.h"
-#include "../../shared/src/priv_linked_list.h"
+#include "../../libs/src/priv_linked_list.h"
 
 #include <check.h>
 
@@ -145,7 +145,7 @@ START_TEST(test_add_channel_to_ready_channels) {
     add_channel_to_ready_channels(channel, readyList);
     ck_assert_int_eq(readyList->readyChannels->count, 1);
 
-    delete_user(channel);
+    delete_channel(channel);
     delete_ready_list(readyList);
 }
 END_TEST

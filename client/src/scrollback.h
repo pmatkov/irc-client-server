@@ -6,19 +6,19 @@
 
 #include <ncursesw/curses.h>
 
-/* ScrollbackCmd represents a map of scrollback commands 
+/* a ScrollbackCmd represents a map of scrollback commands 
     and functions */
 typedef struct ScrollbackCmd ScrollbackCmd;
 
-/* Scrollback is used to store on-screen text 
-    and provide storage for some off-screen text 
+/* a scrollback buffer stores visible text and 
+    retains off-screen text for later retrieval 
     (depending on the scrollback size). the screen
-    in this context means just the "chat window". 
+    in this context means the "chat window". 
     
-    the text is scrolled like this:
+    the text can be scrolled in the following ways:
     - CTRL + UP ARROW scrolls one row up,
     - CTRL + DOWN ARROW scrolls one row down,
-    - PG_UP scrolls one screen up with,
+    - PG_UP scrolls one screen up,
     - PG_DOWN scrolls one screen down */
 typedef struct Scrollback Scrollback;
 
@@ -30,24 +30,21 @@ void delete_scrollback(Scrollback *scrollback);
 int is_scrollback_empty(Scrollback *scrollback);
 int is_scrollback_full(Scrollback *scrollback);
 
-/* counts the lines from the top of the scrollback
-    until the last displayed line from the scrollback */
-int get_preceding_line_count(Scrollback *scrollback);
-
-/* saves a new line of text to the scrollback buffer */
+/* saves a new line of text to the scrollback 
+    buffer */
 void add_to_scrollback(Scrollback *scrollback, const cchar_t *string, int length);
 
-/* displays a line from the scrollback on 
-    screen. if lineWnd is -1, the line is 
-    displayed at the current cursor position. 
-    otherwise, the line is displayed at the 
-    lineWnd position (in effect a row of the
-    window) */
+/* displays a line of text from the scrollback 
+    buffer.if lineWnd is -1, the line is displayed 
+    at the current cursor position. otherwise,
+    the line is displayed at the lineWnd position
+    (effectively a window row) */
 void print_from_scrollback(Scrollback *scrollback, int lineWnd, int lineSb);
 
-/* used when the terminal is resized. 
-    the scrollback is repainted according 
-    to the new terminal size */
+/* when the terminal is resized, the visible
+    part of the scrollback will be repainted
+    to adjust the displayed text to the new window 
+    size */
 void restore_from_scrollback(Scrollback *scrollback);
 
 /* below functions manipulate the visible part

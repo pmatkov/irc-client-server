@@ -1,6 +1,6 @@
 #include "../src/priv_user.h"
-#include "../../shared/src/priv_message.h"
-#include "../../shared/src/string_utils.h"
+#include "../../libs/src/priv_message.h"
+#include "../../libs/src/string_utils.h"
 
 #include <check.h>
 

@@ -4,9 +4,9 @@
 #include "channel.h"
 #endif
 
-#include "../../shared/src/priv_message.h"
-#include "../../shared/src/error_control.h"
-#include "../../shared/src/logger.h"
+#include "../../libs/src/priv_message.h"
+#include "../../libs/src/error_control.h"
+#include "../../libs/src/logger.h"
 
 #include <stdlib.h>
 #include <string.h>

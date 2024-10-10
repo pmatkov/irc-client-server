@@ -2,7 +2,7 @@
 #define COMMAND_HANDLER_H
 
 #include "tcpserver.h"
-#include "../../shared/src/command.h"
+#include "../../libs/src/command.h"
 
 typedef void (*CommandFunction)(TCPServer *tcpServer, Client *, CommandTokens *);
 

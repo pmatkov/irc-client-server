@@ -1,6 +1,6 @@
 #include "../src/priv_channel.h"
-#include "../../shared/src/priv_queue.h"
-#include "../../shared/src/priv_message.h"
+#include "../../libs/src/priv_queue.h"
+#include "../../libs/src/priv_message.h"
 
 #include <check.h>
 

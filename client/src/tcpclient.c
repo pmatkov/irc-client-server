@@ -1,15 +1,15 @@
 #ifdef TEST
 #include "priv_tcpclient.h"
-#include "../../shared/src/mock.h"
+#include "../../libs/src/mock.h"
 #else
 #include "tcpclient.h"
 #endif
 
-#include "../../shared/src/settings.h"
-#include "../../shared/src/priv_message.h"
-#include "../../shared/src/network_utils.h"
-#include "../../shared/src/error_control.h"
-#include "../../shared/src/logger.h"
+#include "../../libs/src/settings.h"
+#include "../../libs/src/priv_message.h"
+#include "../../libs/src/network_utils.h"
+#include "../../libs/src/error_control.h"
+#include "../../libs/src/logger.h"
 
 #include <stdlib.h>
 #include <unistd.h>
@@ -34,6 +34,18 @@
 
 #ifndef TEST
 
+/*  an array of struct pollfd's is 
+    used by poll() to track the state of 
+    file descriptors associated with
+    specific communication channels, such
+    as sockets or input streams. in this
+    case, the array contains only two 
+    structures, representing stdin and
+    tcp socket. for network communication
+    the two types of buffer are used, 
+    inBuffer for incoming messages, and 
+    msgQueue for outgoing messages. */
+
 struct TCPClient {
     struct pollfd pfds[FD_COUNT];
     char serverName[MAX_CHARS + 1];
@@ -43,12 +55,23 @@ struct TCPClient {
 
 #endif
 
+STATIC void client_disconnect(TCPClient *tcpClient);
+
 TCPClient * create_client(void) {
 
     TCPClient *tcpClient = (TCPClient *) malloc(sizeof(TCPClient));
     if (tcpClient == NULL) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
+
+    /* input events on file descriptors are
+        tracked by poll() by assigning the
+        constant POLLIN to the events field. 
+        the pollfd representing the stdin 
+        file descriptor is stored at index
+        [0] of the array while the pollfd 
+        representing the tcp socket is stored
+        at the index [1] */
 
     tcpClient->pfds[0].fd = STDIN_FILENO;
     tcpClient->pfds[0].events = POLLIN;
@@ -70,57 +93,77 @@ void delete_client(TCPClient *tcpClient) {
     free(tcpClient);
 }
 
-int client_connect(TCPClient *tcpClient, char *address, char *port)
+int client_connect(TCPClient *tcpClient, char *hostOrAddr, char *port)
 {
     char ipv4Address[INET_ADDRSTRLEN] = {'\0'};
 
-    // convert hostname to ip address
-    if (!is_valid_ip_address(address)) {
+    int connected = 0;
 
-        if (convert_hostname_to_ip_address(ipv4Address, sizeof(ipv4Address), address)) {
-            address = ipv4Address;
+    if (!is_valid_ip_address(hostOrAddr)) {
+
+        /* converts hostname to ipv4 address
+            if the hostOrAddr is a hostname */
+        if (convert_hostname_to_ip_address(ipv4Address, sizeof(ipv4Address), hostOrAddr)) {
+            hostOrAddr = ipv4Address;
         }
         else {
-            return -2;
+            connected = -2;
+            LOG(ERROR, "Invalid hostname or address: %s", hostOrAddr);
         }
     }
     if (!is_valid_port(port)) {
-        return -3;
+        connected = -3;
+        LOG(ERROR, "Invalid port: %s", port);
     }
 
-    // create client's TCP socket
-    int clientFd = socket(AF_INET, SOCK_STREAM, 0); 
-    if (clientFd < 0) {
-        FAILED("Error creating socket", NO_ERRCODE);
-    }
+    if (!connected) {
 
-    // initialize socket address structure with server's IP address and port
-    struct sockaddr_in servaddr;
+        /* creates a tcp socket and returns
+            file descriptor to that socket */
+        int clientFd = socket(AF_INET, SOCK_STREAM, 0); 
+        if (clientFd < 0) {
+            FAILED("Error creating socket", NO_ERRCODE);
+        }
 
-    memset((struct sockaddr_in *) &servaddr, 0, sizeof(struct sockaddr_in));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(str_to_uint(port));
+        /* initializes socket address structure
+            with the server's address and port */
+        struct sockaddr_in servaddr;
 
-    inet_pton(AF_INET, address, &servaddr.sin_addr);
+        memset((struct sockaddr_in *) &servaddr, 0, sizeof(struct sockaddr_in));
+        servaddr.sin_family = AF_INET;
+        servaddr.sin_port = htons(str_to_uint(port));
 
-    // connect to server
-    int connStatus = connect(clientFd, (struct sockaddr *) &servaddr, sizeof(struct sockaddr_in));
+        inet_pton(AF_INET, hostOrAddr, &servaddr.sin_addr);
 
-    if (connStatus == 0) {
+        /* creates tcp connection to the server */
+        connected = connect(clientFd, (struct sockaddr *) &servaddr, sizeof(struct sockaddr_in)) == 0;
 
-        char hostname[MAX_CHARS + 1] = {'\0'};
-        convert_ip_to_hostname(hostname, MAX_CHARS + 1, address);
-        set_server_name(tcpClient, hostname);
-        
-        set_fd(tcpClient, SOCKET_FD_INDEX, clientFd);
-        
-        LOG(INFO, "Connected to %s: %s", address, port);
+        if (connected) {
+
+            char hostname[MAX_CHARS + 1] = {'\0'};
+            convert_ip_to_hostname(hostname, MAX_CHARS + 1, hostOrAddr);
+            set_server_name(tcpClient, hostname);
+            
+            /* a file descriptor returned by socket()
+                is added to the set of poll fd's 
+                tracked by poll() */
+            set_fd(tcpClient, SOCKET_FD_INDEX, clientFd);
+            
+            LOG(INFO, "Connected to the server at %s: %s", hostOrAddr, port);
+        }
+        else {
+            FAILED("Error connecting to the server", NO_ERRCODE);
+        }
     }
    
-    return connStatus;
+    return connected;
 }
 
-void client_disconnect(TCPClient *tcpClient) {
+/* closes tcp connection and removes clients
+    socket fd from the set of poll fd's 
+    tracked by poll() */
+
+STATIC void client_disconnect(TCPClient *tcpClient) {
 
     if (tcpClient == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -128,6 +171,8 @@ void client_disconnect(TCPClient *tcpClient) {
 
     close(tcpClient->pfds[SOCKET_FD_INDEX].fd);
     unset_fd(tcpClient, SOCKET_FD_INDEX);
+
+    LOG(INFO, "Disconnected from the server");
 }
 
 int client_read(TCPClient *tcpClient) {
@@ -140,17 +185,25 @@ int client_read(TCPClient *tcpClient) {
 
     ssize_t bytesRead = read(tcpClient->pfds[SOCKET_FD_INDEX].fd, readBuffer, MAX_CHARS);
 
+    /* bytesRead is 0 if the server closes tcp connection */
     if (bytesRead <= 0) {
 
         if (!bytesRead) {
             LOG(INFO, "Server terminated");
         }
         else if (errno != ECONNRESET) {
-            LOG(ERROR, "Error reading from socket: %d", tcpClient->pfds[SOCKET_FD_INDEX].fd);
+            LOG(ERROR, "Error reading from socket (fd: %d)", tcpClient->pfds[SOCKET_FD_INDEX].fd);
         }
         client_disconnect(tcpClient);
     }
     else {
+
+        /* it is possible that the client may receive 
+            a partial message from the server due to
+            the nature of the tcp protocol. for this
+            reason all received data is stored in inBuffer,
+            and only after the complete message is received
+            (indicated by CRLF) will it be parsed */
 
         int msgLength = strlen(tcpClient->inBuffer);
 
@@ -160,9 +213,10 @@ int client_read(TCPClient *tcpClient) {
             msgLength += bytesRead;
         }
 
-        // full message received
+        /* according to the IRC standard, all messages
+           should be terminated with CRLF */
         if (is_crlf_terminated(tcpClient->inBuffer)) {
-            LOG(INFO, "Message received : \"%s\" (fd: %d)", tcpClient->inBuffer, tcpClient->pfds[SOCKET_FD_INDEX].fd);
+            LOG(DEBUG, "Received message \"%s\" from socket (fd: %d)", tcpClient->inBuffer, tcpClient->pfds[SOCKET_FD_INDEX].fd);
 
             return 1;
         }
@@ -182,6 +236,8 @@ void client_write(const char *message, int fd) {
     const char *msgPtr = message;
     char fmtMessage[MAX_CHARS + 1] = {'\0'};
 
+    /* according to the IRC standard, all messages
+        should be terminated with CRLF */
     if (!is_crlf_terminated(msgPtr)) {
 
         crlf_terminate(fmtMessage, MAX_CHARS + 1, msgPtr);
@@ -195,7 +251,7 @@ void client_write(const char *message, int fd) {
         if ((bytesWritten = write(fd, msgPtr, bytesLeft)) <= 0) { 
 
             if (!bytesWritten) {
-                LOG(ERROR, "Error writing to socket: %d", fd);
+                LOG(ERROR, "Error writing to the socket (fd: %d)", fd);
             }
             else if (bytesWritten < 0 && errno == EINTR) {
                 bytesWritten = 0;
@@ -203,7 +259,8 @@ void client_write(const char *message, int fd) {
         } 
         bytesLeft -= bytesWritten; 
         msgPtr += bytesWritten; 
-    }  
+    }
+    LOG(DEBUG, "Sent message \"%s\" to the socket (fd: %d)", message, fd);
 }
 
 void add_message_to_client_queue(TCPClient *tcpClient, void *message) {

@@ -1,15 +1,15 @@
 #ifdef TEST
 #include "priv_tcpserver.h"
-#include "../../shared/src/mock.h"
+#include "../../libs/src/mock.h"
 #else
 #include "tcpserver.h"
-#include "../../shared/src/time_utils.h"
+#include "../../libs/src/time_utils.h"
 #endif
 
-#include "../../shared/src/settings.h"
-#include "../../shared/src/priv_message.h"
-#include "../../shared/src/error_control.h"
-#include "../../shared/src/logger.h"
+#include "../../libs/src/settings.h"
+#include "../../libs/src/priv_message.h"
+#include "../../libs/src/error_control.h"
+#include "../../libs/src/logger.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -132,7 +132,7 @@ int init_server(void) {
 
     char ipv4Address[INET_ADDRSTRLEN];
 
-    LOG(INFO, "TCPServer started at %s: %d", inet_ntop(AF_INET, &servaddr.sin_addr, ipv4Address, sizeof(ipv4Address)), ntohs(servaddr.sin_port));
+    LOG(INFO, "Server started at %s: %d", inet_ntop(AF_INET, &servaddr.sin_addr, ipv4Address, sizeof(ipv4Address)), ntohs(servaddr.sin_port));
 
     return listenFd;
 }
@@ -360,7 +360,7 @@ void add_client(TCPServer *tcpServer, int listenFdIndex) {
     inet_ntop(AF_INET, &clientaddr.sin_addr, tcpServer->clients[index].ipv4Address, sizeof(tcpServer->clients[index].ipv4Address));
     tcpServer->clients[index].port = ntohs(clientaddr.sin_port); 
 
-    LOG(INFO, "New connection (#%d) from %s:%d (fd: %d)", tcpServer->count - 1, tcpServer->clients[index].ipv4Address, tcpServer->clients[index].port, *tcpServer->clients[index].fd);
+    LOG(INFO, "New client connection (#%d) from %s:%d (fd: %d)", tcpServer->count - 1, tcpServer->clients[index].ipv4Address, tcpServer->clients[index].port, *tcpServer->clients[index].fd);
 
 }
 
@@ -373,6 +373,8 @@ void remove_client(TCPServer *tcpServer, int fdIndex) {
     close(*tcpServer->clients[fdIndex].fd);
     unset_fd(tcpServer, fdIndex);
     memset(tcpServer->clients[fdIndex].nickname, '\0', sizeof(tcpServer->clients[fdIndex].nickname));
+
+    LOG(INFO, "Client %s:%d (fd: %d) disconnected", tcpServer->count - 1, tcpServer->clients[fdIndex].ipv4Address, tcpServer->clients[fdIndex].port, *tcpServer->clients[fdIndex].fd);
 }
 
 Client * find_client(TCPServer *tcpServer, const char *nickname) {
@@ -418,7 +420,7 @@ void remove_inactive_clients(TCPServer *tcpServer, int waitingTime) {
 
                 if (get_elapsed_time(tcpServer->clients[i].timer) >= waitingTime) {
 
-                    LOG(INFO, "Inactive client removed (fd: %d) %d", *tcpServer->clients[i].fd);
+                    LOG(INFO, "Inactive client %s:%d (fd: %d) removed", tcpServer->clients[i].ipv4Address, tcpServer->clients[i].port, *tcpServer->clients[i].fd);
 
                     remove_client(tcpServer, i);
                     reset_timer(tcpServer->clients[i].timer);
@@ -446,11 +448,11 @@ int server_read(TCPServer *tcpServer, int fdIndex) {
 
     if (bytesRead <= 0) {
 
-        if (!bytesRead) {
-            LOG(INFO, "Client %s on port %d disconnected (fd: %d)", tcpServer->clients[fdIndex].ipv4Address, tcpServer->clients[fdIndex].port, *tcpServer->clients[fdIndex].fd);
+        if (!bytesRead || errno == ECONNRESET) {
+            LOG(INFO, "Connection closed by client (fd: %d)", *tcpServer->clients[fdIndex].fd);
         }
-        else if (errno != ECONNRESET) {
-            LOG(ERROR, "Error reading from socket: %d", *tcpServer->clients[fdIndex].fd);
+        else {
+            LOG(ERROR, "Error reading from socket (fd: %d)", *tcpServer->clients[fdIndex].fd);
         }
         remove_client(tcpServer, fdIndex);
     }
@@ -465,8 +467,7 @@ int server_read(TCPServer *tcpServer, int fdIndex) {
         // full message received
         if (is_crlf_terminated(tcpServer->clients[fdIndex].inBuffer)) {
 
-            LOG(INFO, "Message received: \"%s\" (fd: %d)", tcpServer->clients[fdIndex].inBuffer, *tcpServer->clients[fdIndex].fd);
-
+            LOG(DEBUG, "Received message \"%s\" from socket (fd: %d)", tcpServer->clients[fdIndex].inBuffer, *tcpServer->clients[fdIndex].fd);
             fullMsg = 1;
         }
 
@@ -511,6 +512,8 @@ void server_write(const char *message, int fd) {
         bytesLeft -= bytesWritten; 
         msgPtr += bytesWritten; 
     }
+
+    LOG(INFO, "Sent message \"%s\" to socket (fd: %d)", message, fd);
 }
 
 const char * get_client_nickname(Client *client) {

@@ -3,7 +3,7 @@
 
 #include "user.h"
 #include "channel.h"
-#include "../../shared/src/linked_list.h"
+#include "../../libs/src/linked_list.h"
 
 typedef struct ReadyList ReadyList;
 

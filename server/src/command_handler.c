@@ -2,19 +2,19 @@
 #include "priv_command_handler.h"
 #else
 #include "command_handler.h"
-#include "../../shared/src/response_code.h"
+#include "../../libs/src/response_code.h"
 #endif
 
 #include "user.h"
 #include "channel.h"
 #include "session.h"
 #include "tcpserver.h"
-#include "../../shared/src/settings.h"
-#include "../../shared/src/linked_list.h"
-#include "../../shared/src/priv_message.h"
-#include "../../shared/src/string_utils.h"
-#include "../../shared/src/logger.h"
-#include "../../shared/src/error_control.h"
+#include "../../libs/src/settings.h"
+#include "../../libs/src/linked_list.h"
+#include "../../libs/src/priv_message.h"
+#include "../../libs/src/string_utils.h"
+#include "../../libs/src/logger.h"
+#include "../../libs/src/error_control.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -46,6 +46,8 @@ static const CommandFunction COMMAND_FUNCTIONS[] = {
     cmd_join,
     cmd_part,
     cmd_privmsg,
+    NULL,
+    NULL,
     cmd_quit,
     cmd_unknown
 };
@@ -63,7 +65,7 @@ STATIC void cmd_nick(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
         const char *code = get_response_code(ERR_NONICKNAMEGIVEN);
         create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
     }
-    else if (cmdTokens->argCount >= 1) {
+    else {
 
         if (strlen(cmdTokens->args[0]) > MAX_NICKNAME_LEN || !is_valid_name(cmdTokens->args[0], 0)) {
 
@@ -81,34 +83,40 @@ STATIC void cmd_nick(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
             if (is_client_registered(client)) {
 
-                User *user = find_user_in_hash_table(get_session(tcpServer), get_client_nickname(client));
-                User *newUser = create_user(cmdTokens->args[0], get_username(user), get_hostname(user), get_realname(user), get_client_fd(client));
-
-                UserChannels *userChannels = find_user_channels(get_session(tcpServer), user);
-
-                 // notify channels of nickname change
-                if (userChannels != NULL) {
-
-                    char clientInfo[MAX_CHARS + 1] = {'\0'};
-                    create_client_info(clientInfo, MAX_CHARS, get_user_nickname(user), get_username(user), get_hostname(user));
-
-                    char fwdMessage[MAX_CHARS + 1] = {'\0'};
-
-                    create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
-
-                    iterate_list(get_channels_from_user_channels(userChannels), add_message_to_channel_queue, fwdMessage);
-                    iterate_list(get_channels_from_user_channels(userChannels), add_channel_to_ready_channels, get_ready_list(get_session(tcpServer)));
-
-                    change_user_in_user_channels(userChannels, newUser);
-
-                    iterate_list(get_channel_users_ll(get_session(tcpServer)), change_user_in_channel_users, newUser);
-
-                }
+             
             }
             set_client_nickname(client, cmdTokens->args[0]);
         }
     }
     add_message_to_queue(tcpServer, client, message);
+}
+
+STATIC void change_nickname(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
+
+    User *user = find_user_in_hash_table(get_session(tcpServer), get_client_nickname(client));
+    User *newUser = create_user(cmdTokens->args[0], get_username(user), get_hostname(user), get_realname(user), get_client_fd(client));
+
+    UserChannels *userChannels = find_user_channels(get_session(tcpServer), user);
+
+    // notify channels of nickname change
+    if (userChannels != NULL) {
+
+        char clientInfo[MAX_CHARS + 1] = {'\0'};
+        create_client_info(clientInfo, MAX_CHARS, get_user_nickname(user), get_username(user), get_hostname(user));
+
+        char fwdMessage[MAX_CHARS + 1] = {'\0'};
+
+        create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
+
+        iterate_list(get_channels_from_user_channels(userChannels), add_message_to_channel_queue, fwdMessage);
+        iterate_list(get_channels_from_user_channels(userChannels), add_channel_to_ready_channels, get_ready_list(get_session(tcpServer)));
+
+        change_user_in_user_channels(userChannels, newUser);
+
+        iterate_list(get_channel_users_ll(get_session(tcpServer)), change_user_in_channel_users, newUser);
+
+    }
+    delete_user(newUser);
 }
 
 STATIC void cmd_user(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
@@ -521,6 +529,9 @@ void parse_message(TCPServer *tcpServer, Client *client, CommandTokens *cmdToken
     strcpy(cmdTokens->input, input);
 
     int tkCount = count_tokens(cmdTokens->input, ':');
+    if (tkCount > MAX_TOKENS) {
+        tkCount = MAX_TOKENS;
+    }
 
     const char *tokens[MAX_TOKENS] = {NULL};
 
@@ -530,7 +541,7 @@ void parse_message(TCPServer *tcpServer, Client *client, CommandTokens *cmdToken
     cmdTokens->argCount = tkCount - 1;
 
     for (int i = 0; i < tkCount - 1; i++) {
-        cmdTokens->args[i] = tokens[i+1];
+        cmdTokens->args[i] = tokens[i + 1];
     }
 }
 
