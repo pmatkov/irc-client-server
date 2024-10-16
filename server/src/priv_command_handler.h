@@ -1,14 +1,14 @@
 /* --INTERNAL HEADER--
-   used for unit testing */
+   used for testing */
 
 #ifndef COMMAND_HANDLER_H
 #define COMMAND_HANDLER_H
 
-#include "priv_tcpserver.h"
+#include "priv_tcp_server.h"
 #include "../../libs/src/priv_command.h"
 #include "../../libs/src/response_code.h"
 
-typedef void (*CommandFunction)(TCPServer *tcpServer, Client *, CommandTokens *);
+typedef void (*CommandFunc)(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 
 typedef struct {
     const char *prefix[MAX_TOKENS];
@@ -19,7 +19,7 @@ typedef struct {
 
 void parse_message(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 
-CommandFunction get_command_function(CommandType commandType);
+CommandFunc get_command_function(CommandType commandType);
 
 #ifdef TEST
 

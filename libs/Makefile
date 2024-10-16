@@ -8,7 +8,6 @@ AR = ar
 ARFLAGS = rcs
 
 DLIB_FLAGS = -fPIC -shared -lc
-# TEST_LDFLAGS = -lcheck -lm -lpthread -lrt -lsubunit -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB_TEST) $(LIB_MOCK))
 TEST_LDFLAGS = -lcheck -lm -lpthread -lrt -lsubunit -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB_TEST))
 MOCK_LDFLAGS = -lncursesw
 MOCK_TEST_LDFLAGS = -lmock $(MOCK_LDFLAGS) 
@@ -79,7 +78,7 @@ $(OBJDIR)/%_test.o: $(SRCDIR)/%.c
 	$(CC) $(TEST_CFLAGS) -c $< -o $@
 	$(CC) $(TEST_CFLAGS) -MM $< -MT $@ -MF $(patsubst %_test.o, %_test.d, $@)
 
-# build mock objcet file
+# build mock object file
 $(OBJDIR)/libmock.o: $(SRCDIR)/libmock.c
 	$(CC) $(CFLAGS) -c $< -o $@ $(MOCK_LDFLAGS) 
 	$(CC) $(CFLAGS) -MM $< -MT $@ -MF $(patsubst %.o, %.d, $@)

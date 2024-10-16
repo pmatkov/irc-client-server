@@ -1,4 +1,4 @@
-#include "../src/priv_tcpserver.h"
+#include "../src/priv_tcp_server.h"
 #include "../../libs/src/settings.h"
 #include "../../libs/src/priv_message.h"
 #include "../../libs/src/string_utils.h"
@@ -21,7 +21,7 @@ START_TEST(test_create_server) {
     ck_assert_ptr_ne(server->clients, NULL);
     ck_assert_ptr_ne(server->session, NULL);
     ck_assert_ptr_ne(server->msgQueue, NULL);
-    ck_assert_str_eq(server->serverName, "irc.example.com");
+    ck_assert_str_eq(server->hostname, "irc.example.com");
     ck_assert_int_eq(server->capacity, MAX_FDS);
     ck_assert_int_eq(server->count, 0);
 

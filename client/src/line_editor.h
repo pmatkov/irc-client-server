@@ -7,33 +7,33 @@
 
 #include <ncursesw/curses.h>
 
-/* a LnEditorCmd represents a map of line editor commands 
+/* represents a map of line editor commands 
     and functions */
 typedef struct LnEditorCmd LnEditorCmd;
 
 /* a line editor is used to edit the input text.  
-    basic editing functionalities are supported.
+    all the basic editing features are supported.
     
     the text can be edited in the following ways:
-    - standard character keys add one char,
-    - BACKSPACE deletes previous char, 
-    - DELETE deletes current char,
-    - HOME moves cursor to the start of the line,
-    - END moves cursor to the end of the line,
-    - LEFT ARROW moves cursor one char to the left,
-    - RIGHT ARROW moves cursor one char to the right. 
+    - character key adds one char,
+    - BACKSPACE deletes the previous char, 
+    - DELETE deletes the current char,
+    - HOME moves the cursor to the start of the line,
+    - END moves the cursor to the end of the text,
+    - LEFT ARROW moves the cursor one position to the left,
+    - RIGHT ARROW moves the cursor one position to the right. 
     
     Additionally, a command history can be accessed
-    with up and down arrows. */
+    with up and down arrows */
 typedef struct LineEditor LineEditor;
 
-typedef void (*LnEditorFunction)(LineEditor *lnEditor);
+typedef void (*LnEditorFunc)(LineEditor *lnEditor);
 
 LineEditor * create_line_editor(WINDOW *window);
 void delete_line_editor(LineEditor *lnEditor);
 
-/* below functions operate on the input text and adjust
-    cursor position on the screen */
+/* these functions operate on the input text and 
+    change the cursor position on the screen */
 void move_cursor_left(LineEditor *lnEditor);
 void move_cursor_right(LineEditor *lnEditor);
 void delete_char(LineEditor *lnEditor);
@@ -43,12 +43,12 @@ void use_delete(LineEditor *lnEditor);
 void use_home(LineEditor *lnEditor);
 void use_end(LineEditor *lnEditor);
 
-/* below functions provide access to the command history */
+/* these functions provide access to the command history */
 void display_current_command(LineEditor *lnEditor);
 void display_previous_command(LineEditor *lnEditor);
 void display_next_command(LineEditor *lnEditor);
 
-LnEditorFunction get_lneditor_function(int index);
+LnEditorFunc get_lneditor_function(int index);
 int get_le_func_index(int keyCode);
 
 WINDOW * le_get_window(LineEditor *lnEditor);

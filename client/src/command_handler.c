@@ -5,8 +5,9 @@
 #include "command_handler.h"
 #endif
 
-#include "display.h"
+#include "main.h"
 #include "../../libs/src/settings.h"
+#include "../../libs/src/irc_message.h"
 #include "../../libs/src/priv_message.h"
 #include "../../libs/src/network_utils.h"
 #include "../../libs/src/string_utils.h"
@@ -16,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 
 #ifdef TEST
 #define STATIC
@@ -32,20 +34,22 @@
 #define LEAD_CHAR_LEN 1
 #define MAX_NICKNAME_LEN 9
 
-STATIC void cmd_help(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
-STATIC void cmd_connect(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
-STATIC void cmd_disconnect(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
-STATIC void cmd_nick(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
-STATIC void cmd_user(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
-STATIC void cmd_join(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
-STATIC void cmd_part(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
-STATIC void cmd_privmsg(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
-STATIC void cmd_address(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
-STATIC void cmd_port(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
-STATIC void cmd_quit(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
-STATIC void cmd_unknown(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_help(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_connect(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_disconnect(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_nick(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_user(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_join(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_part(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_privmsg(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_address(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_port(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_quit(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
+STATIC void cmd_unknown(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens);
 
-static const CommandFunction COMMAND_FUNCTIONS[] = {
+/* lookup table for accessing command 
+    functions */
+static const CommandFunc COMMAND_FUNCTIONS[] = {
     cmd_help,
     cmd_connect,
     cmd_disconnect,
@@ -60,88 +64,106 @@ static const CommandFunction COMMAND_FUNCTIONS[] = {
     cmd_unknown
 };
 
-_Static_assert(sizeof(COMMAND_FUNCTIONS) / sizeof(COMMAND_FUNCTIONS[0]) == COMMAND_TYPE_COUNT, "Array size mismatch");
+static_assert(ARR_SIZE(COMMAND_FUNCTIONS) == COMMAND_TYPE_COUNT, "Array size mismatch");
 
-/* displays a list of available commands or 
-    provides help with the usage of a specific 
+/* display a list of available commands and 
+    provide help with the usage of specific 
     command */
-STATIC void cmd_help(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+STATIC void cmd_help(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     if (!cmdTokens->argCount) {
-        display_commands(scrollback, get_commands(), COMMAND_TYPE_COUNT);
+        display_commands(windowManager, get_commands(), COMMAND_TYPE_COUNT);
     } 
     else {
 
         CommandType commandType = string_to_command_type(cmdTokens->args[0]);
 
         if (commandType == UNKNOWN_COMMAND_TYPE || cmdTokens->argCount > 1) {
-            cmd_unknown(scrollback, tcpClient, cmdTokens);
+            cmd_unknown(windowManager, tcpClient, cmdTokens);
         }
         else {
-            display_usage(scrollback, get_command(commandType));
+            display_usage(windowManager, get_command(commandType));
         }
     }
 }
 
-/* initiates a connection to the IRC server. once
+/* initiate connection to the IRC server. once
     the connection is established, the client sends
     NICK and USER messages in accordance with the
     IRC standard */
-STATIC void cmd_connect(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+STATIC void cmd_connect(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     if (is_client_connected(tcpClient)) {
 
-        display_response(scrollback, "Already connected");
+        display_response(windowManager, "Already connected");
     }
     else {
 
-        /* assigns default address and/ or port
-            if none was provided */
-        char *address = cmdTokens->args[0] == NULL ? (char*) get_property_value(ADDRESS) : (char*) cmdTokens->args[0];
-        char *port = cmdTokens->args[1] == NULL ? (char*) get_property_value(PORT) : (char*) cmdTokens->args[1];
+        /* assign default address and/ or port if 
+            nothing was provided */
+        const char *address = NULL, *port = NULL;
+
+        if (cmdTokens->args[0] == NULL) {
+            address = get_property_value(CP_ADDRESS);
+        }
+        else {
+            address = cmdTokens->args[0];
+        }
+
+        if (cmdTokens->args[1] == NULL) {
+            port = get_property_value(CP_PORT);
+        }
+        else {
+            port = cmdTokens->args[1];
+        }
 
         int connStatus = client_connect(tcpClient, address, port);
 
         if (connStatus == 0) {
 
+            display_status(windowManager, "[%s]  [%s]", get_property_value(CP_NICKNAME), get_server_name(tcpClient));
+
             char message[MAX_CHARS + CRLF_LEN + LEAD_CHAR_LEN + 1] = {'\0'};
 
             // NICK <nickname>
-            create_message(message, MAX_CHARS, &(MessageTokens){{NULL}, {"NICK"}, {get_property_value(NICKNAME)}, 0});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{NULL}, {"NICK"}, {get_property_value(CP_NICKNAME)}, 0});
             add_message_to_client_queue(tcpClient, message);
 
             char ipv4Address[INET_ADDRSTRLEN] = {'\0'};
-            get_client_ip(ipv4Address, sizeof(ipv4Address), get_socket_fd(tcpClient));
+            get_local_ip_address(ipv4Address, sizeof(ipv4Address), get_socket_fd(tcpClient));
 
             memset(message, '\0', sizeof(message));
 
             // USER <username> <hostname> <servername> <real name>
-            create_message(message, MAX_CHARS, &(MessageTokens){{NULL}, {"USER", get_property_value(USERNAME), ipv4Address, "*"}, {get_property_value(REALNAME)}, 1});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{NULL}, {"USER", get_property_value(CP_USERNAME), ipv4Address, "*"}, {get_property_value(CP_REALNAME)}, 1});
 
             add_message_to_client_queue(tcpClient, message);
-            display_response(scrollback, "Connected to the server at %s:%s.", address, port);
+            display_response(windowManager, "Connected to the server at %s:%s.", address, port);
         }
         else if (connStatus == -1) {
-            display_response(scrollback, "Unable to connect to the server at %s:%s.", address, port);
+            display_response(windowManager, "Unable to connect to the server at %s:%s.", address, port);
         }
         else if (connStatus == -2) {
-            display_response(scrollback, "Invalid address: %s.", address);
+            display_response(windowManager, "Invalid address: %s.", address);
         } 
         else if (connStatus == -3) {
-            display_response(scrollback, "Invalid port: %s.", port);
+            display_response(windowManager, "Invalid port: %s.", port);
         }
     }
 }
 
-/* disconnects the client from the server with
-    an optional message */
-STATIC void cmd_disconnect(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+/* disconnect the client from the server
+    with an optional message */
+STATIC void cmd_disconnect(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     if (!is_client_connected(tcpClient)) {
 
-        display_response(scrollback, "Not connected.");
+        display_response(windowManager, "Not connected.");
     }
     else {
+
+        client_disconnect(tcpClient);
+        display_status(windowManager, "");
 
         if (!cmdTokens->argCount) {
 
@@ -155,22 +177,22 @@ STATIC void cmd_disconnect(Scrollback *scrollback, TCPClient *tcpClient, Command
             concat_tokens(notice, MAX_CHARS, cmdTokens->args, ARR_SIZE(notice), " ");
 
             // DISCONNECT [:message]
-            create_message(message, MAX_CHARS, &(MessageTokens){{NULL}, {cmdTokens->command}, {notice}, 1});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{NULL}, {cmdTokens->command}, {notice}, 1});
 
             add_message_to_client_queue(tcpClient, message);
-            display_response(scrollback, "Disconnected from the server.");
+            display_response(windowManager, "Disconnected from the server.");
         }
     }
 }
 
-/* sets a nickname for the user */
-STATIC void cmd_nick(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+/* set a nickname for the user */
+STATIC void cmd_nick(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     if (!cmdTokens->argCount) {
-        display_response(scrollback, "Missing argument <nickname>.");
+        display_response(windowManager, "Missing argument <nickname>.");
     }
     else if (cmdTokens->argCount > 1 || strlen(cmdTokens->args[0]) > MAX_NICKNAME_LEN) {
-        display_response(scrollback, "Nickname is a single word of maximum 9 chars.");
+        display_response(windowManager, "Nickname is a single word of maximum 9 chars.");
     }
     else {
 
@@ -179,21 +201,21 @@ STATIC void cmd_nick(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens
             char message[MAX_CHARS + CRLF_LEN + LEAD_CHAR_LEN + 1] = {'\0'};
 
             // NICK <nickname>
-            create_message(message, MAX_CHARS, &(MessageTokens){{NULL}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{NULL}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
             add_message_to_client_queue(tcpClient, message);
         }
 
-        set_property_value(NICKNAME, cmdTokens->args[0]);
-        display_response(scrollback, "Nickname is set to: %s.", cmdTokens->args[0]);
+        set_property_value(CP_NICKNAME, cmdTokens->args[0]);
+        display_response(windowManager, "Nickname is set to: %s.", cmdTokens->args[0]);
     }
 }
 
-/* sets a username and a real name for 
+/* set a username and a real name for 
     the user */
-STATIC void cmd_user(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+STATIC void cmd_user(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     if (!cmdTokens->argCount) {
-        display_response(scrollback, "Not enough arguments.");
+        display_response(windowManager, "Not enough arguments.");
     }
     else {
 
@@ -202,65 +224,65 @@ STATIC void cmd_user(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens
 
         if (cmdTokens->argCount) {
 
-            set_property_value(USERNAME, cmdTokens->args[0]);
+            set_property_value(CP_USERNAME, cmdTokens->args[0]);
         }
         if (cmdTokens->argCount > 1) {
             
             concat_tokens(realName, MAX_CHARS, tokens, ARR_SIZE(tokens), " ");
-            set_property_value(REALNAME, realName);
+            set_property_value(CP_REALNAME, realName);
         }
         // USER <username> [real name]
-        display_response(scrollback, "Username is set to: %s. Real name is set to: %s", get_property_value(USERNAME), get_property_value(REALNAME));
+        display_response(windowManager, "Username is set to: %s. Real name is set to: %s", get_property_value(CP_USERNAME), get_property_value(CP_REALNAME));
     }
 }
 
-/* joins the client to a channel. if there
+/* join the client to a channel. if there
     is not already a channel with the provided
     name, a new channel will be created */
-STATIC void cmd_join(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+STATIC void cmd_join(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     if (!is_client_connected(tcpClient)) {
 
-        display_response(scrollback, "Unable to join the channel. Not connected.");
+        display_response(windowManager, "Unable to join the channel. Not connected.");
     }
     else {
 
         if (!cmdTokens->argCount) {
 
-            display_response(scrollback, "Missing argument <channel>.");
+            display_response(windowManager, "Missing argument <channel>.");
         }
         else if (cmdTokens->argCount == 1) {
 
             char message[MAX_CHARS + CRLF_LEN + LEAD_CHAR_LEN + 1] = {'\0'};
 
             // JOIN <channel>
-            create_message(message, MAX_CHARS, &(MessageTokens){{NULL}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{NULL}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
             add_message_to_client_queue(tcpClient, message);
         }
         else {
 
-            cmd_unknown(scrollback, tcpClient, cmdTokens);
+            cmd_unknown(windowManager, tcpClient, cmdTokens);
         }
     }
 }
 
-/* removes the client from a channel */
-STATIC void cmd_part(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+/* remove the client from the channel */
+STATIC void cmd_part(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     if (!is_client_connected(tcpClient)) {
 
-        display_response(scrollback, "Unable to leave the channel. Not connected.");
+        display_response(windowManager, "Unable to leave the channel. Not connected.");
     }
     else {
         char message[MAX_CHARS + CRLF_LEN + LEAD_CHAR_LEN + 1] = {'\0'};
 
         if (!cmdTokens->argCount) {
 
-            display_response(scrollback, "Missing argument <channel>.");
+            display_response(windowManager, "Missing argument <channel>.");
         }
         else if (cmdTokens->argCount == 1) {
 
-            create_message(message, MAX_CHARS, &(MessageTokens){{NULL}, {cmdTokens->command, cmdTokens->args[0]}, {NULL}, 0});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{NULL}, {cmdTokens->command, cmdTokens->args[0]}, {NULL}, 0});
             add_message_to_client_queue(tcpClient, message);
 
         }
@@ -272,30 +294,30 @@ STATIC void cmd_part(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens
             concat_tokens(notice, MAX_CHARS, tokens, ARR_SIZE(notice), " ");
 
             // PART <channel> [message]
-            create_message(message, MAX_CHARS, &(MessageTokens){{NULL}, {cmdTokens->command, cmdTokens->args[0]}, {notice}, 1});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{NULL}, {cmdTokens->command, cmdTokens->args[0]}, {notice}, 1});
             add_message_to_client_queue(tcpClient, message);
         }
     } 
 }
 
-/* sends a message to another user on the
-    server or to the channel */
-STATIC void cmd_privmsg(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+/* send a message to the user or to
+    the channel */
+STATIC void cmd_privmsg(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     if (!is_client_connected(tcpClient)) {
 
-        display_response(scrollback, "Unable to send message. Not connected.");
+        display_response(windowManager, "Unable to send message. Not connected.");
     }
     else {
             
         if (!cmdTokens->argCount) {
 
-            display_response(scrollback, "Not enough arguments.");
+            display_response(windowManager, "Not enough arguments.");
 
         }
         else if (cmdTokens->argCount == 1) {
 
-            display_response(scrollback, "Missing argument <message>.");
+            display_response(windowManager, "Missing argument <message>.");
         }
         else {
 
@@ -307,64 +329,64 @@ STATIC void cmd_privmsg(Scrollback *scrollback, TCPClient *tcpClient, CommandTok
             concat_tokens(notice, MAX_CHARS, tokens, ARR_SIZE(notice), " ");
 
             // PRIVMSG <channel | user> [message]
-            create_message(message, MAX_CHARS, &(MessageTokens){{NULL}, {cmdTokens->command, cmdTokens->args[0]}, {notice}, 1});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{NULL}, {cmdTokens->command, cmdTokens->args[0]}, {notice}, 1});
             add_message_to_client_queue(tcpClient, message);
         }
     }
 }
 
-/* sets default ip address of the
+/* set default ip address of the
     server */
-STATIC void cmd_address(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+STATIC void cmd_address(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     if (!cmdTokens->argCount) {
-        display_response(scrollback, "Not enough arguments.");
+        display_response(windowManager, "Not enough arguments.");
     }
     else if (cmdTokens->argCount) {
 
-        set_property_value(ADDRESS, cmdTokens->args[0]);
+        set_property_value(CP_ADDRESS, cmdTokens->args[0]);
     }
 }
 
-/* sets default port of the server */
-STATIC void cmd_port(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+/* set default port of the server */
+STATIC void cmd_port(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     if (!cmdTokens->argCount) {
-        display_response(scrollback, "Not enough arguments.");
+        display_response(windowManager, "Not enough arguments.");
     }
     else if (cmdTokens->argCount) {
 
-        set_property_value(PORT, cmdTokens->args[0]);
+        set_property_value(CP_PORT, cmdTokens->args[0]);
     }
 }
 
-/* disconnects the client from the server
-    and quits the app */
-STATIC void cmd_quit(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+/* disconnect the client from the server
+    and quit the app */
+STATIC void cmd_quit(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     if (is_client_connected(tcpClient)) {
 
-        cmd_disconnect(scrollback, tcpClient, cmdTokens);
+        cmd_disconnect(windowManager, tcpClient, cmdTokens);
         
     }
     exit(EXIT_SUCCESS);
 }
 
-/* informs the user that an unknown command
+/* inform the user that an unknown command
     was parsed */
-STATIC void cmd_unknown(Scrollback *scrollback, TCPClient *tcpClient, CommandTokens *cmdTokens) {
+STATIC void cmd_unknown(WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
     char message[MAX_CHARS + CRLF_LEN + LEAD_CHAR_LEN + 1] = {'\0'};
     char notice[MAX_CHARS + CRLF_LEN + LEAD_CHAR_LEN + 1] = {'\0'};
 
     concat_tokens(notice, MAX_CHARS, cmdTokens->args, ARR_SIZE(notice), " ");
 
-    create_message(message, MAX_CHARS, &(MessageTokens){{NULL}, {cmdTokens->command}, {notice}, 0});
+    create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{NULL}, {cmdTokens->command}, {notice}, 0});
 
-    display_response(scrollback, "Unknown command: %s", message);
+    display_response(windowManager, "Unknown command: %s", message);
 }
 
-CommandFunction get_command_function(CommandType commandType) {
+CommandFunc get_command_function(CommandType commandType) {
 
     if (is_valid_command(commandType)) {
         return COMMAND_FUNCTIONS[commandType];
@@ -384,18 +406,16 @@ void parse_input(LineEditor *lnEditor, CommandTokens *cmdTokens) {
     char *input = get_reg_message_content(message);
     strcpy(cmdTokens->input, input);
 
-    /* valid commands start with the
-         '/' prefix */
-
+    /* valid commands start with '/' 
+        prefix */
     if (has_command_prefix(input)) {
 
-        /* the input string is split into tokens
+        /* the input string is divided into tokens
             and saved in the CommandsTokens structure
-            for command parsing */
-
+            for parsing */
         const char *tokens[MAX_TOKENS] = {NULL};
 
-        int tkCount = split_input_string(cmdTokens->input, tokens, MAX_TOKENS, ' ');
+        int tkCount = split_input_string(cmdTokens->input, tokens, MAX_TOKENS, " ");
 
         cmdTokens->command = &tokens[0][1];
 
@@ -407,10 +427,10 @@ void parse_input(LineEditor *lnEditor, CommandTokens *cmdTokens) {
     }
 
     /* after tokenizing, the input string is 
-        deleted from the "input window" and
+        removed from the "input window" and
         the line editor is reset to its default
-        values. additionally, the input string
-        is stored in the command buffer for later
+        values. the input string is stored 
+        in the command buffer for later
         access (command history) */
 
     delete_part_line(le_get_window(lnEditor), PROMPT_SIZE);

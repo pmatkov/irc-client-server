@@ -1,5 +1,5 @@
 /* --INTERNAL HEADER--
-   used for unit testing */
+   used for testing */
 
 #ifndef TIME_UTILS_H
 #define TIME_UTILS_H

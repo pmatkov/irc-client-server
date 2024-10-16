@@ -1,46 +1,22 @@
-/* --INTERNAL HEADER--
-   used for unit testing */
+#ifndef TCP_SERVER_H
+#define TCP_SERVER_H
 
-#ifndef TCPSERVER_H
-#define TCPSERVER_H
-
-#include "priv_session.h"
-#include "../../libs/src/command.h"
-#include "../../libs/src/priv_queue.h"
+#include "session.h"
+#include "../../libs/src/queue.h"
 #include "../../libs/src/string_utils.h"
-#include "../../libs/src/time_utils.h"
 
 #include <poll.h>
 #include <arpa/inet.h>
 
 #define MAX_FDS 1024
-#define MAX_CHARS 512
-#define MAX_NICKNAME_LEN 9
 
-typedef struct {
-    char nickname[MAX_NICKNAME_LEN + 1];
-    char inBuffer[MAX_CHARS + 1];
-    char ipv4Address[INET_ADDRSTRLEN + 1];
-    int port;
-    int registered;
-    int *fd;
-    Timer *timer;
-} Client;
+typedef struct Client Client;
+typedef struct TCPServer TCPServer;
 
-typedef struct {
-    struct pollfd *pfds;
-    Client *clients;
-    Session *session;
-    Queue *msgQueue;   
-    char serverName[MAX_CHARS + 1];
-    int capacity;
-    int count;
-} TCPServer;
-
-TCPServer * create_server(int capacity);
+TCPServer * create_server(int capacity, const char *hostname);
 void delete_server(TCPServer *tcpServer);
 
-int init_server(void);
+int init_server(int port);
 
 int are_pfds_empty(TCPServer *tcpServer);
 int are_pfds_full(TCPServer *tcpServer);
@@ -84,14 +60,5 @@ void send_channel_queue_messages(void *channel, void *session);
 
 int server_read(TCPServer *tcpServer, int fdIndex);
 void server_write(const char *message, int fd);
-
-#ifdef TEST
-
-struct pollfd * create_pfds(int capacity);
-void delete_pfds(struct pollfd *pfds);
-Client * create_clients(int capacity);
-void delete_clients(Client *clients, int capacity);
-
-#endif
 
 #endif

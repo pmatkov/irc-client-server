@@ -89,45 +89,61 @@ void remove_string_from_string_list(StringList *stringList) {
     }
 }
 
-/* splits string to tokens. If tkCount is less than word
- count, the last token will contain all the reamining words. */
-int split_input_string(char *input, const char **tokens, int tkCount, int sep) {
+/* split the input string into tokens based on
+    the delimiter delim. tkCount represents the 
+    desired number of tokens into which the 
+    input should be split. if tkCount is 
+    less than the maximum possible tokens,
+    the last token will contain the reamining
+    tokens. this function modifies the original
+    string 
+
+    [example] input: "This is a long string", tkCount = 3, sep = ' '
+            result: "This", "is", "a long string"
+    
+    */
+int split_input_string(char *input, const char **tokens, int tkCount, const char *delim) {
      
-    if (input == NULL || tokens == NULL) {
+    if (input == NULL || tokens == NULL || delim == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
-
-    char *tokenPtr = input, *sepPtr = NULL;
 
     int i = 0;
     int len = strlen(input);
 
-    while (i < (tkCount - 1) && (tokenPtr - input) < len && (sepPtr = strchr(tokenPtr, sep)) != NULL) {
+    char *ptr = input, *sepPtr = NULL;
 
-        if (tokenPtr != sepPtr) {
+    while (i < (tkCount - 1) && (ptr - input) < len && (sepPtr = strchr(ptr, delim[0])) != NULL) {
+
+        /* save a reference to the token */
+        if (sepPtr != ptr) {
             *sepPtr = '\0';
-            tokens[i++] = tokenPtr;
-            tokenPtr = sepPtr + 1;
+            tokens[i++] = ptr;
+            ptr = sepPtr + 1;
         }
     }
-
-    if (tkCount && (tokenPtr - input) < len) {
-        tokens[i] = tokenPtr;
+     /* save a reference to the last token or 
+        a group of tokens */
+    if (tkCount && (ptr - input) < len) {
+        tokens[i] = ptr;
         i += 1;
     }
 
-    if (tkCount && tokenPtr[strlen(tokenPtr)-1] == sep) {
-       tokenPtr[strlen(tokenPtr)-1] = '\0'; 
+    /* terminate string if the last char is the
+        delimiter */
+    if (tkCount && strlen(ptr) && ptr[strlen(ptr)-1] == delim[0]) {
+       ptr[strlen(ptr)-1] = '\0'; 
     }
 
     return i;
 
 }
 
-// concatenates tokens into a string
-int concat_tokens(char *buffer, int size, const char **tokens, int tkCount, const char *sep) {
+/* concatenate tokens into a string
+    using the delimiter delim */
+int concat_tokens(char *buffer, int size, const char **tokens, int tkCount, const char *delim) {
 
-    if (buffer == NULL || tokens == NULL) {
+    if (buffer == NULL || tokens == NULL || delim == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
@@ -138,20 +154,20 @@ int concat_tokens(char *buffer, int size, const char **tokens, int tkCount, cons
         if (strlen(tokens[i])) {
 
             strncat(buffer, tokens[i], size - strlen(buffer) - 1);
-            strncat(buffer, sep, size - strlen(buffer) - 1);
+            strncat(buffer, delim, size - strlen(buffer) - 1);
         }
         i++;
     }
 
-    if (strlen(buffer) && buffer[strlen(buffer) - 1] == sep[0]) {
+    if (strlen(buffer) && buffer[strlen(buffer) - 1] == delim[0]) {
         buffer[strlen(buffer) - 1] = '\0'; 
     }
 
     return i;
 }
 
-// counts tokens before delimiter
-int count_tokens(const char *input, char delimiter) {
+/* count tokens before delimiter */
+int count_tokens(const char *input, const char *delim) {
 
     if (input == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -164,7 +180,7 @@ int count_tokens(const char *input, char delimiter) {
         const char *inputPtr = input;
         count = 1;
 
-        while (*inputPtr && *inputPtr != delimiter) {
+        while (*inputPtr && *inputPtr != delim[0]) {
             if (*inputPtr == ' ' && inputPtr - input != strlen(input)-1) {
                 count++;
             }
@@ -175,7 +191,7 @@ int count_tokens(const char *input, char delimiter) {
     return count;
 }
 
-// prepends char to string
+/* prepend char to string */
 void prepend_char(char *buffer, int size, const char *string, char ch) {
 
     if (buffer == NULL || string == NULL) {

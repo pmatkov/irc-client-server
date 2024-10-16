@@ -1,8 +1,8 @@
 #ifdef TEST
-#include "priv_tcpserver.h"
+#include "priv_tcp_server.h"
 #include "../../libs/src/mock.h"
 #else
-#include "tcpserver.h"
+#include "tcp_server.h"
 #include "../../libs/src/time_utils.h"
 #endif
 
@@ -29,7 +29,6 @@
 #define MAX_NICKNAME_LEN 9
 #define MSG_QUEUE_LEN MAX_FDS/ 100
 
-#define SERVER_PORT 50100
 #define LISTEN_QUEUE 100
 
 #define INT_DIGITS 10
@@ -51,7 +50,7 @@ struct TCPServer {
     Client *clients;
     Session *session;
     Queue *msgQueue;
-    char serverName[MAX_CHARS + 1];
+    char hostname[MAX_CHARS + 1];
     int capacity;
     int count;
 };
@@ -63,7 +62,7 @@ STATIC void delete_pfds(struct pollfd *pfds);
 STATIC Client * create_clients(int capacity);
 STATIC void delete_clients(Client *clients, int capacity);
 
-TCPServer * create_server(int capacity) {
+TCPServer * create_server(int capacity, const char *hostname) {
 
     TCPServer *tcpServer = (TCPServer*) malloc(sizeof(TCPServer));
     if (tcpServer == NULL) {
@@ -78,7 +77,7 @@ TCPServer * create_server(int capacity) {
     tcpServer->clients = create_clients(capacity);
     tcpServer->session = create_session();
     tcpServer->msgQueue = create_queue(MSG_QUEUE_LEN, sizeof(ExtMessage));
-    safe_copy(tcpServer->serverName, MAX_CHARS + 1, get_property_value(HOSTNAME));
+    safe_copy(tcpServer->hostname, MAX_CHARS + 1, hostname);
     tcpServer->capacity = capacity;
     tcpServer->count = 0;
 
@@ -97,7 +96,7 @@ void delete_server(TCPServer *tcpServer) {
     free(tcpServer);
 }
 
-int init_server(void) {
+int init_server(int port) {
 
     // create servers' listening TCP socket
     int listenFd = socket(AF_INET, SOCK_STREAM, 0);
@@ -118,7 +117,7 @@ int init_server(void) {
     memset((struct sockaddr_in *) &servaddr, 0, sizeof(struct sockaddr_in)); 
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(SERVER_PORT);
+    servaddr.sin_port = htons(port);
 
     // bind socket to address and port
     if (bind(listenFd, (struct sockaddr *) &servaddr, sizeof(struct sockaddr_in)) < 0) {
@@ -579,7 +578,7 @@ const char * get_server_name(TCPServer *tcpServer) {
     if (tcpServer == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
-    return tcpServer->serverName;
+    return tcpServer->hostname;
 }
 
 Client * get_client(TCPServer *tcpServer, int index) {

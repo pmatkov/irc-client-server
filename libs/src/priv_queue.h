@@ -1,5 +1,5 @@
 /* --INTERNAL HEADER--
-   used for unit testing */
+   used for testing */
 
 #ifndef QUEUE_H
 #define QUEUE_H

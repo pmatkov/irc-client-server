@@ -10,7 +10,7 @@
                   "Failed: %ls != %ls", \
                   s1, s2)
 
-START_TEST(test_create_sb) {
+START_TEST(test_create_scrollback) {
 
     Scrollback *sb = create_scrollback(NULL, 100);
 
@@ -55,9 +55,9 @@ START_TEST(test_add_to_scrollback) {
     cchar_t buffer[MAX_CHARS + 1] = {0};
     cchar_t *bufferPtr = buffer;
     
-    bufferPtr += string_to_complex_string("12:00", bufferPtr, strlen("12:00"), 0);
-    bufferPtr += string_to_complex_string(" ## ", bufferPtr, strlen(" ## "), COLOR_SEP(MAGENTA));
-    bufferPtr += string_to_complex_string("Buzz v0.1", bufferPtr, strlen("Buzz v0.1"), 0);
+    bufferPtr += string_to_complex_string(bufferPtr, ARR_SIZE(buffer), "12:00", 0);
+    bufferPtr += string_to_complex_string(bufferPtr, ARR_SIZE(buffer), " ## ", COLOR_SEP(MAGENTA));
+    bufferPtr += string_to_complex_string(bufferPtr, ARR_SIZE(buffer), "Buzz v0.1", 0);
 
     add_to_scrollback(sb, buffer, bufferPtr - buffer);
 
@@ -90,9 +90,9 @@ START_TEST(test_print_from_scrollback) {
     cchar_t buffer[MAX_CHARS + 1] = {0};
     cchar_t *bufferPtr = buffer;
     
-    bufferPtr += string_to_complex_string("12:00", bufferPtr, strlen("12:00"), 0);
-    bufferPtr += string_to_complex_string(" ## ", bufferPtr, strlen(" ## "), COLOR_SEP(MAGENTA));
-    bufferPtr += string_to_complex_string("Buzz v0.1", bufferPtr, strlen("Buzz v0.1"), 0);
+    bufferPtr += string_to_complex_string(bufferPtr, ARR_SIZE(buffer), "12:00", 0);
+    bufferPtr += string_to_complex_string(bufferPtr, ARR_SIZE(buffer), " ## ", COLOR_SEP(MAGENTA));
+    bufferPtr += string_to_complex_string(bufferPtr, ARR_SIZE(buffer), "Buzz v0.1", 0);
 
     add_to_scrollback(sb, buffer, bufferPtr - buffer);
     print_from_scrollback(sb, 5, 1);
@@ -109,6 +109,17 @@ START_TEST(test_print_from_scrollback) {
 }
 END_TEST
 
+START_TEST(test_get_scrollback_index_and_function) {
+
+    int index1 = get_sb_func_index(KEY_PPAGE);
+    int index2 = get_sb_func_index(KEY_NPAGE);
+
+    ck_assert_ptr_eq(get_scrollback_function(index1), scroll_page_up);
+    ck_assert_ptr_ne(get_scrollback_function(index2), scroll_page_up);
+
+}
+END_TEST
+
 Suite* scrollback_suite(void) {
     Suite *s;
     TCase *tc_core;
@@ -117,11 +128,12 @@ Suite* scrollback_suite(void) {
     tc_core = tcase_create("Core");
 
     // Add the test case to the test suite
-    tcase_add_test(tc_core, test_create_sb);
+    tcase_add_test(tc_core, test_create_scrollback);
     tcase_add_test(tc_core, test_is_scrollback_empty);
     tcase_add_test(tc_core, test_is_scrollback_full);
     tcase_add_test(tc_core, test_add_to_scrollback);
     tcase_add_test(tc_core, test_print_from_scrollback);
+    tcase_add_test(tc_core, test_get_scrollback_index_and_function);
 
     suite_add_tcase(s, tc_core);
 

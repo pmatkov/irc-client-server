@@ -1,10 +1,11 @@
-#include "../src/priv_tcpclient.h"
+#include "../src/priv_tcp_client.h"
 #include "../../libs/src/priv_message.h"
 #include "../../libs/src/mock.h"
 
 #include <check.h>
 #include <poll.h>
 
+#define DEFAULT_ADDRESS "localhost"
 #define DEFAULT_PORT "50100"
 #define SOCKET_FD_INDEX 1
 
@@ -28,11 +29,26 @@ START_TEST(test_client_connect) {
 
     TCPClient *tcpClient = create_client();
 
-    int status = client_connect(tcpClient, "localhost", DEFAULT_PORT);
+    int status = client_connect(tcpClient, DEFAULT_ADDRESS, DEFAULT_PORT);
 
     ck_assert_int_eq(status, 0);
-    ck_assert_str_eq(tcpClient->serverName, "localhost");
+    ck_assert_str_eq(tcpClient->serverName, DEFAULT_ADDRESS);
     ck_assert_int_eq(tcpClient->pfds[SOCKET_FD_INDEX].fd, get_mock_fd());
+
+    delete_client(tcpClient);
+}
+END_TEST
+
+START_TEST(test_client_disconnect) {
+
+    set_mock_fd(1);
+
+    TCPClient *tcpClient = create_client();
+
+    client_connect(tcpClient, DEFAULT_ADDRESS, DEFAULT_PORT);
+    client_disconnect(tcpClient);
+
+    ck_assert_int_eq(tcpClient->pfds[SOCKET_FD_INDEX].fd, -1);
 
     delete_client(tcpClient);
 }
@@ -111,8 +127,7 @@ START_TEST(test_get_set_client_values) {
 
     TCPClient *tcpClient = create_client();
 
-    struct pollfd *pfds = get_fds(tcpClient);
-    ck_assert_ptr_ne(pfds, NULL);
+    ck_assert_ptr_ne(get_fds(tcpClient), NULL);
 
     set_server_name(tcpClient, "irc.example.com");
     ck_assert_str_eq(get_server_name(tcpClient), "irc.example.com");
@@ -153,6 +168,7 @@ Suite* client_suite(void) {
     // Add the test case to the test suite
     tcase_add_test(tc_core, test_create_client);
     tcase_add_test(tc_core, test_client_connect);
+    tcase_add_test(tc_core, test_client_disconnect);
     tcase_add_test(tc_core, test_client_read);
     tcase_add_test(tc_core, test_client_write);
     tcase_add_test(tc_core, test_add_remove_message_from_client_queue);

@@ -190,7 +190,7 @@ Node * find_node(LinkedList *linkedList, void *data) {
     return current;
 }
 
-void iterate_list(LinkedList *linkedList, IteratorFunc iteratorFunction, void *arg) {
+void iterate_list(LinkedList *linkedList, IteratorFunc iteratorFunc, void *arg) {
 
     if (linkedList == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -200,7 +200,7 @@ void iterate_list(LinkedList *linkedList, IteratorFunc iteratorFunction, void *a
 
     while (current != NULL) {
 
-        iteratorFunction(current->data, arg);
+        iteratorFunc(current->data, arg);
         current = current->next;
     }
 }

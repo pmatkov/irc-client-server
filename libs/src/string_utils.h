@@ -24,9 +24,9 @@ int is_string_list_full(StringList *stringList);
 void add_string_to_string_list(StringList *stringList, const char* string);
 void remove_string_from_string_list(StringList *stringList);
 
-int split_input_string( char *input, const char **tokens, int tkCount, int sep);
-int concat_tokens(char *buffer, int size, const char **tokens, int tkCount, const char *sep);
-int count_tokens(const char *input, char delimiter);
+int split_input_string( char *input, const char **tokens, int tkCount, const char *delim);
+int concat_tokens(char *buffer, int size, const char **tokens, int tkCount, const char *delim);
+int count_tokens(const char *input, const char *delim);
 
 void prepend_char(char *buffer, int size, const char *string, char ch);
 void crlf_terminate(char *buffer, int size, const char *string);

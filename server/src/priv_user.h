@@ -1,5 +1,5 @@
 /* --INTERNAL HEADER--
-   used for unit testing */
+   used for testing */
 
 #ifndef USER_H
 #define USER_H

@@ -15,6 +15,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <assert.h>
 
 #ifdef TEST
 #define STATIC
@@ -23,16 +24,22 @@
 #endif
 
 #define MAX_LINES 25
+#define DEFAULT_LOG_DIR "/log/"
+#define DEFAULT_LOG_ID "default"
 
 #define MAX_FILE_NAME 100
 #define MAX_PATH_LEN 64
 #define MAX_IDENTIFIER 16
 
+/* the logger contains a reference to the
+    log file, the log level and a log
+    buffer for MAX_LINES lines */
+
 struct Logger {
     FILE *logFile;
     char **logBuffer;
     LogLevel logLevel;
-    int useStdout;
+    int stdoutAllowed;
     int capacity;
     int count;
 };
@@ -40,9 +47,11 @@ struct Logger {
 STATIC FILE * open_log_file(char *dirPath, char *identifier);
 STATIC void write_log_to_file(void);
 
-STATIC Logger *logger = NULL;
+static Logger *logger = NULL;
 
-STATIC const char *LOGLEVEL_STRINGS[] = {
+/* lookup table for translation of log
+    levels to strings */
+static const char *LOGLEVEL_STRINGS[] = {
     "debug",
     "info",
     "warning",
@@ -50,7 +59,7 @@ STATIC const char *LOGLEVEL_STRINGS[] = {
     "unknown"
 };
 
-_Static_assert(sizeof(LOGLEVEL_STRINGS) / sizeof(LOGLEVEL_STRINGS[0]) == LOGLEVEL_COUNT, "Array size mismatch");
+static_assert(ARR_SIZE(LOGLEVEL_STRINGS) == LOGLEVEL_COUNT, "Array size mismatch");
 
 Logger * create_logger(char *dirPath, char *identifier, LogLevel logLevel) {
 
@@ -75,7 +84,7 @@ Logger * create_logger(char *dirPath, char *identifier, LogLevel logLevel) {
         }
 
         logger->logLevel = logLevel;
-        logger->useStdout = 1;
+        logger->stdoutAllowed = 1;
         logger->capacity = MAX_LINES;
         logger->count = 0;
 
@@ -109,13 +118,19 @@ void delete_logger(Logger *logger) {
     free(logger);
 }
 
+/* open a log file for logging. if dirPath is 
+    NULL, a default log dir will be set 
+    (or created if it doesn't exist). if 
+    identifier is NULL, a default identifier
+    will be set */
+
 STATIC FILE * open_log_file(char *dirPath, char *identifier) {
 
     char basePath[MAX_PATH_LEN + 1] = {'\0'};
 
     if (dirPath == NULL) {
 
-        if (create_path(basePath, MAX_PATH_LEN, "/log/")) {
+        if (create_path(basePath, MAX_PATH_LEN, DEFAULT_LOG_DIR)) {
             dirPath = basePath;
         }
         else {
@@ -124,23 +139,23 @@ STATIC FILE * open_log_file(char *dirPath, char *identifier) {
     }
 
     if (identifier == NULL) {
-        identifier = "default";
+        identifier = DEFAULT_LOG_ID;
     }
 
     if (!is_dir(dirPath)) {
         create_dir(dirPath);
     }
 
-    // log file name format: <path>/<date_prefix>_<app_name>.log
+    /* log file name format: <dir path>/<date>_<identifier>.log */
     char logFileName[MAX_FILE_NAME + 1] = {'\0'};
 
-    // set dir path
+    /* set dir path */
     strncat(logFileName, dirPath, MAX_PATH_LEN);
 
-    // set date prefix
+    /* set date prefix */
     get_datetime(get_format_function(DATE), logFileName + strlen(logFileName), DATE_LENGTH);
 
-    // set identifier
+    /* set identifier */
     strcat(logFileName, "_");
     strncat(logFileName, identifier, MAX_IDENTIFIER);
     strcat(logFileName, ".log");
@@ -154,6 +169,8 @@ STATIC FILE * open_log_file(char *dirPath, char *identifier) {
     return fp;
 }
 
+/* write logs from log buffer to
+    file */
 STATIC void write_log_to_file(void) {
 
     if (logger != NULL && logger->logFile != NULL) {
@@ -177,35 +194,40 @@ void log_message(LogLevel level, const char *msg, const char *func, const char *
     char timestamp[DATETIME_LENGTH] = {'\0'};
     get_datetime(get_format_function(DATETIME), timestamp, DATETIME_LENGTH);
 
-    char *logLine = logger->logBuffer[logger->count];
-
     if (msg != NULL) {
+
+        /* log message format: <timestamp> <log level> <function> <message> */
+        char *logLine = logger->logBuffer[logger->count];
 
         snprintf(logLine, MAX_CHARS + 1, "%s [%s] (%s) ", timestamp, LOGLEVEL_STRINGS[level], func);
 
+        int remainingLen = remainingLen;
+
         if (strchr(msg, '%') == NULL) {
 
-            if (logger->useStdout) {
+            /* log message without additional arguments */
+            if (logger->stdoutAllowed) {
                 fprintf(stdout, "%s\n", msg);
             }
-            snprintf(&logLine[strlen(logLine)], MAX_CHARS + 1, "%s", msg);
+            snprintf(&logLine[strlen(logLine)], remainingLen, "%s", msg);
         }
-
         else {
 
+            /* log message with additional arguments */
             va_list arglist, arglistcp;
             va_start(arglist, line);
             va_copy(arglistcp, arglist); 
 
-            if (logger->useStdout) {
+            /* display log messages in the terminal */
+            if (logger->stdoutAllowed) {
                 vfprintf(stdout, msg, arglistcp);
                 fprintf(stdout, "\n");
             }
 
-            vsnprintf(&logLine[strlen(logLine)], MAX_CHARS + 1, msg, arglist);
+            vsnprintf(&logLine[strlen(logLine)], remainingLen, msg, arglist);
             va_end(arglist);
         }
-        snprintf(&logLine[strlen(logLine)], MAX_CHARS + 1, "\n");
+        snprintf(&logLine[strlen(logLine)], remainingLen, "\n");
         logger->count++;
     }
 
@@ -227,35 +249,37 @@ void log_error(const char *msg, ErrorCode errorCode, const char *func, const cha
     if (fileName == NULL) {
         fileName = "";
     }
-
+    /* error message format: <timestamp> <log level> <function> <filename> <line> <message> */
     char *logLine = logger->logBuffer[logger->count];
 
     snprintf(logLine, MAX_CHARS + 1, "%s [%s] (%s, file: %s, ln: %d) ", timestamp, LOGLEVEL_STRINGS[ERROR], func, &fileName[1], line);
+
+    int remainingLen = remainingLen;
 
     if (msg != NULL) {
 
         if (strchr(msg, '%') == NULL) {
 
-            snprintf(&logLine[strlen(logLine)], MAX_CHARS + 1, msg);
+            snprintf(&logLine[strlen(logLine)], remainingLen, msg);
         }
 
         else {
             va_list arglist;
             va_start(arglist, errnosv);
 
-            vsnprintf(&logLine[strlen(logLine)], MAX_CHARS + 1, msg, arglist);
+            vsnprintf(&logLine[strlen(logLine)], remainingLen, msg, arglist);
             va_end(arglist);
         }
     }
     else if (errorCode != NO_ERRCODE) {
 
-        snprintf(&logLine[strlen(logLine)], MAX_CHARS + 1, "%s", get_error_code_string(errorCode));
+        snprintf(&logLine[strlen(logLine)], remainingLen, "%s", get_error_code_string(errorCode));
     }
     else if (errnosv)  {
-        snprintf(&logLine[strlen(logLine)], MAX_CHARS + 1, "%s (code = %d)", strerror(errnosv), errnosv);
+        snprintf(&logLine[strlen(logLine)], remainingLen, "%s (code = %d)", strerror(errnosv), errnosv);
     }
 
-    snprintf(&logLine[strlen(logLine)], MAX_CHARS + 1, "\n");
+    snprintf(&logLine[strlen(logLine)], remainingLen, "\n");
     logger->count++;
 
     if (logger->count >= MAX_LINES) {
@@ -263,22 +287,15 @@ void log_error(const char *msg, ErrorCode errorCode, const char *func, const cha
     }
 }
 
-void set_use_stdout(int useStdout) {
+void set_stdout_allowed(int stdoutAllowed) {
 
     if (logger == NULL ) {
         return;
     }
-    logger->useStdout = useStdout;
-}
-
-int is_valid_log_level(LogLevel logLevel) {
-
-    return logLevel >= 0 && logLevel < LOGLEVEL_COUNT - 1;
-
+    logger->stdoutAllowed = stdoutAllowed;
 }
 
 const char * log_level_to_string(LogLevel logLevel) {
-
 
     if (is_valid_log_level(logLevel)) {
         return LOGLEVEL_STRINGS[logLevel];
@@ -302,4 +319,10 @@ LogLevel string_to_log_level(const char *string) {
         }
     }
     return logLevel;
+}
+
+int is_valid_log_level(LogLevel logLevel) {
+
+    return logLevel >= 0 && logLevel < LOGLEVEL_COUNT - 1;
+
 }

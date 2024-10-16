@@ -4,17 +4,6 @@
 
 #include <check.h>
 
-START_TEST(test_create_message) {
-
-    char message[MAX_CHARS + 1] = {'\0'};
-
-    const char *code = get_response_code(ERR_NICKNAMEINUSE);
-    create_message(message, MAX_CHARS, &(MessageTokens){{"irc.example.com"}, {code, "john"}, {get_response_message(code)}, 1});
-
-    ck_assert_str_eq(message, ":irc.example.com 433 john :Nickname is already in use");
-
-}
-END_TEST
 
 START_TEST(test_command_type_to_string) {
 
@@ -54,7 +43,6 @@ Suite* command_suite(void) {
     tc_core = tcase_create("Core");
 
     // Add the test case to the test suite
-    tcase_add_test(tc_core, test_create_message);
     tcase_add_test(tc_core, test_command_type_to_string);
     tcase_add_test(tc_core, test_string_to_command_type);
     tcase_add_test(tc_core, test_is_valid_command);

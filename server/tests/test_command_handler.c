@@ -3,7 +3,7 @@
 #endif
 
 #include "../src/priv_command_handler.h"
-#include "../src/priv_tcpserver.h"
+#include "../src/priv_tcp_server.h"
 #include "../src/priv_session.h"
 #include "../../libs/src/settings.h"
 #include "../../libs/src/command.h"
@@ -17,7 +17,7 @@
 #define FD 4
 #define FD_INDEX 0
 
-void execute_command(TCPServer *server, CommandTokens *cmdTokens, CommandFunction cmdFunction, const char *content) {
+void execute_command(TCPServer *server, CommandTokens *cmdTokens, CommandFunc cmdFunction, const char *content) {
 
     set_client_inbuffer(&server->clients[FD_INDEX], content);
     parse_message(server, &server->clients[FD_INDEX], cmdTokens);
@@ -27,7 +27,7 @@ void execute_command(TCPServer *server, CommandTokens *cmdTokens, CommandFunctio
 START_TEST(test_get_command_function) {
 
     ck_assert_ptr_eq(get_command_function(QUIT), cmd_quit);
-    ck_assert_ptr_ne(get_command_function(ADDRESS), cmd_quit);
+    ck_assert_ptr_ne(get_command_function(JOIN), cmd_quit);
 
 }
 END_TEST

@@ -1,5 +1,5 @@
 /* --INTERNAL HEADER--
-   used for unit testing */
+   used for testing */
 
 #ifndef LINKED_LIST_H
 #define LINKED_LIST_H
@@ -31,7 +31,7 @@ void append_node(LinkedList *linkedList, Node *node);
 int remove_node(LinkedList *linkedList, void *data);
 Node * find_node(LinkedList *linkedList, void *data);
 
-void iterate_list(LinkedList *linkedList, IteratorFunc iteratorFunction, void *arg);
+void iterate_list(LinkedList *linkedList, IteratorFunc iteratorFunc, void *arg);
 
 void * get_data(Node *node);
 void set_data(Node *node, void *data);

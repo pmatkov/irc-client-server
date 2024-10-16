@@ -1,18 +1,16 @@
 #ifndef COMMAND_HANDLER_H
 #define COMMAND_HANDLER_H
 
-#include "scrollback.h"
-#include "tcpclient.h"
+#include "display.h"
+#include "tcp_client.h"
 #include "line_editor.h"
 #include "../../libs/src/command.h"
 
-typedef void (*CommandFunction)(Scrollback *, TCPClient *, CommandTokens *);
+typedef void (*CommandFunc)(WindowManager *windowManager, TCPClient *tcpCLient, CommandTokens *cmdTokens);
 
-/* parses command line input. if the parsed 
-    input is a valid command the specified
-    command will be executed. */
+/* parse command line input */
 void parse_input(LineEditor *lnEditor, CommandTokens *cmdTokens);
 
-CommandFunction get_command_function(CommandType commandType);
+CommandFunc get_command_function(CommandType commandType);
 
 #endif

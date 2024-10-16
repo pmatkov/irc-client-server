@@ -28,24 +28,24 @@
 #define CRLF_LEN 2
 #define LEAD_CHAR_LEN 1
 
-STATIC void display_command_text(LineEditor *lnEditor, RegMessage *msg);
+STATIC void display_command_text(LineEditor *lnEditor, RegMessage *message);
 
 #ifndef TEST
 
 /* a LnEditorCmd operates on the text and the
     cursor in the "input window". each line editor 
-    command is mapped to a function which 
-    performs a desired line editor action */
+    command is mapped to a function that 
+    performs the desired line editor action */
 
 struct LnEditorCmd {
     int keyCode;
-    LnEditorFunction lnEditorFunc;
+    LnEditorFunc lnEditorFunc;
 };
 
-/* a line editor is imeplemented as a circular
+/* a line editor is implemented as a circular
     buffer with a queue data structure. it stores
     text input and commands (input text is considered
-    a command if it's sent to the command parser).
+    a command if it's passed to the command parser).
     the editor also tracks cursor position and 
     character count of the input text */
 struct LineEditor {
@@ -57,7 +57,7 @@ struct LineEditor {
 
 #endif
 
-static const LnEditorCmd lnEditorCmd[] = {
+static const LnEditorCmd LN_EDITOR_CMD[] = {
     {KEY_LEFT, move_cursor_left},
     {KEY_RIGHT, move_cursor_right},
     {KEY_UP, display_previous_command},
@@ -132,34 +132,26 @@ void add_char(LineEditor *lnEditor, char ch) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    /* the mxamimum number of chars that can be 
-        entered in a one commmand is either the 
-        width of the window in columns or the 
-        constant MAX_CHARS, whichever number 
-        is lower */
+    /* input is limited either by the column
+        count or the constant MAX_CHARS,
+        whichever number is lower */
     int cols = get_wwidth(lnEditor->window);
 
     if (lnEditor->cursor < cols && lnEditor->charCount + PROMPT_SIZE < cols && lnEditor->charCount < MAX_CHARS - CRLF_LEN - LEAD_CHAR_LEN) {
 
-        /* if the cursor is not at the end of 
-            the text input, the other chars
-            will be moved to enable line 
-            editing */
+        /* depending on the cursor position, the 
+            chars in the buffer may be moved to 
+            accomodate an additonal char */
         char lastChPos = lnEditor->charCount + PROMPT_SIZE;
 
         for (int i = lastChPos; i > lnEditor->cursor; i--) {
 
-            /* mvwinch is used to get char value from the 
-                window so that it can be moved to a 
-                different position */
-
+            /* mvwinch retrieves char from the 
+                window at position y, x */
             char shiftCh = mvwinch(lnEditor->window, 0, i - 1);
             mvwaddch(lnEditor->window, 0, i, shiftCh);
 
-            /* each command in the line editor queue
-                is stored as the type RegMessage which
-                represents a string container */
-
+            /* RegMessage is a string container */
             RegMessage *regMessage = get_current_item(lnEditor->buffer);
             char ch = get_char_from_message(regMessage, i-PROMPT_SIZE-1, get_reg_message_content);
             set_char_in_message(regMessage, ch, i-PROMPT_SIZE, get_reg_message_content);
@@ -228,8 +220,8 @@ void display_current_command(LineEditor *lnEditor) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    RegMessage *msg = get_current_item(lnEditor->buffer);
-    display_command_text(lnEditor, msg);
+    RegMessage *message = get_current_item(lnEditor->buffer);
+    display_command_text(lnEditor, message);
 }
 
 void display_previous_command(LineEditor *lnEditor) {
@@ -238,8 +230,8 @@ void display_previous_command(LineEditor *lnEditor) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    RegMessage *msg = get_previous_item(lnEditor->buffer);
-    display_command_text(lnEditor, msg);
+    RegMessage *message = get_previous_item(lnEditor->buffer);
+    display_command_text(lnEditor, message);
 }
 
 void display_next_command(LineEditor *lnEditor) {
@@ -248,39 +240,44 @@ void display_next_command(LineEditor *lnEditor) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    RegMessage *msg = get_next_item(lnEditor->buffer);
-    display_command_text(lnEditor, msg);
+    RegMessage *message = get_next_item(lnEditor->buffer);
+    display_command_text(lnEditor, message);
 }
 
-LnEditorFunction get_lneditor_function(int index) {
+LnEditorFunc get_lneditor_function(int index) {
 
-    return lnEditorCmd[index].lnEditorFunc;
+    LnEditorFunc lnEditorFunc = NULL;
+
+    if (index >= 0 && index < ARR_SIZE(LN_EDITOR_CMD)) {
+
+        lnEditorFunc = LN_EDITOR_CMD[index].lnEditorFunc;
+    }
+    return lnEditorFunc;
 }
 
 int get_le_func_index(int keyCode) {
 
     int cmdIndex = -1;
 
-    for (int i = 0; i < sizeof(lnEditorCmd)/ sizeof(lnEditorCmd[0]) && cmdIndex == -1; i++) {
+    for (int i = 0; i < ARR_SIZE(LN_EDITOR_CMD) && cmdIndex == -1; i++) {
 
-        if (lnEditorCmd[i].keyCode == keyCode) {
+        if (LN_EDITOR_CMD[i].keyCode == keyCode) {
             cmdIndex = i;
         }
     }
     return cmdIndex;
 }
 
-/* displays command in the line editor
-    command queue */
-STATIC void display_command_text(LineEditor *lnEditor, RegMessage *msg) {
+/* display command from the command queue */
+STATIC void display_command_text(LineEditor *lnEditor, RegMessage *message) {
 
     if (lnEditor == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    if (msg != NULL) {
+    if (message != NULL) {
 
-        char *content = get_reg_message_content(msg);
+        char *content = get_reg_message_content(message);
 
         delete_part_line(lnEditor->window, PROMPT_SIZE);
         mvwprintw(lnEditor->window, 0, PROMPT_SIZE, content);

@@ -4,12 +4,14 @@
 #include "command.h"
 #endif
 
+#include "../../libs/src/string_utils.h"
 #include "../../libs/src/error_control.h"
 #include "../../libs/src/logger.h"
 
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <assert.h>
 
 #ifdef TEST
 #define STATIC
@@ -21,6 +23,9 @@
 
 #ifndef TEST
 
+/*  the label, syntax, description and 
+    examples are used only by the client
+    to display this information to the user */
 struct Command {
     CommandType commandType;
     CommandUser commandUser;     
@@ -32,6 +37,11 @@ struct Command {
 
 #endif
 
+/* a collection of all available commands along
+    with their assigned values. each array of 
+    pointers ends with a NULL pointer item which
+    enables convenient identification of the last 
+    item */
 static const Command COMMANDS[] = {
 
     {HELP, CLIENT_COMMAND, "help", NULL, {NULL}, {NULL}},
@@ -114,7 +124,7 @@ static const Command COMMANDS[] = {
         "unknown", NULL, {NULL}, {NULL}},
 };
 
-_Static_assert(sizeof(COMMANDS) / sizeof(COMMANDS[0]) == COMMAND_TYPE_COUNT, "Array size mismatch");
+static_assert(ARR_SIZE(COMMANDS) == COMMAND_TYPE_COUNT, "Array size mismatch");
 
 CommandTokens * create_command_tokens(void) {
 
@@ -148,42 +158,6 @@ void reset_cmd_tokens(CommandTokens *cmdTokens) {
     }
 
     cmdTokens->argCount = 0;
-}
-
-/*  Message formats
-    - server response (when client sends an invalid command):
-        " <:prefix> <response code> <param 1> ... [param n] [:response message]"
-        example: ":irc.server.com 431 * :No nickname given"
-    - forwarded message (when client sends messsage to the channel or another user directly): 
-        " <:prefix> <message>"
-        example: ":john!john@irc.client.com PRIVMSG #general :Hello"  */
-
-void create_message(char *buffer, int size, MessageTokens *messageTokens) {
-
-    if (messageTokens == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    char prefix[MAX_CHARS + 1] = {'\0'}; 
-    int tkCount = concat_tokens(prefix, size, messageTokens->prefix, ARR_SIZE(prefix), " ");
-
-    if (tkCount) {
-        prepend_char(prefix, MAX_CHARS, prefix, ':');
-    }
-
-    char body[MAX_CHARS + 1] = {'\0'}; 
-    concat_tokens(body, size, messageTokens->body, ARR_SIZE(body), " ");
-
-    char suffix[MAX_CHARS + 1] = {'\0'}; 
-    concat_tokens(suffix, size, messageTokens->suffix, ARR_SIZE(suffix), " ");
-
-    if (messageTokens->useLeadChar) {
-        prepend_char(suffix, MAX_CHARS, suffix, ':');
-    }
-
-    const char *tokens[] = {prefix, body, suffix};  
-
-    concat_tokens(buffer, size, tokens, ARR_SIZE(tokens), " ");
 }
 
 const char * command_type_to_string(CommandType commandType) {
@@ -221,7 +195,6 @@ int is_valid_command(CommandType commandType) {
     return commandType >= 0 && commandType < COMMAND_TYPE_COUNT;
 }
 
-// command strings start with '/'
 int has_command_prefix(const char *string) {
 
     if (string == NULL) {

@@ -16,6 +16,9 @@
 #include <sys/types.h>
 #include <pwd.h>
 
+#define DEFAULT_SETTINGS_DIR "/data/"
+#define DEFAULT_SETTINGS_FILE "settings.conf"
+
 #ifdef TEST
 #define STATIC
 #else
@@ -26,9 +29,12 @@
 
 #ifndef TEST
 
+/* a property is identified by its data type,
+    a lookup pair (enum key and string translation)
+    and a value */
 struct Property {
     DataType dataType;
-    LookupPair *lookupPair;
+    Pair *pair;
     union {
         const char *charValue;
         int intValue;
@@ -43,7 +49,7 @@ struct Settings {
 
 #endif
 
-STATIC void read_property_string(Settings *settings, LookupTable *lookupTable, char *buffer);
+STATIC void read_property_string(LookupTable *lookupTable, char *buffer);
 STATIC void create_property_string(char *buffer, int size, Property *property);
 
 static Settings *settings = NULL;
@@ -65,7 +71,7 @@ Settings * create_settings(int capacity) {
         for (int i = 0; i < capacity; i++) {
 
             settings->properties[i].dataType = UNKNOWN_DATA_TYPE;
-            settings->properties[i].lookupPair = NULL;
+            settings->properties[i].pair = NULL;
             settings->properties[i].charValue = NULL;
         }
 
@@ -83,40 +89,39 @@ void delete_settings(Settings *settings) {
     free(settings);    
 }
 
-void register_property(Settings *settings, DataType dataType, LookupPair *lookupPair, void *value) {
+void register_property(DataType dataType, Pair *pair, const void *value) {
 
     if (settings == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    int propertyType = get_pair_key(lookupPair);
+    int propertyType = get_pair_key(pair);
 
-    if (is_valid_property(settings, propertyType)) {
+    if (is_valid_property(propertyType)) {
 
         settings->properties[propertyType].dataType = dataType;
-        settings->properties[propertyType].lookupPair = lookupPair;
+        settings->properties[propertyType].pair = pair;
 
         if (dataType == CHAR_TYPE) {
             settings->properties[propertyType].charValue = value;
         }
         else if (dataType == INT_TYPE) {
-            settings->properties[propertyType].intValue = *((int*)value);
+            settings->properties[propertyType].intValue = *((const int*)value);
         }
     }
 }
 
-void * get_property_value(Settings *settings, int propertyType) {
+const void * get_property_value(int propertyType) {
 
     if (settings == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
+    const void *value = NULL;
 
-    void *value = NULL;
-
-    if (is_valid_property(settings, propertyType)) {
+    if (is_valid_property(propertyType)) {
 
         if (settings->properties[propertyType].dataType == CHAR_TYPE) {
-            value = (char*) settings->properties[propertyType].charValue;
+            value = settings->properties[propertyType].charValue;
         }
         else if (settings->properties[propertyType].dataType == INT_TYPE) {
             value = &settings->properties[propertyType].intValue;
@@ -125,13 +130,13 @@ void * get_property_value(Settings *settings, int propertyType) {
     return value;
 }
 
-void set_property_value(Settings *settings, int propertyType, void *value) {
+void set_property_value(int propertyType, const void *value) {
 
     if (settings == NULL || value == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    if (is_valid_property(settings, propertyType) && is_property_registered(settings, propertyType)) {
+    if (is_valid_property(propertyType) && is_property_registered(propertyType)) {
 
         if (settings->properties[propertyType].dataType == CHAR_TYPE) {
 
@@ -139,12 +144,12 @@ void set_property_value(Settings *settings, int propertyType, void *value) {
         }
         else if (settings->properties[propertyType].dataType == INT_TYPE) {
 
-            settings->properties[propertyType].intValue = *((int*)value);
+            settings->properties[propertyType].intValue = *((const int*)value);
         }
     }
 }
 
-DataType get_property_data_type(Settings *settings, int propertyType) {
+DataType get_property_data_type(int propertyType) {
 
     if (settings == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -152,7 +157,7 @@ DataType get_property_data_type(Settings *settings, int propertyType) {
 
     DataType dataType = UNKNOWN_DATA_TYPE;
 
-    if (is_valid_property(settings, propertyType)) {
+    if (is_valid_property(propertyType)) {
 
         dataType = settings->properties[propertyType].dataType;
     }
@@ -160,7 +165,7 @@ DataType get_property_data_type(Settings *settings, int propertyType) {
     return dataType;
 }
 
-int is_property_registered(Settings *settings, int propertyType) {
+int is_property_registered(int propertyType) {
 
     if (settings == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -170,17 +175,34 @@ int is_property_registered(Settings *settings, int propertyType) {
 
 }
 
-int is_valid_property(Settings *settings, int propertyType) {
+int is_valid_property(int propertyType) {
 
     if (settings == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
     return propertyType >= 0 && propertyType < settings->capacity;
-
 }
 
-void read_settings(Settings *settings, LookupTable *lookupTable, const char *fileName) {
+int get_settings_capacity(void) {
+
+    if (settings == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return settings->capacity;
+}
+
+const char * get_property_label(int propertyType) {
+
+    if (settings == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+
+    return get_pair_value(settings->properties[propertyType].pair);
+}
+
+void read_settings(LookupTable *lookupTable, const char *fileName) {
 
     if (settings == NULL || lookupTable == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -188,9 +210,15 @@ void read_settings(Settings *settings, LookupTable *lookupTable, const char *fil
 
     char path[MAX_PATH_LEN + 1] = {'\0'};
 
+    /* if a fileName is NULL a default fileName will
+        be used */
     if (fileName == NULL) {
 
-        if (!create_path(path, MAX_PATH_LEN, "/data/buzz.conf")) {
+        char relativePath[MAX_PATH_LEN + 1] = DEFAULT_SETTINGS_DIR;
+
+        strcat(relativePath, DEFAULT_SETTINGS_FILE);
+
+        if (!create_path(path, MAX_PATH_LEN, relativePath)) {
             FAILED("Error creating path", NO_ERRCODE);
         }
 
@@ -206,13 +234,13 @@ void read_settings(Settings *settings, LookupTable *lookupTable, const char *fil
 
     while (fgets(buffer, sizeof(buffer), file) != NULL) {
 
-        read_property_string(settings, lookupTable, buffer);
+        read_property_string(lookupTable, buffer);
     }
     fclose(file);
     
 }
 
-void write_settings(Settings *settings, const char *fileName) {
+void write_settings(const char *fileName) {
 
     if (settings == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -220,9 +248,12 @@ void write_settings(Settings *settings, const char *fileName) {
 
     char path[MAX_PATH_LEN + 1] = {'\0'};
 
+    /* if a fileName is NULL a default dir and fileName
+        will be used */
+
     if (fileName == NULL) {
 
-        if (!create_path(path, MAX_PATH_LEN, "/data/")) {
+        if (!create_path(path, MAX_PATH_LEN, DEFAULT_SETTINGS_DIR)) {
             FAILED("Error creating path", NO_ERRCODE);
         }
 
@@ -230,7 +261,7 @@ void write_settings(Settings *settings, const char *fileName) {
             create_dir(path);
         }
 
-        strncat(path, "buzz.conf", MAX_PATH_LEN - strlen(path));
+        strncat(path, DEFAULT_SETTINGS_FILE, MAX_PATH_LEN - strlen(path));
 
         fileName = path;
     }
@@ -244,7 +275,7 @@ void write_settings(Settings *settings, const char *fileName) {
 
     for (int i = 0; i < settings->capacity; i++) {
 
-        if (is_property_registered(settings, i)) {
+        if (is_property_registered(i)) {
 
             create_property_string(buffer, MAX_CHARS + 1, &settings->properties[i]);
 
@@ -255,7 +286,9 @@ void write_settings(Settings *settings, const char *fileName) {
     fclose(file);
 }
 
-STATIC void read_property_string(Settings *settings, LookupTable *lookupTable, char *buffer) {
+/* parse the property string and save
+    the property to memory */
+STATIC void read_property_string(LookupTable *lookupTable, char *buffer) {
 
     char *label = strtok(buffer, "=");
     char *value = strtok(NULL, "\n");
@@ -263,24 +296,26 @@ STATIC void read_property_string(Settings *settings, LookupTable *lookupTable, c
     if (label != NULL && value != NULL) {
 
         int propertyType = lookup_key(lookupTable, label);
-        DataType dataType = get_property_data_type(settings, propertyType);
+        DataType dataType = get_property_data_type(propertyType);
 
         if (dataType == INT_TYPE) {
 
             int intValue = str_to_uint(value);
-            set_property_value(settings, propertyType, &intValue);
+            set_property_value(propertyType, &intValue);
         }
         else if (dataType == CHAR_TYPE) {
-            set_property_value(settings, propertyType, (char *) value);
+            set_property_value(propertyType, (char *) value);
         } 
     }
 }
 
+/* create the property string from the current
+    value in memory  */
 STATIC void create_property_string(char *buffer, int size, Property *property) {
 
     memset(buffer, '\0', size);
 
-    strncat(buffer, get_pair_label(property->lookupPair), size);
+    strncat(buffer, get_pair_value(property->pair), size);
     strncat(buffer, "=", size - strlen(buffer));
 
     if (property->dataType == INT_TYPE) {

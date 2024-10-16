@@ -60,7 +60,7 @@ START_TEST(test_split_input_string) {
     const char *tokens[3] = {NULL};  
     char msg1[] = "/msg john what is going on";
 
-    int tkCount = split_input_string(msg1, tokens, 3, ' ');
+    int tkCount = split_input_string(msg1, tokens, 3, " ");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 3);
@@ -70,7 +70,7 @@ START_TEST(test_split_input_string) {
 
     char msg2[] = "/msg john";
 
-    tkCount = split_input_string(msg2, tokens, 2, ' ');
+    tkCount = split_input_string(msg2, tokens, 2, " ");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 2);
@@ -79,7 +79,7 @@ START_TEST(test_split_input_string) {
 
     char msg3[] = "/msg john";
 
-    tkCount = split_input_string(msg3, tokens, 2, '\n');
+    tkCount = split_input_string(msg3, tokens, 2, "\n");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 1);
@@ -87,7 +87,7 @@ START_TEST(test_split_input_string) {
 
     char msg4[] = "/msg john ";
 
-    tkCount = split_input_string(msg4, tokens, 1, ' ');
+    tkCount = split_input_string(msg4, tokens, 1, " ");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 1);
@@ -95,14 +95,14 @@ START_TEST(test_split_input_string) {
 
     char msg5[] = "/msg john ";
 
-    tkCount = split_input_string(msg5, tokens, 0, ' ');
+    tkCount = split_input_string(msg5, tokens, 0, " ");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 0);
 
     char msg6[] = "/msg john ";
 
-    tkCount = split_input_string(msg6, tokens, 2, ' ');
+    tkCount = split_input_string(msg6, tokens, 2, " ");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 2);
@@ -111,12 +111,18 @@ START_TEST(test_split_input_string) {
 
     char msg7[] = "PRIVMSG #cmsc23300 :Hello everybody";
 
-    tkCount = split_input_string(msg7, tokens, 3, ':');
+    tkCount = split_input_string(msg7, tokens, 3, ":");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 2);
     ck_assert_str_eq(tokens[0], "PRIVMSG #cmsc23300 ");
     ck_assert_str_eq(tokens[1], "Hello everybody");
+
+    char msg8[] = "";
+    tkCount = split_input_string(msg8, tokens, 5, " ");
+
+    ck_assert_ptr_ne(tokens, NULL);
+    ck_assert_int_eq(tkCount, 0);
 
 }
 END_TEST
@@ -153,17 +159,17 @@ START_TEST(test_count_tokens) {
 
     char msg1[] = "PRIVMSG #cmsc23300 :Hello everybody";  
 
-    int count = count_tokens(msg1, ':');
+    int count = count_tokens(msg1, ":");
 
     ck_assert_int_eq(count, 3);
 
-    count = count_tokens(msg1, '\0');
+    count = count_tokens(msg1, "\0");
 
     ck_assert_int_eq(count, 4);
 
     char msg2[] = "PRIVMSG #cmsc23300";  
 
-    count = count_tokens(msg2, ':');
+    count = count_tokens(msg2, ":");
 
     ck_assert_int_eq(count, 2);
 

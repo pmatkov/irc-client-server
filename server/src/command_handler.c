@@ -8,16 +8,18 @@
 #include "user.h"
 #include "channel.h"
 #include "session.h"
-#include "tcpserver.h"
+#include "tcp_server.h"
 #include "../../libs/src/settings.h"
-#include "../../libs/src/linked_list.h"
 #include "../../libs/src/priv_message.h"
+#include "../../libs/src/irc_message.h"
+#include "../../libs/src/linked_list.h"
 #include "../../libs/src/string_utils.h"
 #include "../../libs/src/logger.h"
 #include "../../libs/src/error_control.h"
 
 #include <stddef.h>
 #include <string.h>
+#include <assert.h>
 
 #ifdef TEST
 #define STATIC
@@ -37,7 +39,7 @@ STATIC void cmd_unknown(TCPServer *tcpServer, Client *client, CommandTokens *cmd
 
 STATIC void create_client_info(char *buffer, int size, const char *nickname, const char *username, const char *hostname);
 
-static const CommandFunction COMMAND_FUNCTIONS[] = {
+static const CommandFunc COMMAND_FUNCTIONS[] = {
     NULL,
     NULL,
     NULL,
@@ -52,7 +54,7 @@ static const CommandFunction COMMAND_FUNCTIONS[] = {
     cmd_unknown
 };
 
-_Static_assert(sizeof(COMMAND_FUNCTIONS) / sizeof(COMMAND_FUNCTIONS[0]) == COMMAND_TYPE_COUNT, "Array size mismatch");
+static_assert(ARR_SIZE(COMMAND_FUNCTIONS) == COMMAND_TYPE_COUNT, "Array size mismatch");
 
 STATIC void cmd_nick(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
@@ -63,7 +65,7 @@ STATIC void cmd_nick(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
         // :server 431 * :No nickname given
         const char *code = get_response_code(ERR_NONICKNAMEGIVEN);
-        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
+        create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
     }
     else {
 
@@ -71,13 +73,13 @@ STATIC void cmd_nick(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
             // :server 432 <nickname> :Erroneous nickname
             const char *code = get_response_code(ERR_ERRONEUSNICKNAME);
-            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, cmdTokens->args[0]}, {get_response_message(code)}, 1});
         }
         else if (find_user_in_hash_table(get_session(tcpServer), cmdTokens->args[0]) != NULL) {
 
             // :server 433 <nickname> :Nickname is already in use
             const char *code = get_response_code(ERR_NICKNAMEINUSE);
-            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, cmdTokens->args[0]}, {get_response_message(code)}, 1});
         }
         else {
 
@@ -106,7 +108,7 @@ STATIC void change_nickname(TCPServer *tcpServer, Client *client, CommandTokens 
 
         char fwdMessage[MAX_CHARS + 1] = {'\0'};
 
-        create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
+        create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
 
         iterate_list(get_channels_from_user_channels(userChannels), add_message_to_channel_queue, fwdMessage);
         iterate_list(get_channels_from_user_channels(userChannels), add_channel_to_ready_channels, get_ready_list(get_session(tcpServer)));
@@ -129,20 +131,20 @@ STATIC void cmd_user(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
         // :server 451 * :You have not registered
         const char *code = get_response_code(ERR_NOTREGISTERED);
-        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
+        create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
     }
     else if (is_client_registered(client)) {
 
         // :server 462 <nickname> :Already registered
         const char *code = get_response_code(ERR_ALREADYREGISTRED);
-        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname}, {get_response_message(code)}, 1});
+        create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname}, {get_response_message(code)}, 1});
     }
     else {
         if (cmdTokens->argCount < 4) {
 
-            // create_message(message, MAX_CHARS, servername, msgBody, ERR_NEEDMOREPARAMS);
+            // create_irc_message(message, MAX_CHARS, servername, msgBody, ERR_NEEDMOREPARAMS);
             const char *code = get_response_code(ERR_NEEDMOREPARAMS);
-            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
         }
         else {
 
@@ -157,7 +159,7 @@ STATIC void cmd_user(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
             // :server 001 <nickname> :Welcome to the IRC Network
             const char *code = get_response_code(RPL_WELCOME);
-            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname}, {get_response_message(code)}, 1});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname}, {get_response_message(code)}, 1});
         }
     }
     add_message_to_queue(tcpServer, client, message);
@@ -172,7 +174,7 @@ STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
     if (!is_client_registered(client)) {
 
         const char *code = get_response_code(ERR_NOTREGISTERED);
-        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
+        create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
     }
     else {
 
@@ -180,7 +182,7 @@ STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
             // :server 461 <nickname> <cmd> :Not enough parameters
             const char *code = get_response_code(ERR_NEEDMOREPARAMS);
-            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
         }
         else {
 
@@ -192,7 +194,7 @@ STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
             char fwdMessage[MAX_CHARS + 1] = {'\0'};
 
             // <:nickname!username@hostname> JOIN <channel>
-            create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
+            create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
 
             UserChannels *userChannels = find_user_channels(get_session(tcpServer), user);
             Channel *channel = find_channel_in_hash_table(get_session(tcpServer), cmdTokens->args[0]);
@@ -207,7 +209,7 @@ STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
                         // :server 471 <nickname> <channel> :Cannot join channel
                         const char *code = get_response_code(ERR_CHANNELISFULL);
-                        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                        create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
                     }
                     else {
 
@@ -221,13 +223,13 @@ STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
                             // :server 331 <nickname> <channel> :No topic is set
                             const char *code = get_response_code(RPL_NOTOPIC);
-                            create_message(topicMessage, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                            create_irc_message(topicMessage, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
                         }
                         else {
 
                             // :server 332 <nickname> <channel> :<topic>
                             const char *code = get_response_code(RPL_TOPIC);
-                            create_message(topicMessage, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_channel_topic(channel)}, 1});
+                            create_irc_message(topicMessage, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_channel_topic(channel)}, 1});
 
                         }
                         add_message_to_queue(tcpServer, client, topicMessage);
@@ -246,7 +248,7 @@ STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
                         // :server 353 <nickname> <channel> :<nicknames list>
                         const char *code = get_response_code(RPL_NAMREPLY);
-                        create_message(namesMessage1, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {names}, 1});
+                        create_irc_message(namesMessage1, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {names}, 1});
 
                         add_message_to_queue(tcpServer, client, namesMessage1);
 
@@ -254,7 +256,7 @@ STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
                         // :server 366 <nickname> <channel> :<End of NAMES list>
                         code = get_response_code(RPL_ENDOFNAMES);
-                        create_message(namesMessage2, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                        create_irc_message(namesMessage2, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
 
                         add_message_to_queue(tcpServer, client, namesMessage2);
                     }
@@ -266,7 +268,7 @@ STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
                     // :server 479 <nickname> <channel> :Illegal channel name
                     const char *code = get_response_code(ERR_BADCHANNAME);
-                    create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                    create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
                 }
                 else {
 
@@ -282,7 +284,7 @@ STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
                     // :server 331 <nickname> <channel> :No topic is set
                     const char *code = get_response_code(RPL_NOTOPIC);
-                    create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                    create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
 
                 }
             }
@@ -305,7 +307,7 @@ STATIC void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
     if (!is_client_registered(client)) {
 
         const char *code = get_response_code(ERR_NOTREGISTERED);
-        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
+        create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
     }
     else {
 
@@ -313,7 +315,7 @@ STATIC void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
             // :server 461 <nickname> <cmd> :Not enough parameters
             const char *code = get_response_code(ERR_NEEDMOREPARAMS);
-            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
         }
         else {
             User *user = find_user_in_hash_table(get_session(tcpServer), nickname);
@@ -327,18 +329,18 @@ STATIC void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
             if (cmdTokens->argCount == 1) {
 
                 // <nickname!username@hostname> PART <channel_name>
-                create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
+                create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
             }
             else {
                 // <:nickname!username@hostname> PART <channel_name> <:message>
-                create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command, cmdTokens->args[0]}, {cmdTokens->args[1]}, 0});
+                create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessageTokens){{clientInfo}, {cmdTokens->command, cmdTokens->args[0]}, {cmdTokens->args[1]}, 0});
             }
             
             if (channel == NULL) {
 
                 // :server 403 <nickname> <channel> :No such channel
                 const char *code = get_response_code(ERR_NOSUCHCHANNEL);
-                create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
             }
             else {
 
@@ -348,7 +350,7 @@ STATIC void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
 
                     // :server 442 <nickname> <channel> :You're not on that channel
                     const char *code = get_response_code(ERR_NOTONCHANNEL);
-                    create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                    create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
                 }
                 else {
 
@@ -387,7 +389,7 @@ STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmd
     if (!is_client_registered(client)) {
 
         const char *code = get_response_code(ERR_NOTREGISTERED);
-        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
+        create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
     }
     else {
 
@@ -395,7 +397,7 @@ STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmd
 
             // :server 461 <nickname> <cmd> :Not enough parameters
             const char *code = get_response_code(ERR_NEEDMOREPARAMS);
-            create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
+            create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->command}, {get_response_message(code)}, 1});
         }
         else {
 
@@ -407,7 +409,7 @@ STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmd
             char fwdMessage[MAX_CHARS + 1] = {'\0'};
 
             // <:nickname!username@hostname> PRIVMSG <nickname | channel> <:message>
-            create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command, cmdTokens->args[0]}, {cmdTokens->args[1]}, 0});
+            create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessageTokens){{clientInfo}, {cmdTokens->command, cmdTokens->args[0]}, {cmdTokens->args[1]}, 0});
 
             if (cmdTokens->args[0][0] == '#') {
 
@@ -417,7 +419,7 @@ STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmd
 
                     // :server 403 <nickname> <channel> :No such channel
                     const char *code = get_response_code(ERR_NOSUCHCHANNEL);
-                    create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                    create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
                 }
                 else {
 
@@ -427,7 +429,7 @@ STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmd
 
                         // :server 442 <nickname> <channel> :You're not on that channel
                         const char *code = get_response_code(ERR_NOTONCHANNEL);
-                        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                        create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
                     }
                     else {
                         add_message_to_channel_queue(channel, fwdMessage);
@@ -445,7 +447,7 @@ STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmd
 
                     // :server 401 <nickname> <nickname> :No such nick
                     const char *code = get_response_code(ERR_NOSUCHNICK);
-                    create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
+                    create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, nickname, cmdTokens->args[0]}, {get_response_message(code)}, 1});
                 }
                 else {
                     add_message_to_user_queue(recipient, fwdMessage);
@@ -465,7 +467,7 @@ STATIC void cmd_quit(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
     if (!is_client_registered(client)) {
 
         const char *code = get_response_code(ERR_NOTREGISTERED);
-        create_message(message, MAX_CHARS, &(MessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
+        create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{servername}, {code, "*"}, {get_response_message(code)}, 1});
         add_message_to_queue(tcpServer, client, message);
     }
     else {
@@ -478,7 +480,7 @@ STATIC void cmd_quit(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
         char fwdMessage[MAX_CHARS + 1] = {'\0'};
 
         // <:nickname!username@hostname> QUIT <:message>
-        create_message(fwdMessage, MAX_CHARS, &(MessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
+        create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessageTokens){{clientInfo}, {cmdTokens->command}, {cmdTokens->args[0]}, 0});
 
         UserChannels *userChannels = find_user_channels(get_session(tcpServer), user);
         
@@ -528,14 +530,14 @@ void parse_message(TCPServer *tcpServer, Client *client, CommandTokens *cmdToken
 
     strcpy(cmdTokens->input, input);
 
-    int tkCount = count_tokens(cmdTokens->input, ':');
+    int tkCount = count_tokens(cmdTokens->input, ":");
     if (tkCount > MAX_TOKENS) {
         tkCount = MAX_TOKENS;
     }
 
     const char *tokens[MAX_TOKENS] = {NULL};
 
-    split_input_string(cmdTokens->input, tokens, tkCount, ' ');
+    split_input_string(cmdTokens->input, tokens, tkCount, " ");
 
     cmdTokens->command = tokens[0];
     cmdTokens->argCount = tkCount - 1;
@@ -545,7 +547,7 @@ void parse_message(TCPServer *tcpServer, Client *client, CommandTokens *cmdToken
     }
 }
 
-CommandFunction get_command_function(CommandType commandType) {
+CommandFunc get_command_function(CommandType commandType) {
 
     if (is_valid_command(commandType)) {
         return COMMAND_FUNCTIONS[commandType];

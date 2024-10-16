@@ -1,10 +1,10 @@
-// #include "settings.h"
-#include "tcpclient.h"
+#include "main.h"
+#include "tcp_client.h"
 #include "display.h"
 #include "scrollback.h"
 #include "line_editor.h"
 #include "command_handler.h"
-#include "../../libs/src/settings.h"
+#include "../../libs/src/lookup_table.h"
 #include "../../libs/src/command.h"
 #include "../../libs/src/message.h"
 #include "../../libs/src/string_utils.h"
@@ -21,116 +21,126 @@
 #include <errno.h>
 #include <getopt.h>
 #include <ctype.h>
+#include <pwd.h>
+#include <assert.h>
 
 #define PFDS_COUNT 2
 
-/* stores command line arguments */
+/* clientOptions contains command line
+    options */
 typedef struct {
     int color;
-    int scrollback;
+    int sbMultiplier;
     LogLevel logLevel;
 } ClientOptions;
 
-/* defines references to heap allocated 
- data for cleanup purpose */
+/* appStat holds references to heap
+    allocated data for cleanup purposes */
 typedef struct {
     Logger *logger;
+    LookupTable *lookupTable;
+    Settings *settings;
     TCPClient *tcpClient;
     WindowManager *windowManager;
-    Scrollback *scrollback;
-    LineEditor *lnEditor;
-    ClientOptions options;
+    // Scrollback *scrollback;
+    // LineEditor *lnEditor;
     CommandTokens *cmdTokens;
 } AppState;
+
 
 #ifndef TEST
 
 static AppState appState = {NULL};
 
-static void cleanup(void);
 static void get_options(int argc, char **argv, ClientOptions *options);
+static void cleanup(void);
 
 int main(int argc, char **argv)
 {
-    /* registers cleanup function */
+    /* register the cleanup function */
     atexit(cleanup);
 
-    /* sets signal handlers for SIGINT (keyboard 
+    /* set signal handlers for SIGINT (program 
         interrupt) and SIGWINCH (resize
         event) signals */
     set_sigaction(handle_sigint, SIGINT);
     set_sigaction(handle_sigwinch, SIGWINCH);
 
-    /* set default command line arguments */
-    appState.options.color = 1;
-    appState.options.scrollback = 5;
-    appState.options.logLevel = DEBUG;
+    /* set default values for the client's options */
+    ClientOptions options = {.color = 1, .sbMultiplier = 5, .logLevel = DEBUG};
 
-    /* gets command line arguments */
-    get_options(argc, argv, &appState.options);
+    /* parse command line arguments */
+    get_options(argc, argv, &options);
 
-    /* creates logger, set log file appendix and logging
-        level and disable stdout logging */
-    appState.logger = create_logger(NULL, LOG_FILE(client), appState.options.logLevel);
+    /* create logger and set logging options */
+    appState.logger = create_logger(NULL, LOG_FILE(client), options.logLevel);
     set_stdout_allowed(0);
 
     LOG(INFO, "Client started");
 
-    /* sets default client settings and loads
-        settings from file if available */
-    set_default_settings();
-    read_settings(NULL, CLIENT_PROPERTY);
+    /* keys and labels are lookup tables for 
+        settings' properties */
+    int keys[] = {CP_NICKNAME, CP_USERNAME, CP_REALNAME, CP_ADDRESS, CP_PORT};
+    const char *values[] = {"nickname", "username", "realname", "address", "port"};
+    static_assert(ARR_SIZE(keys) == ARR_SIZE(values), "Array size mismatch");
 
-    /* tcp client provides networking 
-        functionality */
+    appState.lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
+    appState.settings = create_settings(ARR_SIZE(keys));
+
+    initialize_settings(appState.settings, appState.lookupTable);
+
+    /* tcpClient provides networking 
+        functionality for the app */
     appState.tcpClient = create_client();
 
-    /* creates UI with ncurses library */
-    appState.windowManager = create_windows();
+    /* create ncurses windows, set options and
+        initialize colors */
+    appState.windowManager = create_windows(options.sbMultiplier);
     set_windows_options(appState.windowManager);
-    init_colors(appState.options.color);
+    init_colors(options.color);
 
-    appState.scrollback = create_scrollback(get_chatwin(appState.windowManager), appState.options.scrollback);
-    appState.lnEditor = create_line_editor(get_inputwin(appState.windowManager));
-    create_layout(appState.windowManager, appState.scrollback, appState.options.color);
+    /* create scrollback and line editor */
+    // appState.scrollback = create_scrollback(get_chatwin(appState.windowManager), options.sbMultiplier);
+    // appState.lnEditor = create_line_editor(get_inputwin(appState.windowManager));
 
-    /* command tokens are used to parse 
-        user commands */
+    /* initialize user interface */
+    init_ui(appState.windowManager, options.color);
+
+    /* command tokens contain parsed command
+        tokens */
     appState.cmdTokens = create_command_tokens();
 
-    /* the main program flow consists of the following actions:
+    /* the basic program flow includes the 
+        following actions:
+
         1. read keyboard input,
         2. parse input,
-        3.a if the input is a local command, execute it,
-        3.b if the input is an IRC command, add it to the
-            message queue,
-        4. send messages from the local queue to the IRC 
-            server,
-        5. read messages from the IRC server and
-            perform appropriate action if necessary */
+        3.a if input is a local command, execute it,
+        3.b if input is an IRC command, transform it, if 
+            required, and add it to the message queue,
+        4.a establish a connection to the server, if not
+            already established,
+        4.b send messages to the server,
+        5. read incoming server messages and execute the
+            appropriate action */
 
     while (1) {
 
-        /* monitoring of input events is achieved with
-            I/O multiplexing. the client app tracks two
-            types of input events: keyboard events
-            and socket events. poll() waits for input
-            events on stdin and socket file descriptors
-            and returns when an event was detected */
-
+        /* poll() is used to monitor input events on the keyboard
+            and network socket. Monitoring is done via a set 
+            of poll fd's that represent communication interfaces */
         int fdsReady = poll(get_fds(appState.tcpClient), PFDS_COUNT, -1);
 
         if (fdsReady < 0) {
 
-            /* repaints windows if poll() was interrupted
-                by SIGWINCH signal (i.e. the window was 
+            /* repaint UI if poll() was interrupted by 
+                SIGWINCH signal (i.e., the window was 
                 resized) */
-
             if (errno == EINTR) {
 
                 if (get_resized()) {
 
-                    repaint_ui(appState.windowManager, appState.scrollback, appState.lnEditor, appState.options.color);
+                    resize_ui(appState.windowManager, options.color);
                     set_resized(0);
                 }
             }
@@ -139,61 +149,50 @@ int main(int argc, char **argv)
             }
         }
 
-        /* checks for keyboard events */
+        /* check for keyboard events */
         if (is_stdin_event(appState.tcpClient)) {
 
-            /* reads char from the terminal buffer and 
-                executes appropriate action - if control 
-                char was read (e.g. arrow, backspace etc.),
-                the control action will be performed, if regular
-                char was read, it will be added to the buffer 
-                and displayed on the screen, if new line was read, 
-                the input line will be parsed */
-
+            /* read char from the terminal and execute the
+                appropriate action - if a control char was
+                read (e.g. arrow, backspace etc.), the control
+                action will be executed, if a regular char 
+                was read, it will be added to the buffer 
+                and displayed on the screen, if a newline char 
+                was read, the input will be parsed */
             int ch, index;
 
-            ch = wgetch(get_inputwin(appState.windowManager));
+            ch = wgetch(get_window(get_inputwin(appState.windowManager)));
             ch = remap_ctrl_key(ch);
 
             if ((index = get_sb_func_index(ch)) != -1) {
-                get_scrollback_function(index)(appState.scrollback);
+                get_scrollback_function(index)(get_scrollback(get_chatwin(appState.windowManager)));
             }
             else if ((index = get_le_func_index(ch)) != -1) {
-                get_lneditor_function(index)(appState.lnEditor);
+                get_lneditor_function(index)(get_line_editor(get_inputwin(appState.windowManager)));
             }
             else if (ch == KEY_NEWLINE) {
-                parse_input(appState.lnEditor, appState.cmdTokens);
+                parse_input(get_line_editor(get_inputwin(appState.windowManager)), appState.cmdTokens);
             }           
             else if (isprint(ch)) {
-                add_char(appState.lnEditor, ch);
+                add_char(get_line_editor(get_inputwin(appState.windowManager)), ch);
             }
 
             if (appState.cmdTokens->command != NULL) {
 
-                /* checks if a valid command was parsed,
-                    and if it was, executes it */
+                /* check if a valid command was parsed,
+                    and if so, execute it */
                 CommandType commandType = string_to_command_type(get_cmd_from_cmd_tokens(appState.cmdTokens));
-                CommandFunction cmdFunction = get_command_function(commandType);
+                CommandFunc commandFunc = get_command_function(commandType);
 
-                cmdFunction(appState.scrollback, appState.tcpClient, appState.cmdTokens);
+                commandFunc(appState.windowManager, appState.tcpClient, appState.cmdTokens);
 
                 reset_cmd_tokens(appState.cmdTokens);
             }
     
-            wrefresh(get_inputwin(appState.windowManager));
+            wrefresh(get_window(get_inputwin(appState.windowManager)));
         }
 
-        /* checks connection status and displays
-            it on the screen */
-        if (is_client_connected(appState.tcpClient)) {
-
-            display_status(appState.windowManager, "[%s]  [%s]", get_property_value(NICKNAME), get_server_name(appState.tcpClient));
-        }
-        else {
-            display_status(appState.windowManager, "");
-        }
-
-        /* sends outgoing messages to the server */
+        /* send messages to the server */
         while (!is_queue_empty(get_client_queue(appState.tcpClient))) {
 
             RegMessage *message = remove_message_from_client_queue(appState.tcpClient);
@@ -202,20 +201,20 @@ int main(int argc, char **argv)
             client_write(content, get_socket_fd(appState.tcpClient));
         } 
 
-        /* checks for socket events */
+        /* check for socket events */
         if (is_socket_event(appState.tcpClient)) {
 
-            /* reads data from the socket and displays
-                incoming messages on the screen */
+            /* read data from the socket and display
+                received messages */
             int fullMsg = client_read(appState.tcpClient);
 
             if (fullMsg) {
 
-                PrintTokens *printTokens = create_print_tokens(1, " <> ", NULL, get_client_inbuffer(appState.tcpClient));
+                PrintTokens *printTokens = create_print_tokens(1, " <> ", NULL, get_client_inbuffer(appState.tcpClient), COLOR_SEP(RED));
 
-                printmsg(appState.scrollback, printTokens, COLOR_SEP(RED));
-                wrefresh(get_chatwin(appState.windowManager));
-                wrefresh(get_inputwin(appState.windowManager));
+                printstr(printTokens, appState.windowManager);
+                wrefresh(get_window(get_chatwin(appState.windowManager)));
+                wrefresh(get_window(get_inputwin(appState.windowManager)));
 
                 delete_print_tokens(printTokens);
             }
@@ -224,21 +223,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-
-/* releases memory allocated on the
-    heap */
-static void cleanup(void) {
-
-    delete_command_tokens(appState.cmdTokens);
-    write_settings(NULL, CLIENT_PROPERTY);
-    delete_line_editor(appState.lnEditor);
-    delete_scrollback(appState.scrollback);
-    delete_windows(appState.windowManager);
-    delete_client(appState.tcpClient);
-    delete_logger(appState.logger);
-}
-
-/* reads command line arguments*/
+/* get command line options */
 static void get_options(int argc, char **argv, ClientOptions *options) {
 
     int opt;
@@ -262,16 +247,53 @@ static void get_options(int argc, char **argv, ClientOptions *options) {
                 break;
             case 's':
                 if (optarg && (str_to_uint(optarg) >= 1 || str_to_uint(optarg) <= 5)) {
-                    options->scrollback = str_to_uint(optarg);
+                    options->sbMultiplier = str_to_uint(optarg);
                 }
                 break;
             default:
                 printf("Usage: %s [--nocolor] [--scrollback <1-5>] [--loglevel <debug | info | warning | error>]\n", argv[0]);
+                printf("\tOptions:\n");
+                printf("\t  --nocolor       : Disable colors for the user interface\n");
+                printf("\t  --scrollback:   : Set the scrollback buffer multiplier\n");
+                printf("\t  --loglevel      : Set the logging level\n");
                 exit(EXIT_FAILURE);
         }
     }
 }
 
+/*  write settings and release heap allocated
+    memory */
+static void cleanup(void) {
+
+    write_settings(NULL);
+
+    delete_command_tokens(appState.cmdTokens);
+    // delete_line_editor(appState.lnEditor);
+    // delete_scrollback(appState.scrollback);
+    delete_windows(appState.windowManager);
+    delete_client(appState.tcpClient);
+    delete_settings(appState.settings);
+    delete_lookup_table(appState.lookupTable);
+    delete_logger(appState.logger);
+}
+
 #endif
 
+void initialize_settings(Settings *settings, LookupTable *lookupTable) {
 
+    if (settings == NULL || lookupTable == NULL) {
+        FAILED(NULL, ARG_ERROR);
+    }
+    /* obtain username of currently active user */
+    struct passwd *userRecord = getpwuid(getuid());
+    char *name = userRecord != NULL ? userRecord->pw_name : "";
+
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, CP_NICKNAME), name);
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, CP_USERNAME), name);
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, CP_REALNAME), "anonymous");
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, CP_ADDRESS), "localhost");
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, CP_PORT), "50100");
+
+    read_settings(lookupTable, NULL);
+
+}

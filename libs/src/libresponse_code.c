@@ -1,14 +1,20 @@
 #include "response_code.h"
+#include "string_utils.h"
 
 #include <stddef.h>
 #include <string.h>
+#include <assert.h>
 
+/* a responseCode containse a response type,
+    a numeric code and a response message */
 struct ResponseCode {
     ResponseType responseType;
     const char *code;
     const char *message;
 };
 
+/* response code constants, numeric values and 
+    messages are defined by the IRC RFC standards */
 static const ResponseCode RESPONSE_CODES[] = {
     {RPL_WELCOME, "001", "Welcome to the IRC Network"},
     {RPL_NOTOPIC, "331", "No topic is set"},
@@ -30,7 +36,7 @@ static const ResponseCode RESPONSE_CODES[] = {
     {UNKNOWN_RESPONSE_TYPE, "0", "Unknown response type"},
 };
 
-_Static_assert(sizeof(RESPONSE_CODES) / sizeof(RESPONSE_CODES[0]) == RESPONSE_CODE_COUNT, "Array size mismatch");
+static_assert(ARR_SIZE(RESPONSE_CODES) == RESPONSE_CODE_COUNT, "Array size mismatch");
 
 ResponseType get_response_type(const char *code) {
 

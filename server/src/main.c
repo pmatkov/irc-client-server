@@ -1,11 +1,11 @@
-#include "tcpserver.h"
+#include "main.h"
+#include "tcp_server.h"
 #include "user.h"
 #include "channel.h"
 #include "command_handler.h"
-
-#include "../../libs/src/settings.h"
 #include "../../libs/src/command.h"
 #include "../../libs/src/message.h"
+#include "../../libs/src/network_utils.h"
 #include "../../libs/src/signal_handler.h"
 #include "../../libs/src/error_control.h"
 #include "../../libs/src/logger.h"
@@ -24,82 +24,109 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+/* serverOptions contains command line
+    options */
 typedef struct {
     int echo;
     int daemon;
+    int port;
+    int maxFds;
+    const char *hostname;
+    int waitTime;
 } ServerOptions;
 
+/* appStat holds references to heap
+    allocated data for cleanup purposes */
 typedef struct {
     Logger *logger;
     TCPServer *tcpServer;
-    ServerOptions options;
     CommandTokens *cmdTokens;
 } AppState;
 
 #ifndef TEST
 
 static void daemonize(void);
-static void cleanup(void);
 static void get_options(int argc, char **argv, ServerOptions *options);
+static void cleanup(void);
 
-static AppState appState = {NULL, NULL, {.echo = 0, .daemon = 0} };
+static AppState appState = {NULL, NULL, NULL};
 
 int main(int argc, char **argv)
 {
-    // register cleanup function
+    /* register the cleanup function */
     atexit(cleanup);
 
-    // set signal handler for SIGINT
+    /* set signal handler for SIGINT (program 
+        interrupt) signal */
     set_sigaction(handle_sigint, SIGINT);
+
+    /* set default values for the server's options */
+    ServerOptions options = 
+        {.echo = 0, .daemon = 0, .port = 50100, 
+        .maxFds = 1024, .hostname = "irc.server.com", 
+        .waitTime = 60};
+
+    /* parse command line arguments */
+    get_options(argc, argv, &options);
 
     appState.logger = create_logger(NULL, LOG_FILE(server), DEBUG);
 
-    // load settings
-    set_default_settings();
-    read_settings(NULL, SERVER_PROPERTY);
-
-    // set default options
-    appState.options.echo = 0;
-    appState.options.daemon = 0;
-
-    // get cli options
-    get_options(argc, argv, &appState.options);
-
-    // create daemon process
-    if (appState.options.daemon) {
+    /* if the required command line arguments 
+        are present, create a daemon process
+        and/ or enable the echo server */
+    if (options.daemon) {
         daemonize();
         set_sigaction(handle_sigint, SIGTERM);
         LOG(INFO, "Started daemon process with PID: %d", getpid());
     }
-
-    if (appState.options.echo) {
+    if (options.echo) {
         LOG(INFO, "Echo server enabled");
     }
 
-    /* create fd's set to monitor socket events -
-     connection requests and messages from connected
-      clients */
-    appState.tcpServer = create_server(MAX_FDS);
-    int listenFd = init_server();
+    /* tcp server provides networking 
+        functionality for the app */
+    appState.tcpServer = create_server(options.maxFds, options.hostname);
+    int listenFd = init_server(options.port);
 
     const int listenfdIndex = 0;
 
-    // set listening socket fd
+    /* set fd for the listening socket */
     set_fd(appState.tcpServer, listenfdIndex, listenFd);
 
+    /* command tokens contain parsed command
+        tokens */
     appState.cmdTokens = create_command_tokens();
+
+    /* the basic program flow includes the 
+        following actions:
+
+        1.a accept client connection requests,
+        1.b read client messages,
+        2.  parse messages,
+        3. if a message is a valid IRC command, execute it,
+        4. send response(s) to the client that issued the
+            command or to other client(s) */
 
     while (1) {
 
-        // check for input events on file descriptors
+        /* poll() is used to monitor input events on socket 
+            file descriptors. Two types of sockets are monitored: 
+            the 'listening' socket, that receives connection 
+            requests from the clients and the 'connected' 
+            socket, that transmits data to and from the client. 
+            
+            the effectiveness of poll() in monitoring file 
+            descriptors starts to degrade after about 1000 fd's.
+            therefore, a maximum value of fd's is set at 1024
+            (1023 clients + 1 for the listening socket) */
         int fdsReady = poll(get_fds(appState.tcpServer), get_fds_capacity(appState.tcpServer), -1);
         if (fdsReady < 0) {
             FAILED("Error polling descriptors", NO_ERRCODE);  
         }
-        /* remove clients which have not registered 
-        connection in waiting time */
-        const int waitingTime = 60;
-        remove_inactive_clients(appState.tcpServer, waitingTime);
+
+        /* remove clients that have not registered their connection
+            in due time */
+        remove_inactive_clients(appState.tcpServer, options.waitTime);
 
         Session *session = get_session(appState.tcpServer);
         
@@ -111,6 +138,12 @@ int main(int argc, char **argv)
 
             if (ready) {
 
+                /* if input activity is detected at the 'listening' 
+                    socket, it should be interpreted as a connection 
+                    request. therefore, a new client will be added.
+                    otherwise, the actity indicates incoming data at the
+                    'connected socket'. in that case, this data should
+                    be read */
                 if (fdIndex == listenfdIndex) {
                     add_client(appState.tcpServer, listenfdIndex);
                 }            
@@ -118,13 +151,15 @@ int main(int argc, char **argv)
 
                     int fullMsg = server_read(appState.tcpServer, fdIndex);
 
-                    /* if echo server is active and full message 
-                    was received, send message back to the client */
+                    /* if the echo server is enabled and the full message 
+                    was received, echo message back to the client. otherwise,
+                    parse the message expecting the client's command and proceed 
+                    accordingly */
                     if (fullMsg) {
 
                         Client *client = get_client(appState.tcpServer, fdIndex);
                         
-                        if (appState.options.echo) {
+                        if (options.echo) {
 
                             server_write(get_client_inbuffer(client), get_client_fd(client));
                         }
@@ -132,14 +167,18 @@ int main(int argc, char **argv)
 
                             parse_message(appState.tcpServer, client, appState.cmdTokens);
 
+                            /* verify if a valid command was parsed,
+                                and if so, execute it */
                             CommandType commandType = string_to_command_type(get_cmd_from_cmd_tokens(appState.cmdTokens));
 
                             LOG(INFO, "[%s] command parsed", command_type_to_string(commandType));
 
-                            CommandFunction cmdFunction = get_command_function((CommandType)commandType);
+                            CommandFunc cmdFunction = get_command_function((CommandType)commandType);
 
                             cmdFunction(appState.tcpServer, client, appState.cmdTokens);
 
+                            /* if the user has pending messages, add him to the list
+                                of users with messages ready for sending */
                             User *user = find_user_in_hash_table(session, get_client_nickname(client));
 
                             if (user != NULL && !is_queue_empty(get_user_queue(user))) {
@@ -157,6 +196,9 @@ int main(int argc, char **argv)
             fdIndex++;
         }
 
+        /* send messages from the server queue (these are the
+            messages intended for clients which have not yet 
+            registered their connection) */
         while (!is_queue_empty(get_msg_queue(appState.tcpServer))) {
 
             ExtMessage *message = remove_message_from_server_queue(appState.tcpServer);
@@ -168,6 +210,8 @@ int main(int argc, char **argv)
             server_write(content, fd);
         }
 
+        /* send messages from the users' and channels' queue (each 
+            user and channel has a dedicated message queue) */
         iterate_list(get_ready_users(get_ready_list(session)), send_user_queue_messages, NULL);
         iterate_list(get_ready_channels(get_ready_list(session)), send_channel_queue_messages, get_session(appState.tcpServer));
 
@@ -179,6 +223,9 @@ int main(int argc, char **argv)
     return 0;
 }
 
+
+/* create a deamon process that will run in the background
+    detached from the terminal */
 static void daemonize(void) {
 
     pid_t pid = fork();
@@ -218,19 +265,13 @@ static void daemonize(void) {
 
 }
 
-static void cleanup(void) {
-
-    delete_command_tokens(appState.cmdTokens);
-    write_settings(NULL, SERVER_PROPERTY);
-    delete_server(appState.tcpServer);
-    delete_logger(appState.logger);
-}
-
+/* parse command line parameters.
+    hos*/
 static void get_options(int argc, char **argv, ServerOptions *options) {
 
     int opt;
 
-    while ((opt = getopt(argc, argv, "de")) != -1) {
+    while ((opt = getopt(argc, argv, "defhpw")) != -1) {
 
         switch (opt) {
             case 'd': {
@@ -241,11 +282,51 @@ static void get_options(int argc, char **argv, ServerOptions *options) {
                 options->echo = 1;
                 break;
             }
+            case 'f': {
+                int maxFds = str_to_uint(argv[3]);
+                if (maxFds != -1) {
+                    options->maxFds = maxFds;
+                }
+                break;
+            }
+            case 'h': {
+                options->hostname = argv[4];
+                break;
+            }
+            case 'p': {
+                int port = str_to_uint(argv[5]);
+                if (port != -1 && is_valid_port(port)) {
+                    options->port = port;
+                }
+                break;
+            }
+            case 'w': {
+                int waitTime = str_to_uint(argv[6]);
+                if (waitTime != -1) {
+                    options->waitTime = waitTime;
+                }
+                break;
+            }
             default:
-                printf("Usage: %s [-d] [-e]\n", argv[0]);
+                printf("Usage: %s [-d <daemon>] [-e <echo>] [-f <max_fds>] [-h <hostname>] [-p <port>] [-w <waittime>]\n", argv[0]);
+                printf("\tOptions:\n");
+                printf("\t  -d : Run as a daemon\n");
+                printf("\t  -e : Enable echo mode\n");
+                printf("\t  -f : Set maximum file descriptors\n");
+                printf("\t  -h : Specify the hostname\n");
+                printf("\t  -p : Specify the port number\n");
+                printf("\t  -w : Set wait time\n");
                 exit(EXIT_FAILURE);
         }
     }
+}
+
+/* release heap allocated memory */
+static void cleanup(void) {
+
+    delete_command_tokens(appState.cmdTokens);
+    delete_server(appState.tcpServer);
+    delete_logger(appState.logger);
 }
 
 #endif

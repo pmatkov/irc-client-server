@@ -54,7 +54,7 @@ START_TEST(test_mock_socket) {
 
     set_mock_fd(1);
 
-    int fd = mock_socket(AF_INET, SOCK_STREAM, AF_UNSPEC);
+    int fd = mock_socket(AF_INET, SOCK_STREAM, 0);
 
     ck_assert_int_eq(fd, get_mock_fd());
 }
@@ -85,19 +85,19 @@ START_TEST(test_mock_accept) {
 }
 END_TEST
 
-START_TEST(test_mock_get_client_ip) {
+START_TEST(test_mock_get_local_ip_address) {
 
-    struct sockaddr_in sa;
     char buffer[INET_ADDRSTRLEN] = {'\0'};
+    struct sockaddr_in sa;
 
     memset((struct sockaddr_in *) &sa, 0, sizeof(struct sockaddr_in));
     sa.sin_family = AF_INET;
     sa.sin_port = htons(50100);
     inet_pton(AF_INET, "127.0.0.1", &sa.sin_addr);
 
-    set_sockaddr(&sa);
+    set_mock_sockaddr(&sa);
 
-    mock_get_client_ip(buffer, sizeof(buffer), 0);
+    mock_get_local_ip_address(buffer, sizeof(buffer), 0);
 
     ck_assert_str_eq(buffer, "127.0.0.1");
 }
@@ -131,7 +131,7 @@ Suite* mocks_suite(void) {
     tcase_add_test(tc_core, test_mock_socket);
     tcase_add_test(tc_core, test_mock_connect);
     tcase_add_test(tc_core, test_mock_accept);
-    tcase_add_test(tc_core, test_mock_get_client_ip);
+    tcase_add_test(tc_core, test_mock_get_local_ip_address);
     tcase_add_test(tc_core, test_mock_initscr);
 
     suite_add_tcase(s, tc_core);

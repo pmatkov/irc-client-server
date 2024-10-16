@@ -14,37 +14,50 @@
 #define PORT_MIN 49152
 #define PORT_MAX 65535
 
+/* getaddrinfo function is used to perform
+    DNS lookup. if a hostname is resolved 
+    to IP address, the numerical value 
+    of the IP address will be converted
+    to a string */
 int convert_hostname_to_ip_address(char *buffer, int size, const char *hostname) {
 
     if (buffer == NULL || hostname == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    struct addrinfo hints, *res, *p;
-    int converted = 0;
+    struct addrinfo hints, *result, *temp;
+    int converted = 1;
 
     memset(&hints, 0, sizeof(struct addrinfo));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
 
-    if (getaddrinfo(hostname, NULL, &hints, &res) != 0) {
-        FAILED("Error converting hostname to IP address", NO_ERRCODE);
+    if (getaddrinfo(hostname, NULL, &hints, &result) != 0) {
+        LOG(ERROR, "Error resolving hostname to IP address");
+        converted = 0;
     }
 
-    p = res;
-    if (p != NULL) {
+    if (converted && result != NULL) {
+        temp = result;
 
-        struct sockaddr_in *ipv4 = (struct sockaddr_in *)p->ai_addr;
-        if (inet_ntop(p->ai_family, &ipv4->sin_addr, buffer, size) != NULL) {
-            converted = 1;
+        struct sockaddr_in *ipv4 = (struct sockaddr_in *)temp->ai_addr;
+
+        if (inet_ntop(temp->ai_family, &ipv4->sin_addr, buffer, size) == NULL) {
+            LOG(ERROR, "Error converting network address structure to string");
+            converted = 0;
         }
-    }
 
-    freeaddrinfo(res); 
+        freeaddrinfo(result); 
+    }
 
     return converted;
 }
 
+/* a string value of the IP address is 
+    firstly translated to the numerical form 
+    with inet_pton. after that, getnameinfo
+    is used to perform reverse DNS lookup 
+    to obtain hostname from the IP address */
 int convert_ip_to_hostname(char *buffer, int size, const char *ipv4Address) {
 
     if (buffer == NULL || ipv4Address == NULL) {
@@ -55,22 +68,33 @@ int convert_ip_to_hostname(char *buffer, int size, const char *ipv4Address) {
     memset((struct sockaddr_in *) &sa, 0, sizeof(struct sockaddr_in));
     sa.sin_family = AF_INET;
 
-    int converted = 0;
+    int converted = 1;
 
     if (inet_pton(AF_INET, ipv4Address, &sa.sin_addr) <= 0) {
-        FAILED("Error converting string to numerical IP address", NO_ERRCODE);
+        LOG(ERROR, "Error translating IP address from string to numerical form");
+ 
+        converted = 0;
     }
 
-    if (getnameinfo((struct sockaddr *)&sa, sizeof(struct sockaddr_in), buffer, size, NULL, 0, 0) != 0) {
-        FAILED("Error resolving IP address to hostname", NO_ERRCODE);
-    } else {
-        converted = 1;
+    if (converted) {
+
+        if (getnameinfo((struct sockaddr *)&sa, sizeof(struct sockaddr_in), buffer, size, NULL, 0, 0) != 0) {
+            LOG(ERROR, "Error resolving IP address to hostname");
+            converted = 0;
+        }
     }
 
     return converted;
 }
 
-void get_client_ip(char *buffer, int size, int fd) {
+/* in a network client, a TCP socket is bound
+    to an IP address by the kernel when the 
+    connect call is made. getsockname returns
+    numerical value of that IP address. after
+    that, this value is translated to string
+    with inet_ntop */
+
+int get_local_ip_address(char *buffer, int size, int fd) {
 
     if (buffer == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -79,16 +103,25 @@ void get_client_ip(char *buffer, int size, int fd) {
     struct sockaddr_in sa;
     socklen_t saLen = sizeof(sa);
 
+    int converted = 1;
+
     if (getsockname(fd, (struct sockaddr *)&sa, &saLen) == -1) {
-        FAILED("Error getting local IP address", NO_ERRCODE);
+        
+        LOG(ERROR, "Error getting local IP address");
+        converted = 0;
     }
 
-    if (inet_ntop(AF_INET, &(sa.sin_addr), buffer, size) <= 0) {
-        FAILED("Error resolving IP address to hostname", NO_ERRCODE);
+    if (converted) {
+        if (inet_ntop(AF_INET, &sa.sin_addr, buffer, size) <= 0) {
+
+            LOG(ERROR, "Error translating IP address from numerical form to string");
+            converted = 0;
+        }
     }
+
+    return converted;
 }
 
-// checks if string is valid IPv4 address
 int is_valid_ip_address(const char *string) {
     
     int octets = 0;
@@ -115,7 +148,8 @@ int is_valid_ip_address(const char *string) {
     return octets == 4 && string[strlen(string) - 1] != '.';
 }
 
-// checks if string is valid port number (in defined range)
+/* for the purpose of this functions, valid ports 
+    are those in PORT_MIN - PORT_MAX range */
 int is_valid_port(const char *string) {
 
     long n = str_to_uint(string);

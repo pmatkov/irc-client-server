@@ -1,5 +1,5 @@
 /* --INTERNAL HEADER--
-   used for unit testing */
+   used for testing */
 
 #ifndef SETTINGS_H
 #define SETTINGS_H
@@ -15,7 +15,7 @@ typedef enum {
 
 typedef struct {
     DataType dataType;
-    LookupPair *lookupPair;
+    Pair *pair;
     union {
         const char *charValue;
         int intValue;
@@ -31,22 +31,25 @@ typedef struct {
 Settings * create_settings(int capacity);
 void delete_settings(Settings *settings);
 
-void register_property(Settings *settings, DataType dataType, LookupPair *lookupPair, void *value);
+void register_property(DataType dataType, Pair *pair, const void *value);
 
-void * get_property_value(Settings *settings, int propertyType);
-void set_property_value(Settings *settings, int propertyType, void *value);
+const void * get_property_value(int propertyType);
+void set_property_value(int propertyType, const void *value);
 
-DataType get_property_data_type(Settings *settings, int propertyType);
+DataType get_property_data_type(int propertyType);
 
-int is_property_registered(Settings *settings, int propertyType);
-int is_valid_property(Settings *settings, int propertyType);
+int is_property_registered(int propertyType);
+int is_valid_property(int propertyType);
 
-void read_settings(Settings *settings, LookupTable *lookupTable, const char *fileName);
-void write_settings(Settings *settings, const char *fileName);
+void read_settings(LookupTable *lookupTable, const char *fileName);
+void write_settings(const char *fileName);
+
+int get_settings_capacity(void);
+const char * get_property_label(int propertyType);
 
 #ifdef TEST
 
-void read_property_string(Settings *settings, LookupTable *lookupTable, char *buffer);
+void read_property_string(LookupTable *lookupTable, char *buffer);
 void create_property_string(char *buffer, int size, Property *property);
 
 #endif

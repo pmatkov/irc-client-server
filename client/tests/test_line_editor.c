@@ -151,6 +151,16 @@ START_TEST(test_use_delete) {
 }
 END_TEST
 
+START_TEST(test_get_lneditor_index_and_function) {
+
+    int index1 = get_le_func_index(KEY_LEFT);
+    int index2 = get_le_func_index(KEY_RIGHT);
+
+    ck_assert_ptr_eq(get_lneditor_function(index1), move_cursor_left);
+    ck_assert_ptr_ne(get_lneditor_function(index2), move_cursor_left);
+
+}
+END_TEST
 
 Suite* line_editor_suite(void) {
     Suite *s;
@@ -167,6 +177,7 @@ Suite* line_editor_suite(void) {
     tcase_add_test(tc_core, test_add_char);
     tcase_add_test(tc_core, test_use_backspace);
     tcase_add_test(tc_core, test_use_delete);
+    tcase_add_test(tc_core, test_get_lneditor_index_and_function);
     suite_add_tcase(s, tc_core);
 
     return s;

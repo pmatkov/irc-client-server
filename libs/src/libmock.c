@@ -10,7 +10,7 @@ static int mockFd;
 static size_t mockLen;
 static void *mockBuffer;
 static int mockPort;
-static struct sockaddr_in *sockaddr;
+static struct sockaddr_in *mockSockaddr;
 static WINDOW * mockStdscr;
 
 static int fdCount = 0;
@@ -55,14 +55,14 @@ void set_mock_port(int port) {
    mockPort = port; 
 }
 
-struct sockaddr_in * get_sockaddr(void) {
+struct sockaddr_in * get_mock_sockaddr(void) {
 
-    return sockaddr;
+    return mockSockaddr;
 }
 
-void set_sockaddr(struct sockaddr_in *sa) {
+void set_mock_sockaddr(struct sockaddr_in *sockaddr) {
 
-   sockaddr = sa; 
+   mockSockaddr = sockaddr; 
 }
 
 WINDOW * get_mock_stdscr(void) {
@@ -128,8 +128,7 @@ int mock_socket(int domain, int type, int protocol) {
 
     int fd = -1;
 
-    if ((domain == AF_INET || domain == AF_UNIX) && (type == SOCK_STREAM || \
-        type == SOCK_DGRAM || type == SOCK_RAW) && (protocol == AF_UNSPEC || protocol == AF_INET || protocol == AF_INET6)) {
+    if (domain == AF_INET && type == SOCK_STREAM && (protocol == AF_UNSPEC || protocol == AF_INET)) {
         fd = mockFd;
     } 
 
@@ -169,12 +168,17 @@ int mock_accept(int fd, struct sockaddr *clientAddr, socklen_t *len) {
     return connectFd;
 }
 
-void mock_get_client_ip(char *buffer, int size, int fd) {
+int mock_get_local_ip_address(char *buffer, int size, int fd) {
 
-    if (buffer != NULL && sockaddr != NULL) {
+    int converted = 0; 
 
-        inet_ntop(AF_INET, &sockaddr->sin_addr, buffer, size);
+    if (buffer != NULL && mockSockaddr != NULL) {
+
+        inet_ntop(AF_INET, &mockSockaddr->sin_addr, buffer, size);
+        converted = 1; 
     }
+
+    return converted;
 }
 
 WINDOW * mock_initscr(void) {

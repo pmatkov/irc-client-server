@@ -56,13 +56,13 @@ START_TEST(test_log_error) {
 }
 END_TEST
 
-START_TEST(test_set_use_stdout) {
+START_TEST(test_set_stdout_allowed) {
 
     Logger *logger = create_logger(NULL, "test", DEBUG);
 
-    set_use_stdout(1);
+    set_stdout_allowed(1);
 
-    ck_assert_int_eq(logger->useStdout, 1);
+    ck_assert_int_eq(logger->stdoutAllowed, 1);
     
     delete_logger(logger);
 }
@@ -104,7 +104,7 @@ Suite* logger_suite(void) {
     tcase_add_test(tc_core, test_open_log_file);
     tcase_add_test(tc_core, test_log_message);
     tcase_add_test(tc_core, test_log_error);
-    tcase_add_test(tc_core, test_set_use_stdout);
+    tcase_add_test(tc_core, test_set_stdout_allowed);
     tcase_add_test(tc_core, test_is_valid_log_level);
     tcase_add_test(tc_core, test_log_level_to_string);
     tcase_add_test(tc_core, test_string_to_log_level);

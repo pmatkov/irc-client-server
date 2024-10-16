@@ -1,15 +1,15 @@
 #ifndef COMMAND_HANDLER_H
 #define COMMAND_HANDLER_H
 
-#include "tcpserver.h"
+#include "tcp_server.h"
 #include "../../libs/src/command.h"
 
-typedef void (*CommandFunction)(TCPServer *tcpServer, Client *, CommandTokens *);
+typedef void (*CommandFunc)(TCPServer *tcpServer, Client *, CommandTokens *);
 
 typedef struct ResponseTokens ResponseTokens;
 
 void parse_message(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 
-CommandFunction get_command_function(CommandType commandType);
+CommandFunc get_command_function(CommandType commandType);
 
 #endif

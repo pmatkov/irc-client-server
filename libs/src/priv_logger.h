@@ -1,5 +1,5 @@
 /* --INTERNAL HEADER--
-   used for unit testing */
+   used for testing */
 
 #ifndef LOGGER_H
 #define LOGGER_H
@@ -24,7 +24,7 @@ typedef struct {
     FILE *logFile;
     char **logBuffer;
     LogLevel logLevel;
-    int useStdout;
+    int stdoutAllowed;
     int capacity;
     int count;
 } Logger;
@@ -35,7 +35,7 @@ void delete_logger(Logger *logger);
 void log_message(LogLevel level, const char *msg, const char *func, const char *file, int line, ...);
 void log_error(const char *msg, ErrorCode errorCode, const char *func, const char *file, int line, int errnosv, ...);
 
-void set_use_stdout(int useStdout);
+void set_stdout_allowed(int stdoutAllowed);
 
 const char * log_level_to_string(LogLevel logLevel);
 LogLevel string_to_log_level(const char *string);

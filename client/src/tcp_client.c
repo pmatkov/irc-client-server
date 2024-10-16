@@ -1,8 +1,8 @@
 #ifdef TEST
-#include "priv_tcpclient.h"
+#include "priv_tcp_client.h"
 #include "../../libs/src/mock.h"
 #else
-#include "tcpclient.h"
+#include "tcp_client.h"
 #endif
 
 #include "../../libs/src/settings.h"
@@ -34,18 +34,16 @@
 
 #ifndef TEST
 
-/*  an array of struct pollfd's is 
-    used by poll() to track the state of 
-    file descriptors associated with
-    specific communication channels, such
-    as sockets or input streams. in this
-    case, the array contains only two 
-    structures, representing stdin and
-    tcp socket. for network communication
-    the two types of buffer are used, 
-    inBuffer for incoming messages, and 
-    msgQueue for outgoing messages. */
-
+/*  tcpClient contains an array of struct 
+    pollfd's used by poll() to monitor the 
+    state of file descriptors associated 
+    with the specific I/O channel, such 
+    as socket or stdin. the array contains
+    stdin and tcp socket pollfd's. 
+    additionally, tcpClient contains 
+    inBuffer for storing incoming 
+    messages and msgQueue for storing 
+    outgoing messages. */
 struct TCPClient {
     struct pollfd pfds[FD_COUNT];
     char serverName[MAX_CHARS + 1];
@@ -55,8 +53,6 @@ struct TCPClient {
 
 #endif
 
-STATIC void client_disconnect(TCPClient *tcpClient);
-
 TCPClient * create_client(void) {
 
     TCPClient *tcpClient = (TCPClient *) malloc(sizeof(TCPClient));
@@ -65,13 +61,13 @@ TCPClient * create_client(void) {
     }
 
     /* input events on file descriptors are
-        tracked by poll() by assigning the
-        constant POLLIN to the events field. 
-        the pollfd representing the stdin 
-        file descriptor is stored at index
-        [0] of the array while the pollfd 
-        representing the tcp socket is stored
-        at the index [1] */
+        monitored by poll() by assigning 
+        POLLIN to the events field. pollfd
+        representing the stdin file 
+        descriptor is stored at index
+        [0] while the pollfd representing
+        the tcp socket is stored at
+        index [1] */
 
     tcpClient->pfds[0].fd = STDIN_FILENO;
     tcpClient->pfds[0].events = POLLIN;
@@ -93,40 +89,40 @@ void delete_client(TCPClient *tcpClient) {
     free(tcpClient);
 }
 
-int client_connect(TCPClient *tcpClient, char *hostOrAddr, char *port)
+int client_connect(TCPClient *tcpClient, const char *hostOrAddr, const char *port)
 {
     char ipv4Address[INET_ADDRSTRLEN] = {'\0'};
 
-    int connected = 0;
+    int connStatus = 0;
 
     if (!is_valid_ip_address(hostOrAddr)) {
 
-        /* converts hostname to ipv4 address
-            if the hostOrAddr is a hostname */
+        /* convert hostname to ipv4 address
+            if hostOrAddr is a hostname */
         if (convert_hostname_to_ip_address(ipv4Address, sizeof(ipv4Address), hostOrAddr)) {
             hostOrAddr = ipv4Address;
         }
         else {
-            connected = -2;
+            connStatus = -2;
             LOG(ERROR, "Invalid hostname or address: %s", hostOrAddr);
         }
     }
     if (!is_valid_port(port)) {
-        connected = -3;
+        connStatus = -3;
         LOG(ERROR, "Invalid port: %s", port);
     }
 
-    if (!connected) {
+    if (!connStatus) {
 
-        /* creates a tcp socket and returns
+        /* creates a tcp socket and return
             file descriptor to that socket */
         int clientFd = socket(AF_INET, SOCK_STREAM, 0); 
         if (clientFd < 0) {
             FAILED("Error creating socket", NO_ERRCODE);
         }
 
-        /* initializes socket address structure
-            with the server's address and port */
+        /* initialize socket address structure
+            with server's address and port */
         struct sockaddr_in servaddr;
 
         memset((struct sockaddr_in *) &servaddr, 0, sizeof(struct sockaddr_in));
@@ -135,18 +131,19 @@ int client_connect(TCPClient *tcpClient, char *hostOrAddr, char *port)
 
         inet_pton(AF_INET, hostOrAddr, &servaddr.sin_addr);
 
-        /* creates tcp connection to the server */
-        connected = connect(clientFd, (struct sockaddr *) &servaddr, sizeof(struct sockaddr_in)) == 0;
+        /* create tcp connection to the server */
+        connStatus = connect(clientFd, (struct sockaddr *) &servaddr, sizeof(struct sockaddr_in));
 
-        if (connected) {
+        if (!connStatus) {
 
-            char hostname[MAX_CHARS + 1] = {'\0'};
-            convert_ip_to_hostname(hostname, MAX_CHARS + 1, hostOrAddr);
-            set_server_name(tcpClient, hostname);
-            
+            char servername[MAX_CHARS + 1] = {'\0'};
+
+            convert_ip_to_hostname(servername, MAX_CHARS + 1, hostOrAddr);
+            set_server_name(tcpClient, servername);
+    
             /* a file descriptor returned by socket()
                 is added to the set of poll fd's 
-                tracked by poll() */
+                monitored by poll() */
             set_fd(tcpClient, SOCKET_FD_INDEX, clientFd);
             
             LOG(INFO, "Connected to the server at %s: %s", hostOrAddr, port);
@@ -156,14 +153,11 @@ int client_connect(TCPClient *tcpClient, char *hostOrAddr, char *port)
         }
     }
    
-    return connected;
+    return connStatus;
 }
 
-/* closes tcp connection and removes clients
-    socket fd from the set of poll fd's 
-    tracked by poll() */
 
-STATIC void client_disconnect(TCPClient *tcpClient) {
+void client_disconnect(TCPClient *tcpClient) {
 
     if (tcpClient == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -185,7 +179,8 @@ int client_read(TCPClient *tcpClient) {
 
     ssize_t bytesRead = read(tcpClient->pfds[SOCKET_FD_INDEX].fd, readBuffer, MAX_CHARS);
 
-    /* bytesRead is 0 if the server closes tcp connection */
+    /* bytesRead will be 0 if the server
+        closes tcp connection */
     if (bytesRead <= 0) {
 
         if (!bytesRead) {
@@ -198,13 +193,12 @@ int client_read(TCPClient *tcpClient) {
     }
     else {
 
-        /* it is possible that the client may receive 
-            a partial message from the server due to
-            the nature of the tcp protocol. for this
-            reason all received data is stored in inBuffer,
-            and only after the complete message is received
-            (indicated by CRLF) will it be parsed */
-
+        /* the client may receive a partial message 
+            from the server due to the nature of the
+            tcp protocol. for this reason, all received
+            data is stored in inBuffer, and only after
+            the complete message is received (indicated
+            by CRLF), will it be parsed */
         int msgLength = strlen(tcpClient->inBuffer);
 
         if (msgLength + bytesRead <= MAX_CHARS) {

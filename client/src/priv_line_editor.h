@@ -1,5 +1,5 @@
 /* --INTERNAL HEADER--
-    used for unit testing */
+    used for testing */
 
 #ifndef LINE_EDITOR_H
 #define LINE_EDITOR_H
@@ -18,11 +18,11 @@ typedef struct {
     int charCount;
 } LineEditor;
 
-typedef void (*LnEditorFunction)(LineEditor *lnEditor);
+typedef void (*LnEditorFunc)(LineEditor *lnEditor);
 
 typedef struct {
     int keyCode;
-    LnEditorFunction lnEditorFunc;
+    LnEditorFunc lnEditorFunc;
 } LnEditorCmd;
 
 LineEditor * create_line_editor(WINDOW *window);
@@ -41,7 +41,7 @@ void display_current_command(LineEditor *lnEditor);
 void display_previous_command(LineEditor *lnEditor);
 void display_next_command(LineEditor *lnEditor);
 
-LnEditorFunction get_lneditor_function(int index);
+LnEditorFunc get_lneditor_function(int index);
 int get_le_func_index(int keyCode);
 
 WINDOW * le_get_window(LineEditor *lnEditor);
@@ -53,7 +53,7 @@ void le_set_cursor(LineEditor *lnEditor, int cursor);
 
 #ifdef TEST
 
-void display_command_text(LineEditor *lnEditor, RegMessage *msg);
+void display_command_text(LineEditor *lnEditor, RegMessage *message);
 
 #endif
 

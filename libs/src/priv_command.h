@@ -1,5 +1,5 @@
 /* --INTERNAL HEADER--
-   used for unit testing */
+   used for testing */
 
 #ifndef COMMAND_H
 #define COMMAND_H
@@ -33,13 +33,6 @@ typedef enum {
 } CommandUser;
 
 typedef struct {
-    const char *prefix[MAX_TOKENS];
-    const char *body[MAX_TOKENS];
-    const char *suffix[MAX_TOKENS];
-    int useLeadChar;
-} MessageTokens;
-
-typedef struct {
     char input[MAX_CHARS + 1];
     const char *command;
     const char *args[MAX_TOKENS];
@@ -59,8 +52,6 @@ CommandTokens * create_command_tokens(void);
 void delete_command_tokens(CommandTokens *cmdTokens);
 
 void reset_cmd_tokens(CommandTokens *cmdTokens);
-
-void create_message(char *buffer, int size, MessageTokens *messageTokens);
 
 const char * command_type_to_string(CommandType commandType);
 CommandType string_to_command_type(const char *string);

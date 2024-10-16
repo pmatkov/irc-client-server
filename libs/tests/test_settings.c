@@ -8,12 +8,11 @@
 
 enum clientProperty {NICKNAME, USERNAME, PORT};
 static int keys[] = {NICKNAME, USERNAME, PORT};
-static const char *labels[] = {"nickname", "username", "port"};
-
+static const char *values[] = {"nickname", "username", "port"};
 
 START_TEST(test_create_settings) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, labels, ARR_SIZE(keys));
+    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
     Settings *settings = create_settings(MAX_SETTINGS);
 
     ck_assert_ptr_ne(settings, NULL);
@@ -28,11 +27,11 @@ END_TEST
 
 START_TEST(test_register_property) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, labels, ARR_SIZE(keys));
+    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
     Settings *settings = create_settings(MAX_SETTINGS);
 
-    register_property(settings, CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "john");
-    ck_assert_int_eq(is_property_registered(settings, NICKNAME), 1);
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "john");
+    ck_assert_int_eq(is_property_registered(NICKNAME), 1);
 
     delete_settings(settings);
     delete_lookup_table(lookupTable);
@@ -42,19 +41,19 @@ END_TEST
 
 START_TEST(test_get_set_property_value) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, labels, ARR_SIZE(keys));
+    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
     Settings *settings = create_settings(MAX_SETTINGS);
 
-    register_property(settings, CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "john");
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "john");
 
-    ck_assert_str_eq((char *)get_property_value(settings, NICKNAME), "john");
+    ck_assert_str_eq((const char *)get_property_value(NICKNAME), "john");
 
-    set_property_value(settings, NICKNAME, "mark");
-    ck_assert_str_eq((char *) get_property_value(settings, NICKNAME), "mark");
+    set_property_value(NICKNAME, "mark");
+    ck_assert_str_eq((const char *) get_property_value(NICKNAME), "mark");
 
-    register_property(settings, INT_TYPE, get_lookup_pair(lookupTable, PORT), &((int){10}));
+    register_property(INT_TYPE, get_lookup_pair(lookupTable, PORT), &((int){10}));
 
-    ck_assert_int_eq(*((int *) get_property_value(settings, PORT)), 10);
+    ck_assert_int_eq(*((const int *) get_property_value(PORT)), 10);
 
     delete_settings(settings);
     delete_lookup_table(lookupTable);
@@ -62,12 +61,27 @@ START_TEST(test_get_set_property_value) {
 }
 END_TEST
 
+START_TEST(test_is_property_registered) {
+
+    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
+    Settings *settings = create_settings(MAX_SETTINGS);
+
+    ck_assert_int_eq(is_property_registered(NICKNAME), 0);
+
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "john");
+    ck_assert_int_eq(is_property_registered(NICKNAME), 1);
+
+    delete_settings(settings);
+    delete_lookup_table(lookupTable);
+}
+END_TEST
+
 START_TEST(test_is_valid_property) {
 
     Settings *settings = create_settings(MAX_SETTINGS);
 
-    ck_assert_int_eq(is_valid_property(settings, USERNAME), 1);
-    ck_assert_int_eq(is_valid_property(settings, 10), 0);
+    ck_assert_int_eq(is_valid_property(USERNAME), 1);
+    ck_assert_int_eq(is_valid_property(10), 0);
 
     delete_settings(settings);
 }
@@ -75,12 +89,12 @@ END_TEST
 
 START_TEST(test_write_settings) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, labels, ARR_SIZE(keys));
+    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
     Settings *settings = create_settings(MAX_SETTINGS);
 
-    register_property(settings, CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "steve");
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "steve");
 
-    write_settings(settings, "tests/data/settings.conf");
+    write_settings("tests/data/settings.conf");
 
     delete_settings(settings);
     delete_lookup_table(lookupTable);
@@ -90,13 +104,13 @@ END_TEST
 
 START_TEST(test_read_settings) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, labels, ARR_SIZE(keys));
+    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
     Settings *settings = create_settings(MAX_SETTINGS);
 
-    register_property(settings, CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "");
-    read_settings(settings, lookupTable, "tests/data/settings.conf");
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "");
+    read_settings(lookupTable, "tests/data/settings.conf");
 
-    ck_assert_str_eq(get_property_value(settings, NICKNAME), "steve");
+    ck_assert_str_eq(get_property_value(NICKNAME), "steve");
 
     delete_settings(settings);
     delete_lookup_table(lookupTable);
@@ -106,14 +120,14 @@ END_TEST
 
 START_TEST(test_read_property_string) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, labels, ARR_SIZE(keys));
+    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
     Settings *settings = create_settings(MAX_SETTINGS);
 
-    register_property(settings, CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "");
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "");
 
     char buffer[] = "nickname=john";
-    read_property_string(settings, lookupTable, buffer);
-    ck_assert_str_eq((char *) get_property_value(settings, NICKNAME), "john");
+    read_property_string(lookupTable, buffer);
+    ck_assert_str_eq((const char *) get_property_value(NICKNAME), "john");
 
     delete_settings(settings);
     delete_lookup_table(lookupTable);
@@ -122,10 +136,10 @@ END_TEST
 
 START_TEST(test_create_property_string) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, labels, ARR_SIZE(keys));
+    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
     Settings *settings = create_settings(MAX_SETTINGS);
 
-    register_property(settings, CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "john");
+    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "john");
 
     char buffer[MAX_CHARS + 1];
     create_property_string(buffer, MAX_CHARS + 1, &settings->properties[NICKNAME]);
@@ -148,6 +162,7 @@ Suite* settings_suite(void) {
     tcase_add_test(tc_core, test_create_settings);
     tcase_add_test(tc_core, test_register_property);
     tcase_add_test(tc_core, test_get_set_property_value);
+    tcase_add_test(tc_core, test_is_property_registered);
     tcase_add_test(tc_core, test_is_valid_property);
     tcase_add_test(tc_core, test_write_settings);
     tcase_add_test(tc_core, test_read_settings);

@@ -13,21 +13,21 @@
 
 #ifndef TEST
 
-struct LookupPair {
+struct Pair {
     int key;
-    const char *label;
+    const char *value;
 };
 
 struct LookupTable {
-    LookupPair *lookupPairs;
+    Pair *pairs;
     int size;
 };
 
 #endif
 
-LookupTable * create_lookup_table(int *keys, const char **labels, int size) {
+LookupTable * create_lookup_table(int *keys, const char **values, int size) {
 
-    if (keys == NULL || labels == NULL) {
+    if (keys == NULL || values == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
@@ -36,20 +36,17 @@ LookupTable * create_lookup_table(int *keys, const char **labels, int size) {
         FAILED("Error allocating memory", NO_ERRCODE);
     }
 
-    lookupTable->lookupPairs = (LookupPair *) malloc(size * sizeof(LookupPair));
-    if (lookupTable->lookupPairs == NULL) {
+    lookupTable->pairs = (Pair *) malloc(size * sizeof(Pair));
+    if (lookupTable->pairs == NULL) {
         FAILED("Error allocating memory", NO_ERRCODE);
     } 
 
     for (int i = 0; i < size; i++) {
 
-        if (keys[i] < 0 || keys[i] >= size) {
-            FAILED("Invalid key", NO_ERRCODE);
+        if (keys[i] >= 0 && keys[i] < size) {
+            lookupTable->pairs[keys[i]].key = keys[i];
+            lookupTable->pairs[i].value = values[i];
         }
-
-        lookupTable->lookupPairs[keys[i]].key = keys[i];
-        lookupTable->lookupPairs[i].label = labels[i];
-
     }
 
     lookupTable->size = size;
@@ -62,30 +59,30 @@ void delete_lookup_table(LookupTable *lookupTable) {
 
     if (lookupTable != NULL) {
 
-        free(lookupTable->lookupPairs);
+        free(lookupTable->pairs);
     }
 
     free(lookupTable);
 }
 
-const char * lookup_label(LookupTable *lookupTable, int key) {
+const char * lookup_value(LookupTable *lookupTable, int key) {
 
     if (lookupTable == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    const char *label = NULL;
+    const char *value = NULL;
 
     if (key >= 0 && key < lookupTable->size) {
 
-        label = lookupTable->lookupPairs[key].label;
+        value = lookupTable->pairs[key].value;
     }
 
-    return label;
+    return value;
     
 }
 
-void set_label(LookupTable *lookupTable, int key, const char *label) {
+void set_value(LookupTable *lookupTable, int key, const char *value) {
 
     if (lookupTable == NULL) {
         FAILED(NULL, ARG_ERROR);
@@ -93,13 +90,13 @@ void set_label(LookupTable *lookupTable, int key, const char *label) {
 
     if (key >= 0 && key < lookupTable->size) {
 
-        lookupTable->lookupPairs[key].label = label;
+        lookupTable->pairs[key].value = value;
     }    
 }
 
-int lookup_key(LookupTable *lookupTable, const char *label) {
+int lookup_key(LookupTable *lookupTable, const char *value) {
 
-    if (lookupTable == NULL || label == NULL) {
+    if (lookupTable == NULL || value == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
@@ -107,37 +104,44 @@ int lookup_key(LookupTable *lookupTable, const char *label) {
 
     for (int i = 0; i < lookupTable->size; i++) {
 
-        if (strcmp(lookupTable->lookupPairs[i].label, label) == 0) {
-            key = lookupTable->lookupPairs[i].key;
+        if (strcmp(lookupTable->pairs[i].value, value) == 0) {
+            key = lookupTable->pairs[i].key;
         }
     }
 
     return key;
 }
 
-LookupPair * get_lookup_pair(LookupTable *lookupTable, int key) {
+Pair * get_lookup_pair(LookupTable *lookupTable, int key) {
 
     if (lookupTable == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    return &lookupTable->lookupPairs[key];
+    Pair *pair = NULL;
+
+    if (key >= 0 && key < lookupTable->size) {
+
+        pair = &lookupTable->pairs[key];
+    }
+
+    return pair;
 }
 
-int get_pair_key(LookupPair *lookupPair) {
+int get_pair_key(Pair *pair) {
 
-    if (lookupPair == NULL) {
+    if (pair == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    return lookupPair->key;
+    return pair->key;
 }
 
-const char * get_pair_label(LookupPair *lookupPair) {
+const char * get_pair_value(Pair *pair) {
 
-    if (lookupPair == NULL) {
+    if (pair == NULL) {
         FAILED(NULL, ARG_ERROR);
     }
 
-    return lookupPair->label;
+    return pair->value;
 }

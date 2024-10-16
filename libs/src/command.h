@@ -5,6 +5,8 @@
 
 #define MAX_TOKENS 5
 
+/* commandType represents a list of commands
+    supported by the client and the server */
 typedef enum {
     HELP,
     CONNECT,
@@ -21,6 +23,9 @@ typedef enum {
     COMMAND_TYPE_COUNT
 } CommandType;
 
+/* commandUser represents the app which may
+    execute the command, either the client, 
+    the server or both */
 typedef enum {
     CLIENT_COMMAND,
     SERVER_COMMAND,
@@ -29,13 +34,12 @@ typedef enum {
     COMMAND_USER_COUNT
 } CommandUser;
 
-typedef struct {
-    const char *prefix[MAX_TOKENS];
-    const char *body[MAX_TOKENS];
-    const char *suffix[MAX_TOKENS];
-    int useLeadChar;
-} MessageTokens;
-
+/* the client receives commands from the terminal 
+    and the server from the network. each command
+    string (either command line input or network 
+    message) is parsed into tokens. these tokens are 
+    then divided to an actual command and command 
+    parameters */
 typedef struct {
     char input[MAX_CHARS + 1];
     const char *command;
@@ -43,20 +47,24 @@ typedef struct {
     int argCount;
 } CommandTokens;
 
+/* command is a container for all information related
+    to commands. commands parsed by the client contain
+    a label, a syntax, a description and examples */
 typedef struct Command Command;
 
 CommandTokens * create_command_tokens(void);
 void delete_command_tokens(CommandTokens *cmdTokens);
 
+/* reset command tokens to default values */
 void reset_cmd_tokens(CommandTokens *cmdTokens);
-
-void create_message(char *buffer, int size, MessageTokens *messageTokens);
 
 const char * command_type_to_string(CommandType commandType);
 CommandType string_to_command_type(const char *string);
 
 int is_valid_command(CommandType commandType);
 
+/* a valid command line command should start with 
+    '/' prefix */
 int has_command_prefix(const char *string);
 
 const Command * get_commands(void);

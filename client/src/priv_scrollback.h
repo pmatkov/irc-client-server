@@ -1,5 +1,5 @@
 /* --INTERNAL HEADER--
-    used for unit testing */
+    used for testing */
 
 #ifndef SCROLLBACK_H
 #define SCROLLBACK_H
@@ -19,11 +19,11 @@ typedef struct {
     int count;
 } Scrollback;
 
-typedef void (*ScrollbackFunction)(Scrollback *scrollback);
+typedef void (*ScrollbackFunc)(Scrollback *scrollback);
 
 typedef struct {
     int keyCode;
-    ScrollbackFunction scrollbackFunc;
+    ScrollbackFunc scrollbackFunc;
 } ScrollbackCmd;
 
 Scrollback * create_scrollback(WINDOW *window, int sizeMultiplier);
@@ -41,7 +41,7 @@ void scroll_line_down(Scrollback *scrollback);
 void scroll_page_up(Scrollback *scrollback);
 void scroll_page_down(Scrollback *scrollback);
 
-ScrollbackFunction get_scrollback_function(int index);
+ScrollbackFunc get_scrollback_function(int index);
 int get_sb_func_index(int keyCode);
 
 int remap_ctrl_key(int ch);

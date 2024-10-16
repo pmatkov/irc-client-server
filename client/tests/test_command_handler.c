@@ -1,20 +1,62 @@
+#ifndef TEST
+#define TEST
+#endif
+
 #include "../src/priv_command_handler.h"
+#include "../src/main.h"
 #include "../src/priv_line_editor.h"
 #include "../src/priv_scrollback.h"
-#include "../src/priv_tcpclient.h"
+#include "../src/priv_tcp_client.h"
 #include "../../libs/src/priv_command.h"
 #include "../../libs/src/priv_message.h"
 #include "../../libs/src/priv_settings.h"
+#include "../../libs/src/priv_lookup_table.h"
 #include "../../libs/src/string_utils.h"
 #include "../../libs/src/mock.h"
 
 #include <check.h>
 #include <arpa/inet.h>
+#include <assert.h>
 
 #define PROMPT_SIZE 2
 #define SOCKET_FD_INDEX 1
 
-void set_message(LineEditor *lnEditor, const char *content) {
+static LookupTable *lookupTable;
+static Settings *settings;
+static TCPClient *tcpClient;
+static CommandTokens *cmdTokens;
+
+static void initialize_test_suite(void) {
+
+    int keys[] = {CP_NICKNAME, CP_USERNAME, CP_REALNAME, CP_ADDRESS, CP_PORT};
+    const char *values[] = {"nickname", "username", "realname", "address", "port"};
+    static_assert(ARR_SIZE(keys) == ARR_SIZE(values), "Array size mismatch");
+
+    lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
+    settings = create_settings(ARR_SIZE(keys));
+
+    initialize_settings(settings, lookupTable);
+}
+
+static void cleanup_test_suite(void) {
+
+    delete_settings(settings);
+    delete_lookup_table(lookupTable);
+}
+
+static void initialize_test(void) {
+
+    tcpClient = create_client();
+    cmdTokens = create_command_tokens();
+}
+
+static void cleanup_test(void) {
+
+    delete_command_tokens(cmdTokens);
+    delete_client(tcpClient);
+}
+
+static void set_message(LineEditor *lnEditor, const char *content) {
 
     RegMessage *message = create_reg_message(content);
     enqueue(lnEditor->buffer, message);
@@ -26,18 +68,28 @@ void set_message(LineEditor *lnEditor, const char *content) {
     delete_message(message);
 }
 
-void execute_command(TCPClient *tcpClient, CommandTokens *cmdTokens, CommandFunction cmdFunction, const char *content) {
+static void execute_command(TCPClient *tcpClient, CommandTokens *cmdTokens, CommandFunc commandFunc, const char *content) {
 
-    Scrollback *sb = create_scrollback(stdscr, 0);
+    SCREEN *screen = create_terminal();
+    set_mock_stdscr(stdscr);
+
+    WindowManager *windowManager = create_windows(0);
+
+    // Scrollback *sb = create_scrollback(stdscr, 0);
     LineEditor *lnEditor = create_line_editor(NULL);
 
     set_message(lnEditor, content);
     parse_input(lnEditor, cmdTokens);
 
-    cmdFunction(sb, tcpClient, cmdTokens); 
+    commandFunc(windowManager, tcpClient, cmdTokens); 
 
     delete_line_editor(lnEditor);
-    delete_scrollback(sb);
+    // delete_scrollback(sb);
+
+    delete_windows(windowManager);
+
+    endwin();
+    delete_terminal(screen);
 
 }
 
@@ -82,13 +134,17 @@ START_TEST(test_parse_input) {
 }
 END_TEST
 
+START_TEST(test_get_command_function) {
+
+    ck_assert_ptr_eq(get_command_function(CONNECT), cmd_connect);
+    ck_assert_ptr_ne(get_command_function(DISCONNECT), cmd_connect);
+}
+END_TEST
+
 
 START_TEST(test_cmd_connect) {
 
-    set_default_settings();
-
-    TCPClient *tcpClient = create_client();
-    CommandTokens *cmdTokens = create_command_tokens();
+    initialize_test();
 
     set_mock_fd(1);
 
@@ -99,7 +155,7 @@ START_TEST(test_cmd_connect) {
     sa.sin_port = htons(50100);
     inet_pton(AF_INET, "127.0.0.1", &sa.sin_addr);
 
-    set_sockaddr(&sa);
+    set_mock_sockaddr(&sa);
 
     execute_command(tcpClient, cmdTokens, get_command_function(CONNECT), "/CONNECT");
     RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
@@ -108,16 +164,14 @@ START_TEST(test_cmd_connect) {
     ck_assert_str_eq(get_reg_message_content(regMessage), "USER pmatkov 127.0.0.1 * :anonymous");
     reset_cmd_tokens(cmdTokens);
 
-    delete_command_tokens(cmdTokens);
-    delete_client(tcpClient);
+    cleanup_test();
 
 }
 END_TEST
 
 START_TEST(test_cmd_disconnect) {
 
-    TCPClient *tcpClient = create_client();
-    CommandTokens *cmdTokens = create_command_tokens();
+    initialize_test();
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
@@ -126,62 +180,50 @@ START_TEST(test_cmd_disconnect) {
     ck_assert_str_eq(get_reg_message_content(regMessage), "DISCONNECT :see you tomorrow again");
     reset_cmd_tokens(cmdTokens);
 
-    delete_command_tokens(cmdTokens);
-    delete_client(tcpClient);
+    cleanup_test();
 
 }
 END_TEST
 
 START_TEST(test_cmd_nick) {
 
-    set_default_settings();
-
-    TCPClient *tcpClient = create_client();
-    CommandTokens *cmdTokens = create_command_tokens();
+    initialize_test();
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
     execute_command(tcpClient, cmdTokens, get_command_function(NICK), "/NICK john");
     RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
     ck_assert_str_eq(get_reg_message_content(regMessage), "NICK john");
-    ck_assert_str_eq(get_property_value(NICKNAME), "john");
+    ck_assert_str_eq(get_property_value(CP_NICKNAME), "john");
     reset_cmd_tokens(cmdTokens);
 
-    delete_command_tokens(cmdTokens);
-    delete_client(tcpClient);
+    cleanup_test();
 
 }
 END_TEST
 
 START_TEST(test_cmd_user) {
 
-    set_default_settings();
-
-    TCPClient *tcpClient = create_client();
-    CommandTokens *cmdTokens = create_command_tokens();
+    initialize_test();
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
     execute_command(tcpClient, cmdTokens, get_command_function(USER), "/USER jjones");
-    ck_assert_str_eq(get_property_value(USERNAME), "jjones");
+    ck_assert_str_eq(get_property_value(CP_USERNAME), "jjones");
 
     execute_command(tcpClient, cmdTokens, get_command_function(USER), "/USER jjones john jones");
-    ck_assert_str_eq(get_property_value(USERNAME), "jjones");
-    ck_assert_str_eq(get_property_value(REALNAME), "john jones");
+    ck_assert_str_eq(get_property_value(CP_USERNAME), "jjones");
+    ck_assert_str_eq(get_property_value(CP_REALNAME), "john jones");
     reset_cmd_tokens(cmdTokens);
 
-    delete_command_tokens(cmdTokens);
-    delete_client(tcpClient);
+    cleanup_test();
 
 }
 END_TEST
 
 START_TEST(test_cmd_join) {
 
-    set_default_settings();
-
-    TCPClient *tcpClient = create_client();
-    CommandTokens *cmdTokens = create_command_tokens();
+    initialize_test();
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
@@ -190,18 +232,14 @@ START_TEST(test_cmd_join) {
     ck_assert_str_eq(get_reg_message_content(regMessage), "JOIN #general");
     reset_cmd_tokens(cmdTokens);
 
-    delete_command_tokens(cmdTokens);
-    delete_client(tcpClient);
+    cleanup_test();
 
 }
 END_TEST
 
 START_TEST(test_cmd_part) {
 
-    set_default_settings();
-
-    TCPClient *tcpClient = create_client();
-    CommandTokens *cmdTokens = create_command_tokens();
+    initialize_test();
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
@@ -214,18 +252,14 @@ START_TEST(test_cmd_part) {
     ck_assert_str_eq(get_reg_message_content(regMessage), "PART #general :see you tomorrow again");
     reset_cmd_tokens(cmdTokens);
 
-    delete_command_tokens(cmdTokens);
-    delete_client(tcpClient);
+    cleanup_test();
 
 }
 END_TEST
 
 START_TEST(test_cmd_privmsg) {
 
-    set_default_settings();
-
-    TCPClient *tcpClient = create_client();
-    CommandTokens *cmdTokens = create_command_tokens();
+    initialize_test();
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
@@ -235,49 +269,42 @@ START_TEST(test_cmd_privmsg) {
 
     reset_cmd_tokens(cmdTokens);
 
-    delete_command_tokens(cmdTokens);
-    delete_client(tcpClient);
+    cleanup_test();
 
 }
 END_TEST
 
 START_TEST(test_cmd_address) {
 
-    set_default_settings();
-
-    TCPClient *tcpClient = create_client();
-    CommandTokens *cmdTokens = create_command_tokens();
+    initialize_test();
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
     execute_command(tcpClient, cmdTokens, get_command_function(SERVER_ADDRESS), "/ADDRESS irc.freenode.net");
-    ck_assert_str_eq(get_property_value(ADDRESS), "irc.freenode.net");
+    ck_assert_str_eq(get_property_value(CP_ADDRESS), "irc.freenode.net");
 
     reset_cmd_tokens(cmdTokens);
 
-    delete_command_tokens(cmdTokens);
-    delete_client(tcpClient);
+    cleanup_test();
 }
 END_TEST
 
 START_TEST(test_cmd_port) {
 
-    set_default_settings();
-
-    TCPClient *tcpClient = create_client();
-    CommandTokens *cmdTokens = create_command_tokens();
+    initialize_test();
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
     execute_command(tcpClient, cmdTokens, get_command_function(SERVER_PORT), "/PORT 50100");
-    ck_assert_str_eq(get_property_value(PORT), "50100");
+    ck_assert_str_eq(get_property_value(CP_PORT), "50100");
 
     reset_cmd_tokens(cmdTokens);
 
-    delete_command_tokens(cmdTokens);
-    delete_client(tcpClient);
+    cleanup_test();
 }
 END_TEST
+
+
 
 Suite* command_handler_suite(void) {
     Suite *s;
@@ -288,6 +315,7 @@ Suite* command_handler_suite(void) {
 
     // Add the test case to the test suite
     tcase_add_test(tc_core, test_parse_input);
+    tcase_add_test(tc_core, test_get_command_function);
     tcase_add_test(tc_core, test_cmd_connect);
     tcase_add_test(tc_core, test_cmd_disconnect);
     tcase_add_test(tc_core, test_cmd_nick);
@@ -309,6 +337,8 @@ int main(void) {
     Suite *s;
     SRunner *sr;
 
+    initialize_test_suite();
+
     s = command_handler_suite();
     sr = srunner_create(s);
 
@@ -316,7 +346,10 @@ int main(void) {
     number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
 
+    cleanup_test_suite();
+
     return (number_failed == 0) ? 0 : 1;
+
 }
 
 #endif
