@@ -13,16 +13,18 @@
 
 #define PORT_MIN 49152
 #define PORT_MAX 65535
+#define IP_ADDRESS_OCTETS 4
+#define MAX_BYTE_VALUE 255
 
-/* getaddrinfo function is used to perform
-    DNS lookup. if a hostname is resolved 
-    to IP address, the numerical value 
-    of the IP address will be converted
-    to a string */
-int convert_hostname_to_ip_address(char *buffer, int size, const char *hostname) {
+/* the translation of a hostname to an IP address is 
+    done in two steps. first, DNS lookup is performed 
+    to obtain the numerical value of the IP address. 
+    secondly, the numerical value is converted to the
+    string */
+int hostname_to_ip(char *buffer, int size, const char *hostname) {
 
     if (buffer == NULL || hostname == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     struct addrinfo hints, *result, *temp;
@@ -53,15 +55,14 @@ int convert_hostname_to_ip_address(char *buffer, int size, const char *hostname)
     return converted;
 }
 
-/* a string value of the IP address is 
-    firstly translated to the numerical form 
-    with inet_pton. after that, getnameinfo
-    is used to perform reverse DNS lookup 
-    to obtain hostname from the IP address */
-int convert_ip_to_hostname(char *buffer, int size, const char *ipv4Address) {
+/* the translation of an IP address to a hostname is 
+    done in two steps. first, the address string is
+    translated to its numerical value. second, reverse
+    DNS lookup is performed to retrieve a hostname */
+int ip_to_hostname(char *buffer, int size, const char *ipv4Address) {
 
     if (buffer == NULL || ipv4Address == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     struct sockaddr_in sa;
@@ -87,42 +88,73 @@ int convert_ip_to_hostname(char *buffer, int size, const char *ipv4Address) {
     return converted;
 }
 
-/* in a network client, a TCP socket is bound
-    to an IP address by the kernel when the 
-    connect call is made. getsockname returns
-    numerical value of that IP address. after
-    that, this value is translated to string
-    with inet_ntop */
-
-int get_local_ip_address(char *buffer, int size, int fd) {
+/* returns local address associated with the socket */
+int get_local_address(char *buffer, int size, int *port, int fd) {
 
     if (buffer == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     struct sockaddr_in sa;
-    socklen_t saLen = sizeof(sa);
+    socklen_t len = sizeof(sa);
 
-    int converted = 1;
+    int retrieved = 1;
 
-    if (getsockname(fd, (struct sockaddr *)&sa, &saLen) == -1) {
+    if (getsockname(fd, (struct sockaddr *)&sa, &len) == -1) {
         
         LOG(ERROR, "Error getting local IP address");
-        converted = 0;
+        retrieved = 0;
     }
 
-    if (converted) {
+    if (retrieved) {
         if (inet_ntop(AF_INET, &sa.sin_addr, buffer, size) <= 0) {
 
-            LOG(ERROR, "Error translating IP address from numerical form to string");
-            converted = 0;
+            LOG(ERROR, "Error translating IP address");
+            retrieved = 0;
+        }
+        
+        if (retrieved && port != NULL) {
+            *port = ntohs(sa.sin_port);
         }
     }
 
-    return converted;
+    return retrieved;
 }
 
-int is_valid_ip_address(const char *string) {
+/* returns foreign address and port associated with the socket */
+int get_peer_address(char *buffer, int size, int *port, int fd) {
+
+    if (buffer == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    struct sockaddr_in sa;
+    socklen_t len = sizeof(sa);
+
+    int retrieved = 1;
+
+    if (getpeername(fd, (struct sockaddr *)&sa, &len) == -1) {
+        
+        LOG(ERROR, "Error getting local IP address");
+        retrieved = 0;
+    }
+
+    if (retrieved) {
+        if (inet_ntop(AF_INET, &sa.sin_addr, buffer, size) <= 0) {
+
+            LOG(ERROR, "Error translating IP address");
+            retrieved = 0;
+        }
+
+        if (port != NULL) {
+            *port = ntohs(sa.sin_port);
+        }
+    }
+
+    return retrieved;
+}
+
+int is_valid_ip(const char *string) {
     
     int octets = 0;
     char *copy, *token, *savePtr;
@@ -134,7 +166,7 @@ int is_valid_ip_address(const char *string) {
 
         long n = str_to_uint(token);
 
-        if (n >= 0 && n <= 255) {
+        if (n >= 0 && n <= MAX_BYTE_VALUE) {
             octets++;
         }
         else {
@@ -145,19 +177,11 @@ int is_valid_ip_address(const char *string) {
 
     free(copy);
 
-    return octets == 4 && string[strlen(string) - 1] != '.';
+    return octets == IP_ADDRESS_OCTETS && string[strlen(string) - 1] != '.';
 }
 
-/* for the purpose of this functions, valid ports 
-    are those in PORT_MIN - PORT_MAX range */
-int is_valid_port(const char *string) {
+int is_valid_port(unsigned port) {
 
-    long n = str_to_uint(string);
-
-    if (n >= PORT_MIN && n <= PORT_MAX) {
-        return 1;
-    }
-    else {
-        return 0;
-    }  
+    return port >= PORT_MIN && port <= PORT_MAX;
+ 
 }

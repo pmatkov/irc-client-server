@@ -3,20 +3,31 @@
 
 #define MAX_TOKENS 5
 
-/* each IRC message is divided into three 
-    parts: the prefix, the body and the 
-    suffix. each of these parts may consist
-    of several tokens. IRC messages may be sent
-    by the client or the server */
+typedef void (*MessagePrefixFunc)(char *buffer, int size, void *arg);
+
+/* each IRC message is divided into three parts:
+    the prefix, the body and the suffix. each of
+    these parts may consist of several tokens */
+// typedef struct {
+//     const char *prefix[MAX_TOKENS];
+//     const char *body[MAX_TOKENS];
+//     const char *suffix[MAX_TOKENS];
+//     int multiWordSuffix;
+// } IRCMessageTokens;
+
 typedef struct {
-    const char *prefix[MAX_TOKENS];
     const char *body[MAX_TOKENS];
     const char *suffix[MAX_TOKENS];
-    int useLeadChar;
-} IRCMessageTokens;
+    int multiWordSuffix;
+    MessagePrefixFunc messagePrefixFunc;
+    void *funcArg;
+} IRCMessage;
+
 
 /* construct IRC message from the tokens and 
-    save to buffer */
-void create_irc_message(char *buffer, int size, IRCMessageTokens *ircMesageTokens);
+    save it to the buffer */
+// void create_irc_message(char *buffer, int size, IRCMessageTokens *ircMessageTokens);
+
+void create_irc_message(char *buffer, int size, IRCMessage *ircMessage);
 
 #endif

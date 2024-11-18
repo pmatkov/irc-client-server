@@ -26,31 +26,27 @@
 #define COMMAND_HISTORY 10
 
 #define CRLF_LEN 2
-#define LEAD_CHAR_LEN 1
 
 STATIC void display_command_text(LineEditor *lnEditor, RegMessage *message);
 
 #ifndef TEST
 
-/* a LnEditorCmd operates on the text and the
-    cursor in the "input window". each line editor 
-    command is mapped to a function that 
-    performs the desired line editor action */
-
+/* a LnEditorCmd edits the text and the cursor in the
+    "input window". each line editor command is mapped
+    to the function that performs the desired line 
+    editor action */
 struct LnEditorCmd {
     int keyCode;
     LnEditorFunc lnEditorFunc;
 };
 
-/* a line editor is implemented as a circular
-    buffer with a queue data structure. it stores
-    text input and commands (input text is considered
-    a command if it's passed to the command parser).
-    the editor also tracks cursor position and 
-    character count of the input text */
+/* the line editor uses a queue data structure to save
+    command history. the queue is implemented as circular
+    array and only a limited number of commands can be 
+    saved */
 struct LineEditor {
     WINDOW *window;
-    Queue *buffer;
+    Queue *cmdQueue;
     int cursor;
     int charCount;
 };
@@ -72,10 +68,10 @@ LineEditor * create_line_editor(WINDOW *window) {
 
     LineEditor *lnEditor = (LineEditor *) malloc(sizeof(LineEditor));
     if (lnEditor == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
-    lnEditor->buffer = create_queue(COMMAND_HISTORY, sizeof(RegMessage));
+    lnEditor->cmdQueue = create_queue(COMMAND_HISTORY, sizeof(RegMessage));
     lnEditor->window = window;
     lnEditor->cursor = PROMPT_SIZE;
     lnEditor->charCount = 0;
@@ -86,7 +82,7 @@ LineEditor * create_line_editor(WINDOW *window) {
 void delete_line_editor(LineEditor *lnEditor) {
 
     if (lnEditor != NULL) {
-        delete_queue(lnEditor->buffer);
+        delete_queue(lnEditor->cmdQueue);
     }
     free(lnEditor);
 }
@@ -94,7 +90,7 @@ void delete_line_editor(LineEditor *lnEditor) {
 void move_cursor_left(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     if (lnEditor->cursor > PROMPT_SIZE) {
@@ -106,7 +102,7 @@ void move_cursor_left(LineEditor *lnEditor) {
 void move_cursor_right(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     if (lnEditor->cursor - PROMPT_SIZE < lnEditor->charCount) {
@@ -118,10 +114,10 @@ void move_cursor_right(LineEditor *lnEditor) {
 void delete_char(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    RegMessage *regMessage = get_current_item(lnEditor->buffer);
+    RegMessage *regMessage = get_current_item(lnEditor->cmdQueue);
     set_char_in_message(regMessage, '\0', lnEditor->cursor-PROMPT_SIZE, get_reg_message_content);
     --lnEditor->charCount;
 }
@@ -129,49 +125,49 @@ void delete_char(LineEditor *lnEditor) {
 void add_char(LineEditor *lnEditor, char ch) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    /* input is limited either by the column
-        count or the constant MAX_CHARS,
-        whichever number is lower */
+    /* a maximum number of chars that can be entered
+        in the "input window" is limited either by the
+        numbers of columns or MAX_CHARS, whichever
+        number is lower */
     int cols = get_wwidth(lnEditor->window);
 
-    if (lnEditor->cursor < cols && lnEditor->charCount + PROMPT_SIZE < cols && lnEditor->charCount < MAX_CHARS - CRLF_LEN - LEAD_CHAR_LEN) {
+    if (lnEditor->cursor < cols && lnEditor->charCount + PROMPT_SIZE < cols && lnEditor->charCount < MAX_CHARS - CRLF_LEN) {
 
-        /* depending on the cursor position, the 
-            chars in the buffer may be moved to 
-            accomodate an additonal char */
+        /* depending on the position of the cursor in the
+            "input window", already present chars may be moved 
+            to accomodate for the new char */
         char lastChPos = lnEditor->charCount + PROMPT_SIZE;
 
         for (int i = lastChPos; i > lnEditor->cursor; i--) {
 
-            /* mvwinch retrieves char from the 
-                window at position y, x */
+            /* mvwinch retrieves char from the window at 
+                position y, x */
             char shiftCh = mvwinch(lnEditor->window, 0, i - 1);
             mvwaddch(lnEditor->window, 0, i, shiftCh);
 
-            /* RegMessage is a string container */
-            RegMessage *regMessage = get_current_item(lnEditor->buffer);
+            /* RegMessage is used as string a container */
+            RegMessage *regMessage = get_current_item(lnEditor->cmdQueue);
             char ch = get_char_from_message(regMessage, i-PROMPT_SIZE-1, get_reg_message_content);
             set_char_in_message(regMessage, ch, i-PROMPT_SIZE, get_reg_message_content);
 
         }
         mvwaddch(lnEditor->window, 0, lnEditor->cursor, ch);   
 
-        RegMessage *regMessage = get_current_item(lnEditor->buffer);
+        RegMessage *regMessage = get_current_item(lnEditor->cmdQueue);
         set_char_in_message(regMessage, ch, lnEditor->cursor-PROMPT_SIZE, get_reg_message_content);
 
         lnEditor->charCount++;        
         lnEditor->cursor++;  
-
     }
 }
 
 void use_backspace(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     if (lnEditor->cursor > PROMPT_SIZE) {
@@ -187,7 +183,7 @@ void use_backspace(LineEditor *lnEditor) {
 void use_delete(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     if (lnEditor->cursor - PROMPT_SIZE < lnEditor->charCount) {
@@ -200,7 +196,7 @@ void use_delete(LineEditor *lnEditor) {
 void use_home(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
     wmove(lnEditor->window, 0, PROMPT_SIZE);
 
@@ -209,7 +205,7 @@ void use_home(LineEditor *lnEditor) {
 void use_end(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
     wmove(lnEditor->window, 0, lnEditor->charCount + PROMPT_SIZE);
 }
@@ -217,30 +213,30 @@ void use_end(LineEditor *lnEditor) {
 void display_current_command(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    RegMessage *message = get_current_item(lnEditor->buffer);
+    RegMessage *message = get_current_item(lnEditor->cmdQueue);
     display_command_text(lnEditor, message);
 }
 
 void display_previous_command(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    RegMessage *message = get_previous_item(lnEditor->buffer);
+    RegMessage *message = get_previous_item(lnEditor->cmdQueue);
     display_command_text(lnEditor, message);
 }
 
 void display_next_command(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    RegMessage *message = get_next_item(lnEditor->buffer);
+    RegMessage *message = get_next_item(lnEditor->cmdQueue);
     display_command_text(lnEditor, message);
 }
 
@@ -272,7 +268,7 @@ int get_le_func_index(int keyCode) {
 STATIC void display_command_text(LineEditor *lnEditor, RegMessage *message) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     if (message != NULL) {
@@ -291,25 +287,25 @@ STATIC void display_command_text(LineEditor *lnEditor, RegMessage *message) {
 WINDOW * le_get_window(LineEditor *lnEditor) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return lnEditor->window;
 }
 
-Queue * le_get_buffer(LineEditor *lnEditor) {
+Queue * le_get_cmd_queue(LineEditor *lnEditor) {
     
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    return lnEditor->buffer;
+    return lnEditor->cmdQueue;
 }
 
 int le_get_char_count(LineEditor *lnEditor) {
     
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return lnEditor->charCount;
@@ -318,7 +314,7 @@ int le_get_char_count(LineEditor *lnEditor) {
 void le_set_char_count(LineEditor *lnEditor, int charCount) {
 
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     lnEditor->charCount = charCount;
@@ -327,7 +323,7 @@ void le_set_char_count(LineEditor *lnEditor, int charCount) {
 int le_get_cursor(LineEditor *lnEditor) {
     
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return lnEditor->cursor;
@@ -336,7 +332,7 @@ int le_get_cursor(LineEditor *lnEditor) {
 void le_set_cursor(LineEditor *lnEditor, int cursor) {
     
     if (lnEditor == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     lnEditor->cursor = cursor;

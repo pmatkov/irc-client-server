@@ -32,12 +32,12 @@ STATIC void delete_backing_store(BackingStore *backingStore, BackingType backing
 UIWindow * create_ui_window(WINDOW *window, void *backingItem, BackingType backingType) {
 
     if (backingItem != NULL && backingType == NO_BACKING) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     UIWindow *uiWindow = (UIWindow *) malloc(sizeof(UIWindow));
     if (uiWindow == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
     uiWindow->window = window;
     uiWindow->backingStore = create_backing_store(backingItem, backingType);
@@ -61,7 +61,7 @@ void delete_ui_window(UIWindow *uiWindow) {
 STATIC BackingStore * create_backing_store(void *backingItem, BackingType backingType) {
 
     if (backingItem != NULL && backingType == NO_BACKING) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     BackingStore *backingStore = NULL;
@@ -70,7 +70,7 @@ STATIC BackingStore * create_backing_store(void *backingItem, BackingType backin
 
         backingStore = (BackingStore *) malloc(sizeof(BackingStore));
         if (backingStore == NULL) {
-            FAILED("Error allocating memory", NO_ERRCODE);
+            FAILED(NO_ERRCODE, "Error allocating memory");
         }
 
         if (backingType == SCROLLBACK) {
@@ -100,7 +100,7 @@ STATIC void delete_backing_store(BackingStore *backingStore, BackingType backing
 WINDOW * get_window(UIWindow *uiWindow) {
 
     if (uiWindow == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return uiWindow->window;
@@ -109,7 +109,7 @@ WINDOW * get_window(UIWindow *uiWindow) {
 Scrollback * get_scrollback(UIWindow *uiWindow) {
 
     if (uiWindow == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
     Scrollback *scrollback = NULL;
 
@@ -122,7 +122,7 @@ Scrollback * get_scrollback(UIWindow *uiWindow) {
 LineEditor * get_line_editor(UIWindow *uiWindow) {
 
     if (uiWindow == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     LineEditor *lnEditor = NULL;

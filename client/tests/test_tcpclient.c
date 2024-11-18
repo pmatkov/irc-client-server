@@ -6,7 +6,7 @@
 #include <poll.h>
 
 #define DEFAULT_ADDRESS "localhost"
-#define DEFAULT_PORT "50100"
+#define DEFAULT_PORT 50100
 #define SOCKET_FD_INDEX 1
 
 START_TEST(test_create_client) {
@@ -15,7 +15,7 @@ START_TEST(test_create_client) {
 
     ck_assert_ptr_ne(tcpClient, NULL);
     ck_assert_ptr_ne(tcpClient->pfds, NULL);
-    ck_assert_str_eq(tcpClient->serverName, "");
+    ck_assert_str_eq(tcpClient->servername, "");
     ck_assert_str_eq(tcpClient->inBuffer, "");
     ck_assert_ptr_ne(tcpClient->msgQueue, NULL);
 
@@ -32,7 +32,7 @@ START_TEST(test_client_connect) {
     int status = client_connect(tcpClient, DEFAULT_ADDRESS, DEFAULT_PORT);
 
     ck_assert_int_eq(status, 0);
-    ck_assert_str_eq(tcpClient->serverName, DEFAULT_ADDRESS);
+    ck_assert_str_eq(tcpClient->servername, DEFAULT_ADDRESS);
     ck_assert_int_eq(tcpClient->pfds[SOCKET_FD_INDEX].fd, get_mock_fd());
 
     delete_client(tcpClient);
@@ -59,30 +59,29 @@ START_TEST(test_client_read) {
     char input1[MAX_CHARS + 1] = "This is a";
 
     set_mock_fd(1);
-    set_mock_len(strlen(input1));
     set_mock_buffer(input1);
+    set_mock_buffer_size(strlen(input1));
 
     TCPClient *tcpClient = create_client();
     set_fd(tcpClient, SOCKET_FD_INDEX, get_mock_fd());
 
-    int fullRead = client_read(tcpClient);
+    int readStatus = client_read(tcpClient);
 
-    ck_assert_int_eq(fullRead, 0);
+    ck_assert_int_eq(readStatus, 0);
     ck_assert_str_eq(input1, tcpClient->inBuffer);
 
     char input2[] = " full sentence\r\n";
-    set_mock_len(strlen(input2));
+    set_mock_buffer_size(strlen(input2));
     set_mock_buffer(input2);
 
-    fullRead = client_read(tcpClient);
+    readStatus = client_read(tcpClient);
 
-    ck_assert_int_eq(fullRead, 1);
-    ck_assert_str_eq(strcat(input1, input2), tcpClient->inBuffer);
+    ck_assert_int_eq(readStatus, 1);
+    ck_assert_str_eq(strncat(input1, input2, strlen(input2)), tcpClient->inBuffer);
 
     delete_client(tcpClient);
 }
 END_TEST
-
 
 START_TEST(test_client_write) {
 
@@ -90,21 +89,22 @@ START_TEST(test_client_write) {
     char output[MAX_CHARS + 1] = {'\0'};
 
     set_mock_fd(5);
-    set_mock_len(5);
+    set_mock_buffer_size(ARR_SIZE(output));
     set_mock_buffer(output);
 
-    crlf_terminate(input, MAX_CHARS + 1, "This is a full sentence");
+    terminate_string(input, ARR_SIZE(input), "This is a full sentence", CRLF);
 
     TCPClient *tcpClient = create_client();
 
-    client_write(input, get_mock_fd());
+    client_write(tcpClient, get_mock_fd(), input);
 
     ck_assert_str_eq(input, output);
-    ck_assert_int_eq(is_crlf_terminated(output), 1);
+    ck_assert_int_eq(is_terminated(output, CRLF), 1);
 
     delete_client(tcpClient);
 }
 END_TEST
+
 
 START_TEST(test_add_remove_message_from_client_queue) {
 
@@ -129,8 +129,8 @@ START_TEST(test_get_set_client_values) {
 
     ck_assert_ptr_ne(get_fds(tcpClient), NULL);
 
-    set_server_name(tcpClient, "irc.example.com");
-    ck_assert_str_eq(get_server_name(tcpClient), "irc.example.com");
+    set_servername(tcpClient, "irc.example.com");
+    ck_assert_str_eq(get_servername(tcpClient), "irc.example.com");
 
     safe_copy(tcpClient->inBuffer, sizeof(tcpClient->inBuffer), "message");
     ck_assert_str_eq(get_client_inbuffer(tcpClient), "message");

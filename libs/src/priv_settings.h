@@ -4,26 +4,21 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
-#include "priv_lookup_table.h"
-
-typedef enum {
-    INT_TYPE,
-    CHAR_TYPE,
-    UNKNOWN_DATA_TYPE,
-    DATA_TYPE_COUNT
-} DataType;
+#include "data_type.h"
+#include "string_utils.h"
 
 typedef struct {
     DataType dataType;
-    Pair *pair;
+    int optionType;
+    const char *label;
     union {
-        const char *charValue;
+        char charValue[MAX_CHARS + 1];
         int intValue;
     };
-} Property;
+} Option;
 
 typedef struct {
-    Property *properties;
+    Option *options;
     int capacity;
     int count;
 } Settings;
@@ -31,26 +26,33 @@ typedef struct {
 Settings * create_settings(int capacity);
 void delete_settings(Settings *settings);
 
-void register_property(DataType dataType, Pair *pair, const void *value);
+void register_option(DataType dataType, int optionType, const char *label, void *value);
+void unregister_option(int optionType);
 
-const void * get_property_value(int propertyType);
-void set_property_value(int propertyType, const void *value);
+void reset_option(int optionType);
 
-DataType get_property_data_type(int propertyType);
+void * get_option_value(int optionType);
+void set_option_value(int optionType, void *value);
 
-int is_property_registered(int propertyType);
-int is_valid_property(int propertyType);
+int get_int_option_value(int optionType);
+char * get_char_option_value(int optionType);
 
-void read_settings(LookupTable *lookupTable, const char *fileName);
+DataType get_option_data_type(int optionType);
+const char * get_option_label(int optionType);
+
+int is_option_registered(int optionType);
+int is_valid_option_type(int optionType);
+
+void read_settings(const char *fileName);
 void write_settings(const char *fileName);
 
 int get_settings_capacity(void);
-const char * get_property_label(int propertyType);
 
 #ifdef TEST
 
-void read_property_string(LookupTable *lookupTable, char *buffer);
-void create_property_string(char *buffer, int size, Property *property);
+int label_to_option_type(const char *label);
+void read_option_string(char *buffer);
+void create_option_string(char *buffer, int size, Option *option);
 
 #endif
 

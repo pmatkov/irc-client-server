@@ -1,3 +1,7 @@
+#define _XOPEN_SOURCE 700
+/* --INTERNAL HEADER--
+   used for testing */
+   
 #ifndef H_SESSION
 #define H_SESSION
 
@@ -6,7 +10,15 @@
 #include "../../libs/src/priv_hash_table.h"
 #include "../../libs/src/priv_linked_list.h"
 
+#include <pthread.h>
+
 #define LOAD_FACTOR 2.0
+
+#define START_USERS 500
+#define START_CHANNELS 50
+
+#define MAX_USERS START_USERS * LOAD_FACTOR
+#define MAX_CHANNELS START_CHANNELS * LOAD_FACTOR
 
 typedef void (*IteratorFunc)(void *data, void *arg);
 
@@ -39,6 +51,10 @@ typedef struct {
     int usersCount;
     int channelsCapacity;
     int channelsCount;
+    pthread_rwlock_t usersLock;
+    pthread_rwlock_t channelsLock;
+    pthread_rwlock_t usersCountLock;
+    pthread_rwlock_t channelsCountLock;
 } Session;
 
 Session * create_session(void);
@@ -55,8 +71,8 @@ void change_user_in_hash_table(Session *session, User *oldUser, User *newUser);
 ReadyList * create_ready_list(void);
 void delete_ready_list(ReadyList *readyList);
 
-void add_user_to_ready_users(void *user, void *readyList);
-void add_channel_to_ready_channels(void *channel, void *readyList);
+void add_user_to_ready_list(void *user, void *readyList);
+void add_channel_to_ready_list(void *channel, void *readyList);
 
 UserChannels * create_user_channels(User *user);
 ChannelUsers * create_channel_users(Channel *channel);
@@ -82,6 +98,11 @@ void remove_user_in_channel_users(ChannelUsers *channelUsers, User *user);
 void change_user_in_user_channels(UserChannels *userChannels, User *user);
 void change_user_in_channel_users(void *channelUsers, void *user);
 
+void register_user(Session *session, User *user);
+void register_new_channel_join(Session *session, Channel *channel, User *user);
+void register_existing_channel_join(Session *session, Channel *channel, User *user);
+void register_channel_leave(Session *session, Channel *channel, User *user);
+
 void find_removable_channels(void *channel, void *arg);
 
 int is_channel_full(ChannelUsers *channelUsers);
@@ -97,7 +118,7 @@ LinkedList * get_channels_from_user_channels(UserChannels *userChannels);
 LinkedList * get_users_from_channel_users(ChannelUsers *channelUsers);
 
 LinkedList * get_channel_users_ll(Session *session);
-int get_users_count_from_channel_users(ChannelUsers *channelUsers);
+int get_channel_users_count(ChannelUsers *channelUsers);
 
 #ifdef TEST
 

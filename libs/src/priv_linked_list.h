@@ -6,7 +6,7 @@
 
 typedef int (*ComparatorFunc)(void *data1, void *data2);
 typedef void (*DeleteDataFunc)(void *data);
-typedef void (*IteratorFunc)(void *data, void *arg);
+typedef void (*LinkedListFunc)(void *data, void *arg);
 
 typedef struct Node {
     void *data;
@@ -31,7 +31,7 @@ void append_node(LinkedList *linkedList, Node *node);
 int remove_node(LinkedList *linkedList, void *data);
 Node * find_node(LinkedList *linkedList, void *data);
 
-void iterate_list(LinkedList *linkedList, IteratorFunc iteratorFunc, void *arg);
+void iterate_list(LinkedList *linkedList, LinkedListFunc iteratorFunc, void *arg);
 
 void * get_data(Node *node);
 void set_data(Node *node, void *data);

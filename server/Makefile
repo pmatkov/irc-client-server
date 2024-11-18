@@ -1,7 +1,10 @@
 # Makefile
 CC = gcc
 CFLAGS = -g -Wall
-LDFLAGS = -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB))
+TEST_CFLAGS = $(CFLAGS) -DTEST
+
+LDFLAGS = -lpthread -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB))
+TEST_LDFLAGS = -lcheck -lm -lpthread -lrt -lsubunit -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB_TEST) $(LIB_MOCK)) -lncursesw
 
 SRCDIR = src
 OBJDIR = obj
@@ -12,22 +15,18 @@ LIBDIR = ../libs/bin
 EXCLUDE_SRCS = 
 SRCS = $(filter-out $(EXCLUDE_SRCS), $(wildcard $(SRCDIR)/*.c))
 OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
+BIN = $(BINDIR)/server
 
 EXCLUDE_TEST_SRCS =
 TEST_SRCS = $(filter-out $(EXCLUDE_TEST_SRCS), $(wildcard $(TESTDIR)/*.c))
 TEST_OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%_test.o, $(SRCS))
+TEST_BINS = $(patsubst $(TESTDIR)/%.c, $(TESTDIR)/bin/%, $(TEST_SRCS))
 
 DEPS = $(OBJS:.o=.d)
 
 LIB = $(LIBDIR)/libcommon.a
 LIB_TEST = $(LIBDIR)/libtest.a
 LIB_MOCK = $(LIBDIR)/libmock.a
-
-BIN = $(BINDIR)/server
-TBINS = $(patsubst $(TESTDIR)/%.c, $(TESTDIR)/bin/%, $(TEST_SRCS))
-
-TEST_CFLAGS = $(CFLAGS) -DTEST
-TEST_LDFLAGS = -lcheck -lm -lpthread -lrt -lsubunit -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB_TEST) $(LIB_MOCK)) -lncursesw
 
 all: $(BIN)
 
@@ -45,8 +44,8 @@ $(OBJDIR)/%_test.o: $(SRCDIR)/%.c
 
 -include $(DEPS)
 
-test: $(TBINS)
-	for test in $(TBINS); do ./$$test; done
+test: $(TEST_BINS)
+	for test in $(TEST_BINS); do ./$$test; done
 
 $(TESTDIR)/bin/%: $(TESTDIR)/%.c $(TEST_OBJS) $(LIB_TEST) $(LIB_MOCK)
 	$(CC) $(TEST_CFLAGS) $< $(TEST_OBJS) -o $@ $(TEST_LDFLAGS)

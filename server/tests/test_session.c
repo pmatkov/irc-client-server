@@ -1,18 +1,13 @@
+#ifndef TEST
+#define TEST
+#endif
+
 #include "../src/priv_session.h"
 #include "../src/priv_user.h"
 #include "../src/priv_channel.h"
 #include "../../libs/src/priv_linked_list.h"
 
 #include <check.h>
-
-#define START_USERS 500
-#define START_CHANNELS 50
-
-#define MAX_USERS START_USERS * LOAD_FACTOR
-#define MAX_CHANNELS START_CHANNELS * LOAD_FACTOR
-
-#define MAX_CHANNELS_PER_USER 5
-#define MAX_USERS_PER_CHANNEL 100
 
 START_TEST(test_create_session) {
 
@@ -118,15 +113,15 @@ START_TEST(test_create_ready_list) {
 }
 END_TEST
 
-START_TEST(test_add_user_to_ready_users) {
+START_TEST(test_add_user_to_ready_list) {
 
     ReadyList *readyList = create_ready_list();
     User *user = create_user("john", NULL, NULL, NULL, 0);
 
-    add_user_to_ready_users(user, readyList);
+    add_user_to_ready_list(user, readyList);
     ck_assert_int_eq(readyList->readyUsers->count, 1);
 
-    add_user_to_ready_users(user, readyList);
+    add_user_to_ready_list(user, readyList);
     ck_assert_int_eq(readyList->readyUsers->count, 1);
 
     delete_user(user);
@@ -134,15 +129,15 @@ START_TEST(test_add_user_to_ready_users) {
 }
 END_TEST
 
-START_TEST(test_add_channel_to_ready_channels) {
+START_TEST(test_add_channel_to_ready_list) {
 
     ReadyList *readyList = create_ready_list();
     Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
 
-    add_channel_to_ready_channels(channel, readyList);
+    add_channel_to_ready_list(channel, readyList);
     ck_assert_int_eq(readyList->readyChannels->count, 1);
 
-    add_channel_to_ready_channels(channel, readyList);
+    add_channel_to_ready_list(channel, readyList);
     ck_assert_int_eq(readyList->readyChannels->count, 1);
 
     delete_channel(channel);
@@ -414,8 +409,8 @@ Suite* session_suite(void) {
     tcase_add_test(tc_core, test_find_user_in_hash_table);
     tcase_add_test(tc_core, test_change_user_in_hash_table);    
     tcase_add_test(tc_core, test_create_ready_list);
-    tcase_add_test(tc_core, test_add_user_to_ready_users);
-    tcase_add_test(tc_core, test_add_channel_to_ready_channels);
+    tcase_add_test(tc_core, test_add_user_to_ready_list);
+    tcase_add_test(tc_core, test_add_channel_to_ready_list);
     tcase_add_test(tc_core, test_create_user_channels);
     tcase_add_test(tc_core, test_add_user_channels);
     tcase_add_test(tc_core, test_remove_user_channels);

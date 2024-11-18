@@ -6,16 +6,14 @@
 
 #include <ncursesw/curses.h>
 
-/* represents a map of scrollback commands 
-    and functions */
+/* a maps of scrollback commands and callbacks */
 typedef struct ScrollbackCmd ScrollbackCmd;
 
 /* a scrollback buffer stores visible text and 
     retains some off-screen text for later retrieval 
-    (depending on the scrollback size). the screen
-    in this context means the "chat window". 
+    (depending on the scrollback size)
     
-    the text can be scrolled in the following ways:
+    the text can be scrolled with the following keys:
     - CTRL + UP ARROW scrolls one row up,
     - CTRL + DOWN ARROW scrolls one row down,
     - PG_UP scrolls one screen up,
@@ -30,8 +28,7 @@ void delete_scrollback(Scrollback *scrollback);
 int is_scrollback_empty(Scrollback *scrollback);
 int is_scrollback_full(Scrollback *scrollback);
 
-/* save a line of text to the scrollback 
-    buffer */
+/* save a line of text to the scrollback buffer */
 void add_to_scrollback(Scrollback *scrollback, const cchar_t *string, int length);
 
 /* display a line of text from the scrollback 
@@ -40,13 +37,10 @@ void add_to_scrollback(Scrollback *scrollback, const cchar_t *string, int length
     the line is displayed at the lineWnd position */
 void print_from_scrollback(Scrollback *scrollback, int lineWnd, int lineSb);
 
-/* when the window is resized, the visible
-    part of the scrollback will be repainted
-    to adjust the displayed text to the new window 
-    size */
+/* reloads scrollback content on window resize  */
 void restore_from_scrollback(Scrollback *scrollback);
 
-/* below functions manipulate the visible part
+/* below functions adjust the visible part
     of the scrollback buffer */
 void scroll_line_up(Scrollback *scrollback);
 void scroll_line_down(Scrollback *scrollback);
@@ -56,8 +50,7 @@ void scroll_page_down(Scrollback *scrollback);
 ScrollbackFunc get_scrollback_function(int index);
 int get_sb_func_index(int keyCode);
 
-/* detects CTRL + arrow key combinations 
-    which are used for scrolling */
+/* detect CTRL + arrow key combinations */
 int remap_ctrl_key(int ch);
 
 WINDOW * get_scrollback_window(Scrollback *scrollback);

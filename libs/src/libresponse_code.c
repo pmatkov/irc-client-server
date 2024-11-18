@@ -5,22 +5,22 @@
 #include <string.h>
 #include <assert.h>
 
-/* a responseCode containse a response type,
-    a numeric code and a response message */
+/* a response code is identified by its response type,
+    numeric code and response message */
 struct ResponseCode {
     ResponseType responseType;
     const char *code;
     const char *message;
 };
 
-/* response code constants, numeric values and 
-    messages are defined by the IRC RFC standards */
+/* a list of response codes identifiers, numeric codes and 
+    response messages based on the IRC standard */
 static const ResponseCode RESPONSE_CODES[] = {
     {RPL_WELCOME, "001", "Welcome to the IRC Network"},
     {RPL_NOTOPIC, "331", "No topic is set"},
     {RPL_TOPIC, "332", ""},
     {RPL_NAMREPLY, "353", ""},
-    {RPL_ENDOFNAMES, "366", "End of NAMES list"},
+    {RPL_ENDOFNAMES, "366", "End of /NAMES list"},
     {ERR_NOSUCHNICK, "401", "No such nick"},
     {ERR_NOSUCHCHANNEL, "403", "No such channel"},
     {ERR_UNKNOWNCOMMAND, "421", "Unknown command"},

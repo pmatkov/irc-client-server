@@ -9,6 +9,14 @@
 #include "priv_line_editor.h"
 #include "../../libs/src/priv_command.h"
 
+#ifdef MAX_CHARS
+#undef MAX_CHARS
+#define MAX_CHARS 510
+#endif
+
+#define CRLF_LEN 2
+#define MAX_NICKNAME_LEN 9
+
 typedef void (*CommandFunc)(WindowManager *windowManager, TCPClient *tcpCLient, CommandTokens *cmdTokens);
 
 void parse_input(LineEditor *lnEditor, CommandTokens *cmdTokens);

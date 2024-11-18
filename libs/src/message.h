@@ -3,10 +3,10 @@
 
 #include "string_utils.h"
 
-
-
-
-
+/* a regular message is a container for the message 
+    content. besides this, an extended message may
+    store the information about the sender and the 
+    recipient */
 typedef enum {
     REGULAR_MSG,
     EXTENDED_MSG,

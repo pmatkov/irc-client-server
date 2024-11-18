@@ -19,6 +19,12 @@
 
 #ifndef TEST
 
+/* in addition to standard fields, this queue
+    also has a cursor that can change the 
+    position of the active item, apart from
+    the standard operations that occur at 
+    the front or rear of the queue */
+
 struct Queue {
     void *items;
     size_t itemSize;
@@ -35,12 +41,12 @@ Queue * create_queue(int capacity, size_t itemSize) {
 
     Queue *queue = (Queue*) malloc(sizeof(Queue));
     if (queue == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
     queue->items = (void*) malloc(capacity * itemSize);
     if (queue->items == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
     queue->itemSize = itemSize;
@@ -64,7 +70,7 @@ void delete_queue(Queue *queue) {
 int is_queue_empty(Queue *queue) {
 
     if (queue == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return queue->count == 0;
@@ -73,7 +79,7 @@ int is_queue_empty(Queue *queue) {
 int is_queue_full(Queue *queue) {
 
     if (queue == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return queue->count == queue->capacity;
@@ -82,7 +88,7 @@ int is_queue_full(Queue *queue) {
 void enqueue(Queue *queue, void *item) {
 
     if (queue == NULL || item == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     unsigned char *target = (unsigned char *)queue->items + queue->rear * queue->itemSize;
@@ -105,7 +111,7 @@ void enqueue(Queue *queue, void *item) {
 void * dequeue(Queue *queue) {
 
     if (queue == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     unsigned char *message = NULL;
@@ -122,10 +128,12 @@ void * dequeue(Queue *queue) {
 
 }
 
+/* get the previous item relative to the 
+    current item in the queue */
 void * get_previous_item(Queue *queue) {
 
     if (queue == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     unsigned char *message;
@@ -143,10 +151,12 @@ void * get_previous_item(Queue *queue) {
     return message;
 }
 
+/* get the next item relative to the 
+    current item in the queue */
 void * get_next_item(Queue *queue) {
 
     if (queue == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     unsigned char *item;
@@ -164,10 +174,13 @@ void * get_next_item(Queue *queue) {
     return item;
 }
 
+/* get the current item in the queue 
+    (defined by the value of the 
+    currentItem field) */
 void * get_current_item(Queue *queue) {
 
     if (queue == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return (unsigned char *)queue->items + queue->currentItem * queue->itemSize;

@@ -9,18 +9,18 @@
 #include <stdarg.h>
 #include <assert.h>
 
-/* lookup table for translation of error
-    codes to strings */
+/* translation of error codes to strings */
 static const char *ERRCODE_STRINGS[] = {
     "No error",
     "Invalid argument(s)",
+    "Invalid range",
     "Input/ output error",
     "Unknown error"
 };
 
-static_assert(ARR_SIZE(ERRCODE_STRINGS) == ERRCODE_COUNT, "Array size mismatch");
+static int stderrEnabled = 1;
 
-static int stderrAllowed = 1;
+static_assert(ARR_SIZE(ERRCODE_STRINGS) == ERRCODE_COUNT, "Array size mismatch");
 
 const char * get_error_code_string(ErrorCode errorCode) {
 
@@ -32,7 +32,7 @@ const char * get_error_code_string(ErrorCode errorCode) {
     return string;
 }
 
-void failed(const char *msg, ErrorCode errorCode, const char *function, const char *file, int line, ...) {
+void failed(ErrorCode errorCode, const char *msg, const char *function, const char *file, int line, ...) {
 
     /* save errno value */
     int errnosv = errno;
@@ -40,12 +40,11 @@ void failed(const char *msg, ErrorCode errorCode, const char *function, const ch
     va_list arglist;
     va_start(arglist, line);
 
-    /* log error message to file */
-    log_error(msg, errorCode, function, file, line, errnosv, arglist);
+    /* log error to the file */
+    log_error(errorCode, msg, function, file, line, errnosv, arglist);
 
-    /* display error message in the 
-        terminal */
-    if (stderrAllowed) {
+    /* display error in the terminal */
+    if (stderrEnabled) {
 
         if (msg != NULL) {
 
@@ -69,7 +68,13 @@ void failed(const char *msg, ErrorCode errorCode, const char *function, const ch
     exit(EXIT_FAILURE);
 }
 
-void set_stderr_allowed(int allowed) {
+int is_stderr_enabled(void) {
 
-    stderrAllowed = allowed;
+    return stderrEnabled;
 }
+
+void enable_stderr_logging(int allowed) {
+
+    stderrEnabled = allowed;
+}
+

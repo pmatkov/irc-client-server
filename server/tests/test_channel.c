@@ -16,14 +16,14 @@ START_TEST(test_create_channel) {
 }
 END_TEST
 
-START_TEST(test_add_remove_message_from_channel_queue) {
+START_TEST(test_enqueue_dequeue_channel) {
 
     Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
 
-    add_message_to_channel_queue(channel, "message");
+    enqueue_to_channel_queue(channel, "message");
     ck_assert_int_eq(channel->outQueue->count, 1);
 
-    RegMessage *message = remove_message_from_channel_queue(channel);
+    RegMessage *message = dequeue_from_channel_queue(channel);
     ck_assert_int_eq(channel->outQueue->count, 0);
 
     ck_assert_str_eq(get_reg_message_content(message), "message");
@@ -45,31 +45,15 @@ START_TEST(test_are_channels_equal) {
 }
 END_TEST
 
-START_TEST(test_get_channel_type) {
+START_TEST(test_get_channel_data) {
 
     Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
 
     ChannelType type = get_channel_type(channel);
     ck_assert_int_eq(type, TEMPORARY);
 
-    delete_channel(channel);
-}
-END_TEST
-
-START_TEST(test_get_channel_name) {
-
-    Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
-
     const char *channelName = get_channel_name(channel);
     ck_assert_str_eq(channelName, "#general");
-
-    delete_channel(channel);
-}
-END_TEST
-
-START_TEST(test_get_channel_queue) {
-
-    Channel *channel = create_channel("#general", NULL, TEMPORARY, MAX_USERS_PER_CHANNEL);
 
     Queue *queue = get_channel_queue(channel);
     ck_assert_ptr_ne(queue, NULL);
@@ -87,11 +71,9 @@ Suite* channel_suite(void) {
 
     // Add the test case to the test suite
     tcase_add_test(tc_core, test_create_channel);
-    tcase_add_test(tc_core, test_add_remove_message_from_channel_queue);
+    tcase_add_test(tc_core, test_enqueue_dequeue_channel);
     tcase_add_test(tc_core, test_are_channels_equal);
-    tcase_add_test(tc_core, test_get_channel_type);
-    tcase_add_test(tc_core, test_get_channel_name);
-    tcase_add_test(tc_core, test_get_channel_queue);
+    tcase_add_test(tc_core, test_get_channel_data);
     
     suite_add_tcase(s, tc_core);
 

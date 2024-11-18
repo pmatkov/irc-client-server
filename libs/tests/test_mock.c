@@ -14,7 +14,7 @@ START_TEST(test_mock_read) {
     char buffer[MAX_CHARS + 1] = {'\0'};
 
     set_mock_buffer(input);
-    set_mock_len(sizeof(buffer));
+    set_mock_buffer_size(sizeof(buffer));
     set_mock_fd(1);
 
     int bytesRead = mock_read(get_mock_fd(), buffer, strlen(input));
@@ -30,7 +30,7 @@ START_TEST(test_mock_write) {
     char buffer[MAX_CHARS + 1] = {'\0'};
 
     set_mock_buffer(buffer);
-    set_mock_len(sizeof(buffer));
+    set_mock_buffer_size(sizeof(buffer));
     set_mock_fd(1);
 
     int bytesWritten = mock_write(get_mock_fd(), input, strlen(input));
@@ -85,9 +85,11 @@ START_TEST(test_mock_accept) {
 }
 END_TEST
 
-START_TEST(test_mock_get_local_ip_address) {
+START_TEST(test_mock_get_address) {
 
     char buffer[INET_ADDRSTRLEN] = {'\0'};
+    int port;
+
     struct sockaddr_in sa;
 
     memset((struct sockaddr_in *) &sa, 0, sizeof(struct sockaddr_in));
@@ -97,9 +99,10 @@ START_TEST(test_mock_get_local_ip_address) {
 
     set_mock_sockaddr(&sa);
 
-    mock_get_local_ip_address(buffer, sizeof(buffer), 0);
+    mock_get_address(buffer, sizeof(buffer), &port, 0);
 
     ck_assert_str_eq(buffer, "127.0.0.1");
+    ck_assert_int_eq(port, 50100);
 }
 END_TEST
 
@@ -131,7 +134,7 @@ Suite* mocks_suite(void) {
     tcase_add_test(tc_core, test_mock_socket);
     tcase_add_test(tc_core, test_mock_connect);
     tcase_add_test(tc_core, test_mock_accept);
-    tcase_add_test(tc_core, test_mock_get_local_ip_address);
+    tcase_add_test(tc_core, test_mock_get_address);
     tcase_add_test(tc_core, test_mock_initscr);
 
     suite_add_tcase(s, tc_core);

@@ -2,14 +2,17 @@
 
 #include <check.h>
 
-#define MAX_LINES 25
+#define DEFAULT_LOG_FREQUENCY 20
 
 START_TEST(test_create_logger) {
 
     Logger *logger = create_logger(NULL, "test", DEBUG);
 
     ck_assert_ptr_ne(logger, NULL);
-    ck_assert_int_eq(logger->capacity, MAX_LINES);
+    ck_assert_int_eq(logger->logLevel, DEBUG);
+    ck_assert_int_eq(logger->logFrequency, 1);
+    ck_assert_int_eq(logger->stdoutEnabled, 1);
+    ck_assert_int_eq(logger->capacity, DEFAULT_LOG_FREQUENCY);
     ck_assert_int_eq(logger->count, 0);
 
     delete_logger(logger);
@@ -34,7 +37,7 @@ START_TEST(test_log_message) {
     log_message(INFO, "Test message", __func__, __FILE__, __LINE__);
     log_message(INFO, "Test message from: %s", __func__, __FILE__, __LINE__, "john");
 
-    ck_assert_int_eq(logger->count, 2);
+    ck_assert_int_eq(logger->count, 0);
 
     delete_logger(logger);
 
@@ -47,22 +50,21 @@ START_TEST(test_log_error) {
 
     ck_assert_ptr_ne(logger, NULL);
 
-    log_error("Error message", NO_ERRCODE, __func__, __FILE__, __LINE__, 0);
-    log_error(NULL, ARG_ERROR, __func__, __FILE__, __LINE__, 0);
-    ck_assert_int_eq(logger->count, 2);
+    log_error(NO_ERRCODE, "Error message", __func__, __FILE__, __LINE__, 0);
+    log_error(ARG_ERROR, NULL, __func__, __FILE__, __LINE__, 0);
+    ck_assert_int_eq(logger->count, 0);
 
     delete_logger(logger);
 
 }
 END_TEST
 
-START_TEST(test_set_stdout_allowed) {
+START_TEST(test_set_streams) {
 
     Logger *logger = create_logger(NULL, "test", DEBUG);
 
-    set_stdout_allowed(1);
-
-    ck_assert_int_eq(logger->stdoutAllowed, 1);
+    enable_stdout_logging(1);
+    ck_assert_int_eq(logger->stdoutEnabled, 1);
     
     delete_logger(logger);
 }
@@ -104,7 +106,7 @@ Suite* logger_suite(void) {
     tcase_add_test(tc_core, test_open_log_file);
     tcase_add_test(tc_core, test_log_message);
     tcase_add_test(tc_core, test_log_error);
-    tcase_add_test(tc_core, test_set_stdout_allowed);
+    tcase_add_test(tc_core, test_set_streams);
     tcase_add_test(tc_core, test_is_valid_log_level);
     tcase_add_test(tc_core, test_log_level_to_string);
     tcase_add_test(tc_core, test_string_to_log_level);

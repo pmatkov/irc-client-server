@@ -10,7 +10,6 @@
 #include "../../libs/src/priv_command.h"
 #include "../../libs/src/priv_message.h"
 #include "../../libs/src/priv_settings.h"
-#include "../../libs/src/priv_lookup_table.h"
 #include "../../libs/src/string_utils.h"
 #include "../../libs/src/mock.h"
 
@@ -21,33 +20,25 @@
 #define PROMPT_SIZE 2
 #define SOCKET_FD_INDEX 1
 
-static LookupTable *lookupTable;
-static Settings *settings;
-static TCPClient *tcpClient;
-static CommandTokens *cmdTokens;
+static Settings *settings = NULL;
+static TCPClient *tcpClient = NULL;
+static CommandTokens *cmdTokens = NULL;
 
 static void initialize_test_suite(void) {
 
-    int keys[] = {CP_NICKNAME, CP_USERNAME, CP_REALNAME, CP_ADDRESS, CP_PORT};
-    const char *values[] = {"nickname", "username", "realname", "address", "port"};
-    static_assert(ARR_SIZE(keys) == ARR_SIZE(values), "Array size mismatch");
-
-    lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
-    settings = create_settings(ARR_SIZE(keys));
-
-    initialize_settings(settings, lookupTable);
+    settings = create_settings(CLIENT_OT_COUNT);
+    initialize_client_settings();
 }
 
 static void cleanup_test_suite(void) {
 
     delete_settings(settings);
-    delete_lookup_table(lookupTable);
 }
 
 static void initialize_test(void) {
 
     tcpClient = create_client();
-    cmdTokens = create_command_tokens();
+    cmdTokens = create_command_tokens(1);
 }
 
 static void cleanup_test(void) {
@@ -59,11 +50,11 @@ static void cleanup_test(void) {
 static void set_message(LineEditor *lnEditor, const char *content) {
 
     RegMessage *message = create_reg_message(content);
-    enqueue(lnEditor->buffer, message);
+    enqueue(lnEditor->cmdQueue, message);
 
     lnEditor->cursor = PROMPT_SIZE + strlen(content);
     lnEditor->charCount = strlen(content);
-    lnEditor->buffer->currentItem--;
+    lnEditor->cmdQueue->currentItem--;
 
     delete_message(message);
 }
@@ -96,7 +87,7 @@ static void execute_command(TCPClient *tcpClient, CommandTokens *cmdTokens, Comm
 START_TEST(test_parse_input) {
 
     LineEditor *lnEditor = create_line_editor(NULL);
-    CommandTokens *cmdTokens = create_command_tokens();
+    CommandTokens *cmdTokens = create_command_tokens(1);
 
     char *content = "/PRIVMSG #general hello";
 
@@ -158,11 +149,11 @@ START_TEST(test_cmd_connect) {
     set_mock_sockaddr(&sa);
 
     execute_command(tcpClient, cmdTokens, get_command_function(CONNECT), "/CONNECT");
-    RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
-    ck_assert_str_eq(get_reg_message_content(regMessage), "NICK pmatkov");
-    regMessage = remove_message_from_client_queue(tcpClient);
-    ck_assert_str_eq(get_reg_message_content(regMessage), "USER pmatkov 127.0.0.1 * :anonymous");
-    reset_cmd_tokens(cmdTokens);
+    char *message = remove_message_from_client_queue(tcpClient);
+    ck_assert_str_eq(message, "NICK pmatkov");
+    message = remove_message_from_client_queue(tcpClient);
+    ck_assert_str_eq(message, "USER pmatkov 127.0.0.1 * :anonymous");
+    reset_command_tokens(cmdTokens);
 
     cleanup_test();
 
@@ -176,9 +167,9 @@ START_TEST(test_cmd_disconnect) {
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
     execute_command(tcpClient, cmdTokens, get_command_function(DISCONNECT), "/DISCONNECT see you tomorrow again");
-    RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
-    ck_assert_str_eq(get_reg_message_content(regMessage), "DISCONNECT :see you tomorrow again");
-    reset_cmd_tokens(cmdTokens);
+    char *message = remove_message_from_client_queue(tcpClient);
+    ck_assert_str_eq(message, "DISCONNECT :see you tomorrow again");
+    reset_command_tokens(cmdTokens);
 
     cleanup_test();
 
@@ -192,10 +183,10 @@ START_TEST(test_cmd_nick) {
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
     execute_command(tcpClient, cmdTokens, get_command_function(NICK), "/NICK john");
-    RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
-    ck_assert_str_eq(get_reg_message_content(regMessage), "NICK john");
-    ck_assert_str_eq(get_property_value(CP_NICKNAME), "john");
-    reset_cmd_tokens(cmdTokens);
+    char *message = remove_message_from_client_queue(tcpClient);
+    ck_assert_str_eq(message, "NICK john");
+    ck_assert_str_eq(get_char_option_value(OT_NICKNAME), "john");
+    reset_command_tokens(cmdTokens);
 
     cleanup_test();
 
@@ -209,12 +200,12 @@ START_TEST(test_cmd_user) {
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
     execute_command(tcpClient, cmdTokens, get_command_function(USER), "/USER jjones");
-    ck_assert_str_eq(get_property_value(CP_USERNAME), "jjones");
+    ck_assert_str_eq(get_char_option_value(OT_USERNAME), "jjones");
 
     execute_command(tcpClient, cmdTokens, get_command_function(USER), "/USER jjones john jones");
-    ck_assert_str_eq(get_property_value(CP_USERNAME), "jjones");
-    ck_assert_str_eq(get_property_value(CP_REALNAME), "john jones");
-    reset_cmd_tokens(cmdTokens);
+    ck_assert_str_eq(get_char_option_value(OT_USERNAME), "jjones");
+    ck_assert_str_eq(get_char_option_value(OT_REALNAME), "john jones");
+    reset_command_tokens(cmdTokens);
 
     cleanup_test();
 
@@ -228,9 +219,9 @@ START_TEST(test_cmd_join) {
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
     execute_command(tcpClient, cmdTokens, get_command_function(JOIN), "/JOIN #general");
-    RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
-    ck_assert_str_eq(get_reg_message_content(regMessage), "JOIN #general");
-    reset_cmd_tokens(cmdTokens);
+    char *message = remove_message_from_client_queue(tcpClient);
+    ck_assert_str_eq(message, "JOIN #general");
+    reset_command_tokens(cmdTokens);
 
     cleanup_test();
 
@@ -244,13 +235,13 @@ START_TEST(test_cmd_part) {
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
     execute_command(tcpClient, cmdTokens, get_command_function(PART), "/PART #general");
-    RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
-    ck_assert_str_eq(get_reg_message_content(regMessage), "PART #general");
+    char *message = remove_message_from_client_queue(tcpClient);
+    ck_assert_str_eq(message, "PART #general");
 
     execute_command(tcpClient, cmdTokens, get_command_function(PART), "/PART #general see you tomorrow again");
-    regMessage = remove_message_from_client_queue(tcpClient);
-    ck_assert_str_eq(get_reg_message_content(regMessage), "PART #general :see you tomorrow again");
-    reset_cmd_tokens(cmdTokens);
+    message = remove_message_from_client_queue(tcpClient);
+    ck_assert_str_eq(message, "PART #general :see you tomorrow again");
+    reset_command_tokens(cmdTokens);
 
     cleanup_test();
 
@@ -264,10 +255,10 @@ START_TEST(test_cmd_privmsg) {
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
     execute_command(tcpClient, cmdTokens, get_command_function(PRIVMSG), "/PRIVMSG #general hello");
-    RegMessage *regMessage = remove_message_from_client_queue(tcpClient);
-    ck_assert_str_eq(get_reg_message_content(regMessage), "PRIVMSG #general :hello");
+    char *message = remove_message_from_client_queue(tcpClient);
+    ck_assert_str_eq(message, "PRIVMSG #general :hello");
 
-    reset_cmd_tokens(cmdTokens);
+    reset_command_tokens(cmdTokens);
 
     cleanup_test();
 
@@ -280,10 +271,10 @@ START_TEST(test_cmd_address) {
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
-    execute_command(tcpClient, cmdTokens, get_command_function(SERVER_ADDRESS), "/ADDRESS irc.freenode.net");
-    ck_assert_str_eq(get_property_value(CP_ADDRESS), "irc.freenode.net");
+    execute_command(tcpClient, cmdTokens, get_command_function(ADDRESS), "/ADDRESS irc.freenode.net");
+    ck_assert_str_eq(get_char_option_value(OT_SERVER_ADDRESS), "irc.freenode.net");
 
-    reset_cmd_tokens(cmdTokens);
+    reset_command_tokens(cmdTokens);
 
     cleanup_test();
 }
@@ -295,10 +286,10 @@ START_TEST(test_cmd_port) {
 
     set_fd(tcpClient, SOCKET_FD_INDEX, 1);
 
-    execute_command(tcpClient, cmdTokens, get_command_function(SERVER_PORT), "/PORT 50100");
-    ck_assert_str_eq(get_property_value(CP_PORT), "50100");
+    execute_command(tcpClient, cmdTokens, get_command_function(PORT), "/PORT 50100");
+    ck_assert_int_eq(get_int_option_value(OT_SERVER_PORT), 50100);
 
-    reset_cmd_tokens(cmdTokens);
+    reset_command_tokens(cmdTokens);
 
     cleanup_test();
 }
@@ -310,7 +301,7 @@ Suite* command_handler_suite(void) {
     Suite *s;
     TCase *tc_core;
 
-    s = suite_create("Command handler");
+    s = suite_create("CommandInfo handler");
     tc_core = tcase_create("Core");
 
     // Add the test case to the test suite
@@ -336,11 +327,11 @@ int main(void) {
     int number_failed;
     Suite *s;
     SRunner *sr;
-
-    initialize_test_suite();
-
+    
     s = command_handler_suite();
     sr = srunner_create(s);
+
+    initialize_test_suite();
 
     srunner_run_all(sr, CK_NORMAL);
     number_failed = srunner_ntests_failed(sr);

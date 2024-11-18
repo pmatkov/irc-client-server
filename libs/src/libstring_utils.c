@@ -6,145 +6,47 @@
 #include <ctype.h>
 #include <errno.h>
 
-StringList * create_string_list(int capacity, int stringLength) {
-    
-    StringList *stringList = (StringList *) malloc(sizeof(StringList));
-    if (stringList == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
-    }
-
-    stringList->strings = (char **) malloc(capacity * sizeof(char *));
-    if (stringList->strings  == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
-    }
-
-    for (int i = 0; i < capacity; i++) {
-
-        stringList->strings[i] = (char*) malloc((stringLength + 1) * sizeof(char));
-        if (stringList->strings[i] == NULL) {
-            FAILED("Error allocating memory", NO_ERRCODE);
-        }
-    }
-
-    stringList->stringLength = stringLength;
-    stringList->capacity = capacity;
-    stringList->count = 0;
-
-    return stringList; 
-}
-
-void delete_string_list(StringList *stringList) {
-
-    if (stringList != NULL) {
-
-        for (int i = 0; i < stringList->capacity; i++) {
-            free(stringList->strings[i]);
-        }
-        free(stringList->strings);
-    }
-
-    free(stringList);   
-}
-
-int is_string_list_empty(StringList *stringList) {
-
-    if (stringList == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-    return stringList->count == 0;
-}
-
-int is_string_list_full(StringList *stringList) {
-
-    if (stringList == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-    return stringList->count == stringList->capacity;
-}
-
-void add_string_to_string_list(StringList *stringList, const char* string) {
-
-    if (stringList == NULL || string == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    if (!is_string_list_full(stringList)) {
-
-        safe_copy(stringList->strings[stringList->count], stringList->stringLength + 1, string);
-
-        stringList->count++;
-    }
-}
-
-void remove_string_from_string_list(StringList *stringList) {
-
-    if (stringList == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    if (!is_string_list_full(stringList)) {
-
-        memset(stringList->strings[stringList->count - 1], '\0', stringList->stringLength + 1);
-        stringList->count--;
-    }
-}
-
-/* split the input string into tokens based on
-    the delimiter delim. tkCount represents the 
-    desired number of tokens into which the 
-    input should be split. if tkCount is 
-    less than the maximum possible tokens,
-    the last token will contain the reamining
-    tokens. this function modifies the original
-    string 
-
-    [example] input: "This is a long string", tkCount = 3, sep = ' '
-            result: "This", "is", "a long string"
-    
-    */
-int split_input_string(char *input, const char **tokens, int tkCount, const char *delim) {
+int tokenize_string(char *string, const char **tokens, int tkCount, const char *delim) {
      
-    if (input == NULL || tokens == NULL || delim == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    if (string == NULL || tokens == NULL || delim == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
 
-    int i = 0;
-    int len = strlen(input);
+    int count = 0;
 
-    char *ptr = input, *sepPtr = NULL;
+    if (tkCount) {
 
-    while (i < (tkCount - 1) && (ptr - input) < len && (sepPtr = strchr(ptr, delim[0])) != NULL) {
+        char *strPtr = string, *tokenPtr = string;
 
-        /* save a reference to the token */
-        if (sepPtr != ptr) {
-            *sepPtr = '\0';
-            tokens[i++] = ptr;
-            ptr = sepPtr + 1;
+        while (count < tkCount - 1 && (strPtr = find_delimiter(strPtr, delim)) != NULL) {
+
+            memset(strPtr, '\0', strlen(delim));
+            strPtr += strlen(delim);
+
+            tokens[count] = tokenPtr;
+            tokenPtr = strPtr;
+            count++;
+        }
+
+        if (strPtr != NULL && is_terminated(strPtr, delim)) {
+            strPtr += strlen(strPtr) - strlen(delim);
+            memset(strPtr, '\0', strlen(delim));
+        }
+
+        tokens[count] = tokenPtr;
+
+        if (strlen(tokenPtr)) {
+            count += 1;
         }
     }
-     /* save a reference to the last token or 
-        a group of tokens */
-    if (tkCount && (ptr - input) < len) {
-        tokens[i] = ptr;
-        i += 1;
-    }
-
-    /* terminate string if the last char is the
-        delimiter */
-    if (tkCount && strlen(ptr) && ptr[strlen(ptr)-1] == delim[0]) {
-       ptr[strlen(ptr)-1] = '\0'; 
-    }
-
-    return i;
+    return count;
 
 }
 
-/* concatenate tokens into a string
-    using the delimiter delim */
 int concat_tokens(char *buffer, int size, const char **tokens, int tkCount, const char *delim) {
 
     if (buffer == NULL || tokens == NULL || delim == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int i = 0;
@@ -153,8 +55,8 @@ int concat_tokens(char *buffer, int size, const char **tokens, int tkCount, cons
 
         if (strlen(tokens[i])) {
 
-            strncat(buffer, tokens[i], size - strlen(buffer) - 1);
-            strncat(buffer, delim, size - strlen(buffer) - 1);
+            strncat(buffer, tokens[i], size - strlen(buffer));
+            strncat(buffer, delim, size - strlen(buffer));
         }
         i++;
     }
@@ -166,87 +68,258 @@ int concat_tokens(char *buffer, int size, const char **tokens, int tkCount, cons
     return i;
 }
 
-/* count tokens before delimiter */
-int count_tokens(const char *input, const char *delim) {
+int count_tokens(const char *string, const char *delim) {
 
-    if (input == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    if (string == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
 
-    int count = 0;
+    int count = strlen(string) ? 1 : 0;
 
-    if (strlen(input)) {
-
-        const char *inputPtr = input;
-        count = 1;
-
-        while (*inputPtr && *inputPtr != delim[0]) {
-            if (*inputPtr == ' ' && inputPtr - input != strlen(input)-1) {
-                count++;
-            }
-            inputPtr++;
+    while (*string && (delim == NULL || *string != delim[0])) {
+        if (*string == ' ' && *(string + 1) != '\0') {
+            count++;
         }
+        string++;
     }
 
     return count;
 }
 
-/* prepend char to string */
 void prepend_char(char *buffer, int size, const char *string, char ch) {
 
     if (buffer == NULL || string == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int len = strlen(string);
 
-    if (size >= len + 1) {
+    if (len + 1 <= size) {
 
         for (int i = len; i >= 0; i--) {
             buffer[i + 1] = string[i];
         }
-
         buffer[0] = ch;
     }
 }
 
-void crlf_terminate(char *buffer, int size, const char *string) {
+int delimit_messages(char *string, const char **tokens, int tkCount, const char *delim) {
 
-    if (buffer == NULL || string == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    if (string == NULL || tokens == NULL || delim == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
 
-    if (strlen(string) + strlen("\r\n") < size) {
+    int count = 0;
 
-        strcat(buffer, string);
-        strcat(buffer, "\r\n");
+    if (tkCount) {
+
+        char *strPtr = string, *tokenPtr = string;
+
+        while ((strPtr = find_delimiter(strPtr, delim)) != NULL && count < tkCount) {
+
+            memset(strPtr, '\0', strlen(delim));
+            strPtr += strlen(delim);
+
+            tokens[count] = tokenPtr;
+            tokenPtr = strPtr;
+            count++;
+        }
+    }
+    return count;
+}
+
+int extract_message(char *buffer, int size, char *string, const char *delim) {
+
+    if (buffer == NULL || string == NULL || delim == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    char *strPtr = string;
+    int extracted = 0;
+    
+    if ((strPtr = find_delimiter(strPtr, delim)) != NULL) {
+
+        memset(strPtr, '\0', strlen(delim));
+        safe_copy(buffer, size, string);
+
+        const char *remainingString = strPtr + strlen(delim);
+
+        if (strlen(remainingString)) {
+            memmove(string, remainingString, strlen(remainingString) + 1);
+        }
+        extracted = 1;
+    }
+
+    return extracted;
+}
+void process_messages(char *string, const char *delim, StringListFunc iteratorFunc, void *arg) {
+
+    if (string == NULL || delim == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    int len = strlen(string);
+    int tkCount = count_delimiters(string, delim);
+
+    if (tkCount) {
+
+        const char **tokens = (const char **) malloc(tkCount * sizeof(const char*));
+        if (tokens == NULL) {
+            FAILED(NO_ERRCODE, "Error allocating memory");
+        }
+
+        delimit_messages(string, tokens, tkCount, delim);
+        iterate_string_list(tokens, tkCount, iteratorFunc, arg);
+
+        const char *partialMessage = tokens[tkCount - 1] + strlen(tokens[tkCount - 1]) + strlen(delim);
+
+        if (strlen(partialMessage)) {
+            memmove(string, partialMessage, strlen(partialMessage) + 1);
+        }
+        else {
+            memset(string, '\0', len);
+        }
+
+        free(tokens);
     }
 }
 
-int is_crlf_terminated(const char *string) {
+void terminate_string(char *buffer, int size, const char *string, const char *term) {
 
-    if (string == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    if (buffer == NULL || string == NULL || term == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
 
-    int terminated = 0;
-    int len = strlen(string);
+    if (strlen(string) + strlen(term) < size) {
 
-    if (len > strlen("\r\n") && string[len-2] == '\r' && string[len-1] == '\n') {
-        terminated = 1;
+        strcat(buffer, string);
+        strcat(buffer, term);
+    }
+}
+
+void clear_terminator(char *string, const char *term) {
+
+    if (string == NULL || term == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    int terminated = 1;
+
+    int i = strlen(string) - 1;
+    int j = strlen(term) - 1;
+
+    while (i >= 0 && j >= 0 && terminated) {
+        if (string[i] == term[j]) {
+            string[i] = '\0';
+            i--;
+            j--;
+        }
+        else {
+            terminated = 0;
+        }
+    }
+}
+
+int is_terminated(const char *string, const char *term) {
+
+    if (string == NULL || term == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    int terminated = 1;
+    int i = strlen(string) - 1;
+    int j = strlen(term) - 1;
+
+    while (i >= 0 && j >= 0 && terminated) {
+        if (string[i] == term[j]) {
+            i--;
+            j--;
+        }
+        else {
+            terminated = 0;
+        }
     }
 
     return terminated;
 }
 
-/* checks if nickname or channel name 
-contains valid chars according to IRC RFC*/
+char * find_delimiter(const char *string, const char *delim) {
+
+    if (string == NULL || delim == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    return strstr(string, delim);
+}
+
+int count_delimiters(const char *string, const char *delim) {
+
+    if (string == NULL || delim == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    int count = 0;
+    const char *strPtr = string;
+
+    while ((strPtr = strstr(strPtr, delim)) != NULL) {
+        strPtr += strlen(delim);
+        count++;
+    }
+
+    return count;
+}
+
+
+void escape_crlf_sequence(char *buffer, int size, const char *string) {
+
+    if (buffer == NULL || string == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    int count = count_delimiters(string, CRLF);
+
+    if ((strlen(string) + strlen(CRLF) * count) < size) {
+ 
+        for (int i = strlen(string); i >= 0; i--) {
+
+            if ((string[i] == '\r' || string[i] == '\n')) {
+
+                buffer[i] = string[i] == '\r' ? 'r' : 'n';
+                memmove(buffer + i + 1, buffer + i, strlen(buffer + i));
+                buffer[i] = '\\';
+            }
+            else {
+                buffer[i] = string[i];
+            }
+        }
+    }
+}
+
+int count_format_specifiers(const char *string) {
+
+    if (string == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    int fsCount = 0;
+
+    while (*string) {
+        if (*string == '%') {
+            fsCount++;
+        }
+        string++;
+    }
+
+    return fsCount;
+}
+
 int is_valid_name(const char *name, int isChannel) {
 
     if (name == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
+    /* a list of allowed special chars */
     const char specialChars[] = {'#', '-', '_', '\\', '[', ']', '{', '}', '|', '^', '~'};
 
     int validName = 1;
@@ -260,15 +333,15 @@ int is_valid_name(const char *name, int isChannel) {
 
         if (!isalnum(*ch)) {
 
-            int validCh = 0;
+            int validChar = 0;
 
-            for (int i = 0; i < sizeof(specialChars)/ sizeof(specialChars[0] && !validCh); i++) {
+            for (int i = 0; i < sizeof(specialChars)/ sizeof(specialChars[0] && !validChar); i++) {
 
                 if (*ch == specialChars[i]) {
-                    validCh = 1;
+                    validChar = 1;
                 }
             }
-            validName = validCh; 
+            validName = validChar; 
         }
         ch++;
     }
@@ -276,11 +349,29 @@ int is_valid_name(const char *name, int isChannel) {
     return validName;
 }
 
-// copies string up to size chars from source to destination
+void iterate_string_list(const char **stringList, int size, StringListFunc iteratorFunc, void *arg) {
+
+    if (stringList == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    for (int i = 0; i < size && stringList[i] != NULL; i++) {
+        iteratorFunc(stringList[i], arg);
+    }
+}
+
+void add_string_length(const char *string, void *arg) {
+
+    if (string != NULL && arg != NULL) {
+        *((int*)arg) += strlen(string);
+    }
+}
+
+
 int safe_copy(char *buffer, int size, const char *string) {
 
     if (buffer == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     if (string == NULL) {
@@ -293,58 +384,52 @@ int safe_copy(char *buffer, int size, const char *string) {
     if (len < size) {
 
         strcpy(buffer, string);
-
         copied = 1;
     }
-    else if (size) {
-        buffer[0] = '\0';
-    }
+    // else if (size) {
+    //     buffer[0] = '\0';
+    // }
 
     return copied;
 }
 
-// converts number from string representation to unsigned int
 int str_to_uint(const char *string) {
 
     char *end = NULL;
     errno = 0;
 
-    long n = strtol(string, &end, 0);
+    long number = strtol(string, &end, 0);
 
-    if (string == end || errno == ERANGE || *end != '\0' || n < 0) {
-        return -1;
+    if (string == end || errno == ERANGE || *end != '\0' || number < 0) {
+        number = -1;
     }
-    else {
-        return n;
-    }
+
+    return number;
 
 }
 
-// converts number from unsigned int to string representation 
 int uint_to_str(char *buffer, int size, unsigned number) {
 
-    if (buffer == NULL || !size) {
-        return 0;
+    if (buffer == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
 
-    unsigned numberCp = number;
-    int digits = 0;
+    int comp = 10, digits = 1, converted = 0;
 
-    do {
-        numberCp /= 10;
+    while (number >= comp) {
+        comp *= 10;
         digits++;
-    } while (numberCp);
-
-    if (size < digits + 1) {
-        return 0;
     }
 
-    for (int i = 0; i < digits; i++) {
-        buffer[digits-i-1] = number % 10 + '0';
-        number /= 10;
+    if (digits <= size) {
+
+        for (int i = 0; i < digits; i++) {
+            buffer[digits-i-1] = number % 10 + '0';
+            number /= 10;
+        }
+
+        converted = 1;
     }
 
-    buffer[digits] = '\0';
-
-    return 1;
+    return converted;
 }

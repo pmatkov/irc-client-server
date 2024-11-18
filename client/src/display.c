@@ -27,6 +27,7 @@
 #endif
 
 #define MAX_SENTENCES 5
+#define STATUS_START_POS 6
 
 #ifndef TEST
 
@@ -38,8 +39,6 @@ struct WindowManager {
     UIWindow *inputwin;
 };
 
-/* contains tokens representing the components
-    of a string to be printed */
 struct PrintTokens {
     int useTimestamp;
     const char *separator;
@@ -51,12 +50,14 @@ struct PrintTokens {
 #endif
 
 STATIC void create_window_borders(WindowManager *windowManager, int useColor);
+STATIC void draw_border(WINDOW *window, int y, int x, int width);
 STATIC void print_complex_string(WindowManager *windowManager, cchar_t *string, int size);
-STATIC void display_string_list(WindowManager *windowManager, const char **stringList, int count, const char *title);
+STATIC void display_list_item(const char *string, void *arg);
+// STATIC void display_string_list(WindowManager *windowManager, const char **stringList, int count, const char *title);
 
 static PrintFunc printFunc = print_complex_string;
 
-/* contains ncurses display attributes */
+/* ncurses text styles */
 static const unsigned ATTR_CONVERT[] = {
     A_NORMAL,
     A_BOLD,
@@ -69,10 +70,10 @@ WindowManager * create_windows(int sbMultiplier) {
 
     WindowManager *windowManager = (WindowManager*) malloc(sizeof(WindowManager));
     if (windowManager == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
-    /* set locale to that of environment */
+    /* set locale to that of local environment */
     setlocale(LC_ALL, "");
 
     /* initialize ncurses data structures */
@@ -141,7 +142,7 @@ void delete_print_tokens(PrintTokens *printTokens) {
 void set_windows_options(WindowManager *windowManager) {
 
     if (windowManager == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     /* disable line buffering and character echo */
@@ -161,8 +162,7 @@ void init_colors(int useColor) {
 
     if (useColor && has_colors()) {
 
-        /* define ncurses colors pairs that can 
-            be used in the app */
+        /* define ncurses colors pairs */
         start_color();
 
         init_pair(WHITE, COLOR_WHITE, COLOR_BLACK);
@@ -178,13 +178,13 @@ void init_colors(int useColor) {
 void init_ui(WindowManager *windowManager, int useColor) {  
 
     if (windowManager == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     create_window_borders(windowManager, useColor);
 
-    /* display standard app info */
-    printstr(&(PrintTokens){1, " ## ", NULL, "Buzz v1.0", COLOR_SEP(MAGENTA) | ATTR_CNT(BOLD)}, windowManager);
+    /* display default app info */
+    printstr(&(PrintTokens){1, " ## ", NULL, "Buzz v1.0", COLOR_SEP(MAGENTA) | STYLE_CNT(BOLD)}, windowManager);
 
     /* display active settings */
     display_settings(windowManager);
@@ -194,24 +194,23 @@ void init_ui(WindowManager *windowManager, int useColor) {
 
     wrefresh(get_window(windowManager->chatwin));
 
+    display_time(windowManager);
+
     /* display input prompt */
     mvwaddstr(get_window(windowManager->inputwin), 0, 0, PROMPT);
     wrefresh(get_window(windowManager->inputwin));
 }
 
-/* create window borders. the top border 
-    includes the app title and the bottom
-    border is part of the status window */
+/* the top border contains the title and the
+    bottom border is created inside the "status
+    window" */
 STATIC void create_window_borders(WindowManager *windowManager, int useColor) {
     
     if (windowManager == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    cchar_t block;
-    setcchar(&block, BLOCK_CHAR, 0, CYAN, NULL);
-
-    mvwhline_set(get_window(windowManager->titlewin), 0, 0, &block, get_wwidth(get_window(windowManager->titlewin)));
+    draw_border(get_window(windowManager->titlewin), 0, 0, 0);
 
     int attribute = useColor ? COLOR_PAIR(CYAN_REV) : A_REVERSE;
 
@@ -221,26 +220,41 @@ STATIC void create_window_borders(WindowManager *windowManager, int useColor) {
 
     wrefresh(get_window(windowManager->titlewin));
 
-    mvwhline_set(get_window(windowManager->statuswin), 0, 0, &block, get_wwidth(get_window(windowManager->statuswin)));
+    draw_border(get_window(windowManager->statuswin), 0, 0, 0);
     wrefresh(get_window(windowManager->statuswin));
+}
 
+STATIC void draw_border(WINDOW *window, int y, int x, int width) {
+
+    if (window == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    cchar_t block;
+    setcchar(&block, BLOCK_CHAR, 0, CYAN, NULL);
+
+    if (!width) {
+        width = get_wwidth(window);
+    }
+
+    mvwhline_set(window, y, x, &block, width);
+ 
 }
 
 void printstr(PrintTokens *printTokens, WindowManager *windowManager) {
 
     if (printTokens == NULL || windowManager == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     cchar_t buffer[MAX_CHARS + 1] = {0};
     cchar_t *bufferPtr = NULL;
 
     /* tokens are converted to a cchar_t representation and 
-        formatted based on the provided format. color is
-        stored in the last 12 bits of the format and the 
-        attribute in the previous 12 bits. each token has
-        its own color and attribute saved as a 4-bit value */
-
+        formatted based on the provided format. the color and 
+        style are 4 bit values stored in the last 12 bits of 
+        the format field, for the color, and the next 12 bits,
+        for the style */
         bufferPtr = buffer;
 
         if (printTokens->useTimestamp) {
@@ -269,8 +283,8 @@ void printstr(PrintTokens *printTokens, WindowManager *windowManager) {
 
 STATIC void print_complex_string(WindowManager *windowManager, cchar_t *string, int size) {
 
-    /* add the complex string to the scrollback buffer 
-        and then print it */
+    /* add complex string to the scrollback buffer 
+        and print it */
     Scrollback *sb = get_scrollback(windowManager->chatwin);
     add_to_scrollback(sb, string, size);
     print_from_scrollback(sb, -1, get_scrollback_head(sb));
@@ -280,7 +294,7 @@ STATIC void print_complex_string(WindowManager *windowManager, cchar_t *string, 
 int string_to_complex_string(cchar_t *buffer, int size, const char *string, uint32_t format) {
 
     if (buffer == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     if (string == NULL || !strlen(string)) {
@@ -288,12 +302,12 @@ int string_to_complex_string(cchar_t *buffer, int size, const char *string, uint
     }
 
     if (strlen(string) >= size) {
-        LOG(ERROR, "Not enoguh space in the buffer");
+        LOG(ERROR, "Not enough space in the buffer");
         return 0;
     }
 
     int color = format & 0xF;
-    attr_t style = format & 0xF0;
+    attr_t style = (format >> BITS_PER_HEX) & 0xF;
 
     wchar_t wstring[MAX_CHARS + 1] = {L'\0'};
     int charsConverted = 0;
@@ -301,7 +315,7 @@ int string_to_complex_string(cchar_t *buffer, int size, const char *string, uint
     /* convert chars to wide chars (wchar_t)
         representation */
     if ((charsConverted = mbstowcs(wstring, string, MAX_CHARS)) == -1) {
-        FAILED("Error converting char to wchar", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error converting char to wchar");
     }
 
     wchar_t temp[2];
@@ -315,18 +329,17 @@ int string_to_complex_string(cchar_t *buffer, int size, const char *string, uint
         temp[1] = L'\0';  
 
         if (setcchar(buffer++, temp, ATTR_CONVERT[(Attributes)style], color, NULL) != OK) {
-            FAILED("Error converting wchar to cchar", NO_ERRCODE);
+            FAILED(NO_ERRCODE, "Error converting wchar to cchar");
         }
         i++;
     }
-
     return i;
 }
 
 int count_complex_chars(cchar_t *string) {
 
     if (string == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int i = 0;
@@ -335,61 +348,64 @@ int count_complex_chars(cchar_t *string) {
 
         i++;
     }
-
     return i;
 }
 
-void display_commands(WindowManager *windowManager, const Command *commands, int count) {
+void display_commands(WindowManager *windowManager, const CommandInfo *commandInfo, int count) {
 
-    if (windowManager == NULL || commands == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    if (windowManager == NULL || commandInfo == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
 
     printstr(&(PrintTokens){1, NULL, NULL, NULL, 0}, windowManager);
     printstr(&(PrintTokens){1, " ** ", NULL, "Commands:", COLOR_SEP(CYAN)}, windowManager);
 
-    int size = get_command_size();
-    char *cmd = (char*) commands;
+    char *cmd = (char*) commandInfo;
+    int size = get_command_info_size();
 
     for (int i = 1; i < count - 1; i++) {
 
-        printstr(&(PrintTokens){1, SPACE, NULL, get_command_label((Command*)(cmd +  i * size)), ATTR_CNT(DIM)},windowManager);
+        printstr(&(PrintTokens){1, SPACE, NULL, get_command_info_label((CommandInfo*)(cmd +  i * size)), STYLE_CNT(DIM)},windowManager);
     }
 
     printstr(&(PrintTokens){1, NULL, NULL, NULL, 0}, windowManager);
     printstr(&(PrintTokens){1, SPACE, NULL, "Type /help <command name> for usage details.", 0}, windowManager);
 
     wrefresh(get_window(windowManager->chatwin));
+    wrefresh(get_window(windowManager->inputwin));
 
 }
 
-void display_usage(WindowManager *windowManager, const Command *command) {
+void display_usage(WindowManager *windowManager, const CommandInfo *commandInfo) {
 
-    if (windowManager == NULL || command == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    if (windowManager == NULL || commandInfo == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
 
     printstr(&(PrintTokens){1, NULL, NULL, NULL, 0}, windowManager);
-    printstr(&(PrintTokens){1, " ** ", "Command ", get_command_label(command), COLOR_SEP(CYAN) | ATTR_CNT(DIM)}, windowManager);
+    printstr(&(PrintTokens){1, " ** ", "CommandInfo ", get_command_info_label(commandInfo), COLOR_SEP(CYAN) | STYLE_CNT(DIM)}, windowManager);
 
     printstr(&(PrintTokens){1, SPACE, "Syntax:", NULL, 0}, windowManager);
-    printstr(&(PrintTokens){1, SPACE_2, NULL, get_command_syntax(command), 0}, windowManager);
+    printstr(&(PrintTokens){1, SPACE_2, NULL, get_command_info_syntax(commandInfo), 0}, windowManager);
 
-    display_string_list(windowManager, get_command_description(command), MAX_TOKENS, "Description:");
-    display_string_list(windowManager, get_command_examples(command), MAX_TOKENS, "Example(s):");
+    printstr(&(PrintTokens){1, SPACE, NULL, "Description:", 0}, windowManager);
+    iterate_string_list(get_command_info_description(commandInfo), MAX_TOKENS, display_list_item, windowManager);
+    printstr(&(PrintTokens){1, SPACE, NULL, "Example(s):", 0}, windowManager);
+    iterate_string_list(get_command_info_examples(commandInfo), MAX_TOKENS, display_list_item, windowManager);
 
     wrefresh(get_window(windowManager->chatwin));
+    wrefresh(get_window(windowManager->inputwin));
 }
 
 void display_response(WindowManager *windowManager, const char *response, ...) {
 
     if (windowManager == NULL || response == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
     else if (strchr(response, '%') == NULL) {
 
         printstr(&(PrintTokens){1, NULL, NULL, NULL, 0}, windowManager);
-        printstr(&(PrintTokens){1, " ** ", NULL, response, COLOR_SEP(CYAN) | ATTR_CNT(BOLD)}, windowManager);
+        printstr(&(PrintTokens){1, " ** ", NULL, response, COLOR_SEP(CYAN) | STYLE_CNT(BOLD)}, windowManager);
     }
     else {
         char responseWithArgs[MAX_CHARS] = {'\0'}; 
@@ -400,48 +416,96 @@ void display_response(WindowManager *windowManager, const char *response, ...) {
         va_end(arglist);
 
         printstr(&(PrintTokens){1, NULL, NULL, NULL, 0}, windowManager);
-        printstr(&(PrintTokens){1, " ** ", NULL, responseWithArgs, COLOR_SEP(CYAN) | ATTR_CNT(BOLD)}, windowManager);
+        printstr(&(PrintTokens){1, " ** ", NULL, responseWithArgs, COLOR_SEP(CYAN) | STYLE_CNT(BOLD)}, windowManager);
 
     }
     wrefresh(get_window(windowManager->chatwin));
+    wrefresh(get_window(windowManager->inputwin));
+}
+
+void display_server_message(const char *string, void *arg) {
+
+    if (string == NULL || arg == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+    printstr(&(PrintTokens){1, " >> ", NULL, string, COLOR_SEP(RED)}, (WindowManager*)arg);
+
+    LOG(DEBUG, "-> extracted message \"%s\"", string);
+
+    wrefresh(get_window(((WindowManager*)arg)->chatwin));
+    wrefresh(get_window(((WindowManager*)arg)->inputwin));
 }
 
 void display_settings(WindowManager *windowManager) {
 
     if (windowManager == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     printstr(&(PrintTokens){1, NULL, NULL, NULL, 0}, windowManager);
     printstr(&(PrintTokens){1, " ** ", NULL, "Assigned settings: ", COLOR_SEP(CYAN)}, windowManager);
 
-    char propertyValue[MAX_CHARS + 1];
+    char propertyValue[MAX_CHARS + 1] = {'\0'};
 
     for (int i = 0; i < get_settings_capacity(); i++) {
 
-        if (is_property_registered(i)) {
+        if (is_option_registered(i)) {
 
-            memset(propertyValue, '\0', sizeof(propertyValue));
+            memset(propertyValue, '\0', ARR_SIZE(propertyValue));
             propertyValue[0] = ' ';
 
-            strcat(propertyValue, get_property_value(i)); 
+            if (get_option_data_type(i) == INT_TYPE) {
 
-            printstr(&(PrintTokens){1, SPACE, get_property_label(i), propertyValue, ATTR_CNT(DIM)}, windowManager);
+                char valueStr[MAX_CHARS + 1] = {'\0'};
+
+                int value = get_int_option_value(i);
+                uint_to_str(valueStr, ARR_SIZE(valueStr), value);
+
+                strcat(propertyValue, valueStr); 
+            }
+            else if (get_option_data_type(i) == CHAR_TYPE) {
+                strcat(propertyValue, get_char_option_value(i));
+            }
+
+            printstr(&(PrintTokens){1, SPACE, get_option_label(i), propertyValue, STYLE_CNT(DIM)}, windowManager);
         }
     }
     wrefresh(get_window(windowManager->chatwin));
+    wrefresh(get_window(windowManager->inputwin));
+}
+
+void display_time(WindowManager *windowManager) {
+
+    if (windowManager == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    char timestamp[HM_TIME_LENGTH] = {'\0'};
+    get_datetime(get_format_function(HM_TIME), timestamp, HM_TIME_LENGTH);
+
+    draw_border(get_window(windowManager->statuswin), 0, 0, STATUS_START_POS);
+
+    wattron(get_window(windowManager->statuswin), COLOR_PAIR(CYAN_REV));
+    mvwaddstr(get_window(windowManager->statuswin), 0, 1, timestamp);
+    wattroff(get_window(windowManager->statuswin), COLOR_PAIR(CYAN_REV));
+    
+    wrefresh(get_window(windowManager->statuswin));
+    wrefresh(get_window(windowManager->inputwin));
 }
 
 void display_status(WindowManager *windowManager, const char *status, ...) {
 
     if (windowManager == NULL || status == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
+
+    // draw_border(get_window(windowManager->statuswin), 0, 0);
+    draw_border(get_window(windowManager->statuswin), 0, STATUS_START_POS, 0);
 
     if (strchr(status, '%') == NULL) {
 
         wattron(get_window(windowManager->statuswin), COLOR_PAIR(CYAN_REV));
-        mvwaddstr(get_window(windowManager->statuswin), 0, 1, status);
+        mvwaddstr(get_window(windowManager->statuswin), 0, STATUS_START_POS, status);
         wattroff(get_window(windowManager->statuswin), COLOR_PAIR(CYAN_REV));
     }
     else {
@@ -461,19 +525,10 @@ void display_status(WindowManager *windowManager, const char *status, ...) {
     wrefresh(get_window(windowManager->inputwin));
 }
 
+STATIC void display_list_item(const char *string, void *arg) {
 
-STATIC void display_string_list(WindowManager *windowManager, const char **stringList, int count, const char *title) {
+    printstr(&(PrintTokens){1, SPACE_2, NULL, string, 0}, (WindowManager*)arg);
 
-    int i = 0;
-
-    while (i < count && stringList[i] != NULL) {
-
-        if (i == 0) {
-            printstr(&(PrintTokens){1, SPACE, NULL, title, 0}, windowManager);
-        }
-        printstr(&(PrintTokens){1, SPACE_2, NULL, stringList[i], 0}, windowManager);
-        i++;
-    }
 }
 
 void resize_ui(WindowManager *windowManager, int useColors) {
@@ -482,8 +537,8 @@ void resize_ui(WindowManager *windowManager, int useColors) {
 
     /* temporarily exit ncurses mode and refresh to 
         reinitialize the terminal with the new size.
-        after resizing, clean the window structures and
-        reinitialize the keypad */
+        after resizing, clean the window structures 
+        and reinitialize the keypad */
     endwin();
     refresh();
     wclear(get_window(windowManager->chatwin));
@@ -523,10 +578,8 @@ void resize_ui(WindowManager *windowManager, int useColors) {
         mvwin(get_window(windowManager->inputwin), rows - 1, 0);
     }
 
-    /* recreate the window borders for the new 
-        terminal size. reload content from the
-        scrollback buffer and display the current
-        command */
+    /* redraw window borders, reload the content from 
+        the scrollback and display the last command */
     create_window_borders(windowManager, useColors);
     restore_from_scrollback(get_scrollback(windowManager->chatwin));
 
@@ -540,7 +593,7 @@ void resize_ui(WindowManager *windowManager, int useColors) {
 UIWindow * get_titlewin(WindowManager *windowManager) {
 
     if (windowManager == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
     return windowManager->titlewin;
 }
@@ -548,7 +601,7 @@ UIWindow * get_titlewin(WindowManager *windowManager) {
 UIWindow * get_chatwin(WindowManager *windowManager) {
 
     if (windowManager == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
     return windowManager->chatwin;
 }
@@ -556,7 +609,7 @@ UIWindow * get_chatwin(WindowManager *windowManager) {
 UIWindow * get_statuswin(WindowManager *windowManager) {
 
     if (windowManager == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
     return windowManager->statuswin;
 }
@@ -564,7 +617,7 @@ UIWindow * get_statuswin(WindowManager *windowManager) {
 UIWindow * get_inputwin(WindowManager *windowManager) {
 
     if (windowManager == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
     return windowManager->inputwin;
 }

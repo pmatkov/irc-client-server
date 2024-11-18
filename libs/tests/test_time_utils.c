@@ -62,8 +62,6 @@ START_TEST(test_create_timer) {
     Timer *timer = create_timer();
 
     ck_assert_ptr_ne(timer, NULL);
-    ck_assert_int_eq(timer->startTime, 0);
-    ck_assert_int_eq(timer->endTime, 0);
 
     delete_timer(timer);
 
@@ -78,12 +76,12 @@ START_TEST(test_calculate_elapsed_time) {
     sleep(1);
     stop_timer(timer);
 
-    int elapsedTime = get_elapsed_time(timer);
+    int elapsedTime = get_elapsed_time(timer, SECONDS);
 
     ck_assert_int_eq(elapsedTime, 1);
 
     reset_timer(timer);
-    ck_assert_int_eq(timer->startTime, 0);
+    ck_assert_int_eq(timer->startTime.tv_sec, 0);
 
     delete_timer(timer);
 
@@ -110,6 +108,18 @@ START_TEST(test_is_timer_active) {
 }
 END_TEST
 
+START_TEST(test_create_interval_timer) {
+
+    struct itimerval *timer = create_interval_timer(60);
+
+    ck_assert_ptr_ne(timer, NULL);
+    ck_assert_int_eq(timer->it_interval.tv_sec, 60);
+
+    delete_interval_timer(timer);
+
+}
+END_TEST
+
 Suite* time_utils_suite(void) {
     Suite *s;
     TCase *tc_core;
@@ -122,6 +132,7 @@ Suite* time_utils_suite(void) {
     tcase_add_test(tc_core, test_create_timer);
     tcase_add_test(tc_core, test_calculate_elapsed_time);
     tcase_add_test(tc_core, test_is_timer_active);
+    tcase_add_test(tc_core, test_create_interval_timer);
 
     suite_add_tcase(s, tc_core);
 

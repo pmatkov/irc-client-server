@@ -2,13 +2,14 @@
 
 #include "string_utils.h"
 
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <arpa/inet.h>
 
 static int mockFd;
-static size_t mockLen;
 static void *mockBuffer;
+static size_t mockBufferSize;
 static int mockPort;
 static struct sockaddr_in *mockSockaddr;
 static WINDOW * mockStdscr;
@@ -25,14 +26,14 @@ void set_mock_fd(int fd) {
    mockFd = fd; 
 }
 
-size_t get_mock_len(void) {
+size_t get_mock_buffer_size(void) {
 
-    return mockLen;
+    return mockBufferSize;
 }
 
-void set_mock_len(size_t len) {
+void set_mock_buffer_size(size_t len) {
     
-    mockLen = len;
+    mockBufferSize = len;
 }
 
 void * get_mock_buffer(void) {
@@ -75,40 +76,40 @@ void set_mock_stdscr(WINDOW *stdscr) {
    mockStdscr = stdscr; 
 }
 
-ssize_t mock_read(int fd, void *buffer, size_t len) {
+ssize_t mock_read(int fd, void *buffer, size_t readBytes) {
 
     ssize_t bytesRead = -1;
 
     if (buffer != NULL && fd == mockFd) {
 
-        if (len > mockLen) {
-            len = mockLen;
+        if (readBytes > mockBufferSize) {
+            readBytes = mockBufferSize;
         }
-        memcpy(buffer, mockBuffer, len); 
+        memcpy(buffer, mockBuffer, readBytes); 
 
-        bytesRead = (ssize_t) len;
+        bytesRead = (ssize_t) readBytes;
     }
 
     return bytesRead; 
 }
 
-ssize_t mock_write(int fd, const void *buffer, size_t len) {
+ssize_t mock_write(int fd, const void *buffer, size_t writeBytes) {
 
     ssize_t bytesWritten = -1;
 
     if (buffer != NULL && fd == mockFd) {
 
-        if (len > mockLen) {
-            len = mockLen;
+        if (writeBytes > mockBufferSize) {
+            writeBytes = mockBufferSize;
         }
-        if (len > strlen(buffer)) {
-            len = strlen(buffer);
+        if (writeBytes > strlen(buffer)) {
+            writeBytes = strlen(buffer);
         }
-        memcpy(mockBuffer, buffer, len); 
+        memcpy(mockBuffer, buffer, writeBytes); 
 
-        mockBuffer += len; 
+        mockBuffer += writeBytes; 
         
-        bytesWritten = (ssize_t) len;
+        bytesWritten = (ssize_t) writeBytes;
     }
 
     return bytesWritten; 
@@ -168,14 +169,19 @@ int mock_accept(int fd, struct sockaddr *clientAddr, socklen_t *len) {
     return connectFd;
 }
 
-int mock_get_local_ip_address(char *buffer, int size, int fd) {
+int mock_get_address(char *buffer, int size, int *port, int fd) {
 
     int converted = 0; 
 
-    if (buffer != NULL && mockSockaddr != NULL) {
+    if (mockSockaddr != NULL) {
 
-        inet_ntop(AF_INET, &mockSockaddr->sin_addr, buffer, size);
-        converted = 1; 
+        if (buffer != NULL && inet_ntop(AF_INET, &mockSockaddr->sin_addr, buffer, size) > 0) {
+            converted = 1;
+        }
+
+        if (port != NULL) {
+            *port = ntohs(mockSockaddr->sin_port);
+        }
     }
 
     return converted;

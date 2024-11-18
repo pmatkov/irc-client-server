@@ -1,16 +1,15 @@
 #ifndef ERRORCTRL_H
 #define ERRORCTRL_H
 
-/* macro which expands to failed function 
-    call */
-#define FAILED(msg, errorCode, ...) \
-    failed(msg, errorCode,__func__, __FILE__, __LINE__, ##__VA_ARGS__)
+#define FAILED(errorCode, msg, ...) \
+    failed(errorCode, msg, __func__, __FILE__, __LINE__, ##__VA_ARGS__)
 
-/* errorCode represents error codes used by 
-    logger */
+/* represents error codes used for logging 
+    error messages */
 typedef enum {
     NO_ERRCODE,
     ARG_ERROR,
+    RANGE_ERROR,
     IO_ERROR,
     UNKNOWN_ERROR,
     ERRCODE_COUNT
@@ -18,14 +17,12 @@ typedef enum {
 
 const char * get_error_code_string(ErrorCode errorCode);
 
-/* log error message to the file or display it in 
-    the terminal, if enabled. a message may 
-    contain additional arguments specified 
-    with format specifiers */
-void failed(const char *msg, ErrorCode errorCode, const char *function, const char *file, int line, ...);
+/* log error message */
+void failed(ErrorCode errorCode, const char *msg, const char *function, const char *file, int line, ...);
 
-/* enable or disable output of the error
-     messages in the terminal */
-void set_stderr_allowed(int allowed);
+int is_stderr_enabled(void);
+/* enable or disable the display of error
+    messages in the terminal */
+void enable_stderr_logging(int allowed);
 
 #endif

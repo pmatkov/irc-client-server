@@ -1,5 +1,4 @@
 #include "../src/priv_hash_table.h"
-#include "../../server/src/priv_user.h"
 
 #include <check.h>
 #include <stdlib.h>
@@ -8,7 +7,7 @@
 
 START_TEST(test_create_hash_table) {
 
-    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, delete_user);
+    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, NULL);
 
     ck_assert_ptr_ne(hashTable, NULL);
     ck_assert_ptr_ne(hashTable->items, NULL);
@@ -24,21 +23,19 @@ END_TEST
 
 START_TEST(test_create_hash_item) {
 
-    User *user = create_user("john", NULL, NULL, NULL, 0);
-    HashItem *item = create_hash_item(user->nickname, user);
+    HashItem *item = create_hash_item("john", &(int){1});
 
-    ck_assert_ptr_ne(user, NULL);
     ck_assert_ptr_ne(item, NULL);
-    ck_assert_str_eq(((char*)item->key), "john");
-    ck_assert_str_eq(((User*)item->value)->nickname, "john");
+    ck_assert_str_eq((char*)item->key, "john");
+    ck_assert_int_eq((*(int*)item->value), 1);
 
-    delete_hash_item(item, NULL, delete_user);
+    delete_hash_item(item, NULL, NULL);
 }
 END_TEST
 
 START_TEST(test_is_hash_table_empty) {
 
-    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, delete_user);
+    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, NULL);
 
     int status = is_hash_table_empty(hashTable);
     ck_assert_int_eq(status, 1);     
@@ -49,7 +46,7 @@ END_TEST
 
 START_TEST(test_is_hash_table_full) {
 
-    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, delete_user);
+    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, NULL);
 
     int status = is_hash_table_full(hashTable);
     ck_assert_int_eq(status, 0);     
@@ -60,10 +57,9 @@ END_TEST
 
 START_TEST(test_insert_item_to_hash_table) {
 
-    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, delete_user);
+    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, NULL);
 
-    User *user = create_user("john", NULL, NULL, NULL, 0);
-    HashItem *item = create_hash_item(user->nickname, user);
+    HashItem *item = create_hash_item("john", &(int){1});
 
     int status = insert_item_to_hash_table(hashTable, item);
     ck_assert_int_eq(status, 1);
@@ -75,10 +71,9 @@ END_TEST
 
 START_TEST(test_remove_item_from_hash_table) {
 
-    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, delete_user);
+    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, NULL);
 
-    User *user = create_user("john", NULL, NULL, NULL, 0);
-    HashItem *item = create_hash_item(user->nickname, user);
+    HashItem *item = create_hash_item("john", &(int){1});
 
     insert_item_to_hash_table(hashTable, item);
     int status = remove_item_from_hash_table(hashTable, "john");
@@ -91,12 +86,10 @@ END_TEST
 
 START_TEST(test_find_item_in_hash_table) {
 
-    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, delete_user);
+    HashTable *hashTable = create_hash_table(TABLE_CAPACITY,string_hash_function, are_strings_equal, NULL, NULL);
 
-    User *user1 = create_user("john", NULL, NULL, NULL, 0);
-    HashItem *item1 = create_hash_item(user1->nickname, user1);
-    User *user2 = create_user("mark", NULL, NULL, NULL, 0);
-    HashItem *item2 = create_hash_item(user2->nickname, user2);
+    HashItem *item1 = create_hash_item("john", &(int){1});
+    HashItem *item2 = create_hash_item("mark", &(int){2});
 
     insert_item_to_hash_table(hashTable, item1);
     insert_item_to_hash_table(hashTable, item2);
@@ -104,8 +97,8 @@ START_TEST(test_find_item_in_hash_table) {
     HashItem *item = find_item_in_hash_table(hashTable, "mark");
 
     ck_assert_ptr_ne(item, NULL);
-    ck_assert_str_eq(((char*)item->key), "mark");
-    ck_assert_str_eq(((User*)item->value)->nickname, "mark");      
+    ck_assert_str_eq((char*)item->key, "mark");
+    ck_assert_int_eq((*(int*)item->value), 2);   
 
     delete_hash_table(hashTable);
 }
@@ -124,12 +117,10 @@ END_TEST
 
 START_TEST(test_calculate_load_factor) {
 
-    HashTable *hashTable = create_hash_table(2,string_hash_function, are_strings_equal, NULL, delete_user);
+    HashTable *hashTable = create_hash_table(1,string_hash_function, are_strings_equal, NULL, NULL);
 
-    User *user1 = create_user("john", NULL, NULL, NULL, 0);
-    HashItem *item1 = create_hash_item(user1->nickname, user1);
-    User *user2 = create_user("mark", NULL, NULL, NULL, 0);
-    HashItem *item2 = create_hash_item(user2->nickname, user2);
+    HashItem *item1 = create_hash_item("john", &(int){1});
+    HashItem *item2 = create_hash_item("mark", &(int){2});
 
     insert_item_to_hash_table(hashTable, item1);
     insert_item_to_hash_table(hashTable, item2);
@@ -137,7 +128,7 @@ START_TEST(test_calculate_load_factor) {
     ck_assert_int_eq(hashTable->itemsCount, 1);
     ck_assert_int_eq(hashTable->linksCount, 1);
 
-    ck_assert_float_eq(calculate_load_factor(hashTable), 1.0);
+    ck_assert_float_eq(calculate_load_factor(hashTable), 2.0);
 
     delete_hash_table(hashTable);
 }

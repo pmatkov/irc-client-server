@@ -13,11 +13,10 @@
 
 #define KEY_NEWLINE '\n'
 
-/* Unicode block character used to 
-    create window borders */
+/* used to create window borders */
 #define BLOCK_CHAR L"\u2588"
 
-/* the "input window" prompt */
+/* prompt for the "input window" */
 #define PROMPT "> "
 #define PROMPT_SIZE 2
 
@@ -26,10 +25,14 @@
 
 #define BITS_PER_HEX 4
 
-/* compress bits from 0x<abc><def> where
-    bit x_i, i ∈ {a, b, c} and bit y_i, 
-    i ∈ {d, e, f} are combined to form 
-    0x<x]><y> */
+/* let 0xabcdef be a number containing color and
+    style attributes of the text. [abc] and [def]
+    represent groups of three hex digits each, 
+    or 24 bits in total. out of these 24 bits, 
+    4 bits in each group are active. this macro
+    shifts position of those 4 + 4 bits so that
+    they occupy positons e and f in the initial 
+    number */
 #define COMPRESS_BITS(hex1, hex2, value) ((value) >> (((hex2) - 1) * BITS_PER_HEX) ) | (((value) >> ((hex1) * BITS_PER_HEX)) & 0xF)
 
 #define get_remaining_cchars(array) ARR_SIZE(array) - count_complex_chars(array)
@@ -45,15 +48,15 @@
 #define CYAN 0x04
 #define CYAN_REV 0x5
 
-/* macros that create a bit field of colors and
-    attributes for formatting complex characters */
+/* create a bit field for text colors and
+    styles to be applied during printing */
 #define COLOR_SEP(color) ((color) << (0))
 #define COLOR_ORG(color) ((color) << (4))
 #define COLOR_CNT(color) ((color) << (8))
 
-#define ATTR_SEP(attr) ((attr) << (12))
-#define ATTR_ORG(attr) ((attr) << (16))
-#define ATTR_CNT(attr) ((attr) << (20))
+#define STYLE_SEP(style) ((style) << (12))
+#define STYLE_ORG(style) ((style) << (16))
+#define STYLE_CNT(style) ((style) << (20))
 
 #define get_wwidth(win) getmaxx(win)
 #define get_wheight(win) getmaxy(win)
@@ -65,12 +68,13 @@
 #define delete_line(win) (wmove((win), 0, 0) == ERR ? ERR : wclrtoeol((win)))
 #define delete_part_line(win, x) (wmove((win), 0, x) == ERR ? ERR : wclrtoeol((win)))
 
-/* save cursor position and, when required,
-    return it back to that position */
+/* save cursor position */
 #define save_cursor(win, lasty, lastx) getyx(win, lasty, lastx)
+/* return cursor to previously saved 
+    position */
 #define restore_cursor(win, lasty, lastx) wmove(win, lasty, lastx)
 
-/* define enums for ncurses text attributes */
+/* text styles */
 typedef enum {
     NORMAL, 
     BOLD, 
@@ -80,18 +84,18 @@ typedef enum {
     ATTR_COUNT
 } Attributes;
 
-/* contains references to window
-    structures */
+/* a container for UIWindow type */
 typedef struct WindowManager WindowManager;
 
-/* contains tokens with formatting attributes
-    for the text to be printed. the printed text 
-    consists of the following tokens:
-    "<timestamp> <separator> <origin> <content>" */
+/* the text to be printed is divided into
+    the following tokens:
+    "<timestamp> <separator> <origin> <content>"
+    each token can be individually formated with
+    the color and the style of the format field */
 typedef struct PrintTokens PrintTokens;
 
-/* pointer to a function which prints complex
-    chars to a window */
+/* a function pointer to a function that prints 
+    complex chars */
 typedef void(*PrintFunc)(WindowManager *windowManager, cchar_t *string, int size);
 
 WindowManager * create_windows(int sbMultiplier);
@@ -103,16 +107,14 @@ void delete_print_tokens(PrintTokens *printTokens);
 /* set ncurses modes and options */
 void set_windows_options(WindowManager *windowManager);
 
-/* initialize ncurses color mode */
+/* initialize ncurses colors */
 void init_colors(int useColor);
 
-/* create user interface with default layout
-    and elements, including the title, the
-    borders and the welcome messages */
+/* set default layout, including the title,
+    the borders and the messages */
 void init_ui(WindowManager *windowManager, int useColor);
 
-/* prepare and print a formatted string from 
-    complex characters */
+/* print a complex string */
 void printstr(PrintTokens *printTokens, WindowManager *windowManager);
 
 /* convert a regular string to a cchar_t
@@ -124,10 +126,10 @@ int string_to_complex_string(cchar_t *buffer, int size, const char *string, uint
 int count_complex_chars(cchar_t *string);
 
 /* display a list of available commands */
-void display_commands(WindowManager *windowManager, const Command *commands, int count);
+void display_commands(WindowManager *windowManager, const CommandInfo *commands, int count);
 
 /* display usage instructions for a command */
-void display_usage(WindowManager *windowManager, const Command *command);
+void display_usage(WindowManager *windowManager, const CommandInfo *command);
 
 /* display app response to user commands*/
 void display_response(WindowManager *windowManager, const char *response, ...);
@@ -135,11 +137,16 @@ void display_response(WindowManager *windowManager, const char *response, ...);
 /* display settings values */
 void display_settings(WindowManager *windowManager);
 
-/* displays status information */
+/* display current time */
+void display_time(WindowManager *windowManager);
+
+/* display status information */
 void display_status(WindowManager *windowManager, const char *status, ...);
 
-/* reload and adjust UI elements and content
-    on terminal resize */
+/* display message received from the server */
+void display_server_message(const char *string, void *arg);
+
+/* reload and adjust UI elements after resize */
 void resize_ui(WindowManager *windowManager, int useColors);
 
 UIWindow * get_titlewin(WindowManager *windowManager);

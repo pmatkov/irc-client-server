@@ -6,6 +6,14 @@
 #include "line_editor.h"
 #include "../../libs/src/command.h"
 
+#ifdef MAX_CHARS
+#undef MAX_CHARS
+#define MAX_CHARS 510
+#endif
+
+#define CRLF_LEN 2
+#define MAX_NICKNAME_LEN 9
+
 typedef void (*CommandFunc)(WindowManager *windowManager, TCPClient *tcpCLient, CommandTokens *cmdTokens);
 
 /* parse command line input */

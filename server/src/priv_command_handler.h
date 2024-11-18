@@ -8,6 +8,13 @@
 #include "../../libs/src/priv_command.h"
 #include "../../libs/src/response_code.h"
 
+#ifdef MAX_CHARS
+#undef MAX_CHARS
+#define MAX_CHARS 510
+#endif
+
+#define CRLF_LEN 2
+
 typedef void (*CommandFunc)(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 
 typedef struct {
@@ -29,8 +36,6 @@ void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 void cmd_quit(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
-
-void create_client_info(char *buffer, int size, const char *nickname, const char *username, const char *hostname);
 
 #endif
 

@@ -17,11 +17,16 @@
 
 #ifndef TEST
 
+/* a node contains a poiner which may point to any
+    data type */
 struct Node {
     void *data;
     Node *next;
 };
 
+/* since the list is generic, a comparison and deletion 
+    functions must be provided in order to enable operations
+    on the list */
 struct LinkedList {
     Node *head;
     int count;
@@ -38,7 +43,7 @@ LinkedList * create_linked_list(ComparatorFunc comparatorFunc, DeleteDataFunc de
 
     LinkedList *linkedList = (LinkedList*) malloc(sizeof(LinkedList));
     if (linkedList == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
     linkedList->head = NULL;
@@ -52,7 +57,7 @@ LinkedList * create_linked_list(ComparatorFunc comparatorFunc, DeleteDataFunc de
 void delete_linked_list(LinkedList *linkedList) {
 
     if (linkedList == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     delete_all_nodes(linkedList);
@@ -63,7 +68,7 @@ void delete_linked_list(LinkedList *linkedList) {
 void reset_linked_list(LinkedList *linkedList) {
 
     if (linkedList == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     delete_all_nodes(linkedList);
@@ -74,12 +79,12 @@ void reset_linked_list(LinkedList *linkedList) {
 Node * create_node(void *data) {
 
     if (data == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     Node *node = (Node*) malloc(sizeof(Node));
     if (node == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
     node->data = data;
@@ -100,7 +105,7 @@ STATIC void delete_node(Node *node, DeleteDataFunc deleteDataFunc) {
 STATIC void delete_all_nodes(LinkedList *linkedList) {
 
     if (linkedList == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     Node *current = linkedList->head;
@@ -113,13 +118,12 @@ STATIC void delete_all_nodes(LinkedList *linkedList) {
 
         delete_node(previous, linkedList->deleteDataFunc);
     }
-
 }
 
 void append_node(LinkedList *linkedList, Node *node) {
 
     if (linkedList == NULL || node == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     if (linkedList->head == NULL) {
@@ -144,7 +148,7 @@ void append_node(LinkedList *linkedList, Node *node) {
 int remove_node(LinkedList *linkedList, void *data) {
 
     if (linkedList == NULL || data == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int removed = 0;
@@ -177,7 +181,7 @@ int remove_node(LinkedList *linkedList, void *data) {
 Node * find_node(LinkedList *linkedList, void *data) {
 
     if (linkedList == NULL || data == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
     
     Node *current = linkedList->head;
@@ -190,10 +194,10 @@ Node * find_node(LinkedList *linkedList, void *data) {
     return current;
 }
 
-void iterate_list(LinkedList *linkedList, IteratorFunc iteratorFunc, void *arg) {
+void iterate_list(LinkedList *linkedList, LinkedListFunc iteratorFunc, void *arg) {
 
     if (linkedList == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     Node *current = linkedList->head;
@@ -219,7 +223,7 @@ void * get_data(Node *node) {
 void set_data(Node *node, void *data) {
 
     if (node == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
     node->data = data;
 
@@ -239,7 +243,7 @@ Node * get_next(Node *node) {
 int get_list_count(LinkedList *linkedList) {
 
     if (linkedList == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return linkedList->count;

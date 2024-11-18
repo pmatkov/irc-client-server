@@ -23,10 +23,17 @@
 
 #ifndef TEST
 
-/*  the label, syntax, description and 
-    examples are used only by the client
-    to display this information to the user */
-struct Command {
+struct CommandTokens{
+    char input[MAX_CHARS + 1];
+    const char *command;
+    const char *args[MAX_TOKENS];
+    int argCount;
+};
+
+/*  every commandInfo is identified by its type, its user and
+    its label. additionally, client commands include
+    syntax, description and examples */
+struct CommandInfo {
     CommandType commandType;
     CommandUser commandUser;     
     const char *label;
@@ -37,12 +44,11 @@ struct Command {
 
 #endif
 
-/* a collection of all available commands along
-    with their assigned values. each array of 
-    pointers ends with a NULL pointer item which
-    enables convenient identification of the last 
-    item */
-static const Command COMMANDS[] = {
+/* a list of all commands with their assigned 
+    properties. the last item in the designated
+    initializer array is NULL to enable convenient
+    iteration over array elements */
+static const CommandInfo COMMAND_INFOS[] = {
 
     {HELP, CLIENT_COMMAND, "help", NULL, {NULL}, {NULL}},
 
@@ -98,7 +104,7 @@ static const Command COMMANDS[] = {
         "/msg john bye", NULL}
         },
         
-    {SERVER_ADDRESS, CLIENT_COMMAND, 
+    {ADDRESS, CLIENT_COMMAND, 
         "address", 
         "address <address>",
         {"sets a default server address", NULL},
@@ -106,7 +112,7 @@ static const Command COMMANDS[] = {
         "/address chat.freenode.net", NULL}
         },
 
-    {SERVER_PORT, CLIENT_COMMAND, 
+    {PORT, CLIENT_COMMAND, 
         "port", 
         "port <port>",
         {"sets a default server port", NULL},
@@ -124,16 +130,18 @@ static const Command COMMANDS[] = {
         "unknown", NULL, {NULL}, {NULL}},
 };
 
-static_assert(ARR_SIZE(COMMANDS) == COMMAND_TYPE_COUNT, "Array size mismatch");
+static_assert(ARR_SIZE(COMMAND_INFOS) == COMMAND_TYPE_COUNT, "Array size mismatch");
 
-CommandTokens * create_command_tokens(void) {
+CommandTokens * create_command_tokens(int count) {
 
-    CommandTokens *cmdTokens = (CommandTokens *) malloc(sizeof(CommandTokens));
+    CommandTokens *cmdTokens = (CommandTokens *) malloc(count * sizeof(CommandTokens));
     if (cmdTokens == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
-    reset_cmd_tokens(cmdTokens);    
+    for (int i = 0; i < count; i++) {
+        reset_command_tokens(&cmdTokens[i]);
+    }
 
     return cmdTokens;
 }
@@ -143,10 +151,10 @@ void delete_command_tokens(CommandTokens *cmdTokens) {
     free(cmdTokens);
 }
 
-void reset_cmd_tokens(CommandTokens *cmdTokens) {
+void reset_command_tokens(CommandTokens *cmdTokens) {
 
     if (cmdTokens == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     memset(cmdTokens->input, '\0', sizeof(cmdTokens->input));
@@ -165,7 +173,7 @@ const char * command_type_to_string(CommandType commandType) {
     const char *string = NULL;
 
     if (is_valid_command(commandType)) {
-        string = COMMANDS[commandType].label;
+        string = COMMAND_INFOS[commandType].label;
     };
 
     return string;
@@ -174,7 +182,7 @@ const char * command_type_to_string(CommandType commandType) {
 CommandType string_to_command_type(const char *string) {
 
     if (string == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     CommandType commandType = UNKNOWN_COMMAND_TYPE;
@@ -183,8 +191,8 @@ CommandType string_to_command_type(const char *string) {
 
     for (int i = 0; i < COMMAND_TYPE_COUNT; i++) {
 
-        if (strncmp(COMMANDS[i].label, &string[startIndex], MAX_TOKEN_LEN) == 0) {
-            commandType = COMMANDS[i].commandType;
+        if (strncmp(COMMAND_INFOS[i].label, &string[startIndex], MAX_TOKEN_LEN) == 0) {
+            commandType = COMMAND_INFOS[i].commandType;
         }
     }
     return commandType;
@@ -198,7 +206,7 @@ int is_valid_command(CommandType commandType) {
 int has_command_prefix(const char *string) {
 
     if (string == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int prefix = 0;
@@ -211,73 +219,90 @@ int has_command_prefix(const char *string) {
     return prefix;
 }
 
-const Command * get_commands(void) {
+const CommandInfo * get_command_info(CommandType commandType) {
 
-    return COMMANDS;
-}
-
-int get_command_size(void) {
-
-    return sizeof(COMMANDS[0]);
-}
-
-const Command * get_command(CommandType commandType) {
-
-    const Command *command = &COMMANDS[UNKNOWN_COMMAND_TYPE];
+    const CommandInfo *commandInfo = &COMMAND_INFOS[UNKNOWN_COMMAND_TYPE];
     
     if (is_valid_command(commandType)) {
-        command = &COMMANDS[commandType];
+        commandInfo = &COMMAND_INFOS[commandType];
     }
 
-    return command;
+    return commandInfo;
 }
 
-const char * get_command_label(const Command *command) {
+const CommandInfo * get_command_infos(void) {
 
-    if (command == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    return COMMAND_INFOS;
+}
+
+int get_command_info_size(void) {
+
+    return sizeof(COMMAND_INFOS[0]);
+}
+
+const char * get_command_info_label(const CommandInfo *commandInfo) {
+
+    if (commandInfo == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
-    return command->label;
+    return commandInfo->label;
 }
 
-const char * get_command_syntax(const Command *command) {
+const char * get_command_info_syntax(const CommandInfo *commandInfo) {
 
-    if (command == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    if (commandInfo == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
-    return command->syntax;
+    return commandInfo->syntax;
 }
 
-const char ** get_command_description(const Command *command) {
+const char ** get_command_info_description(const CommandInfo *commandInfo) {
 
-    if (command == NULL) {
-        FAILED(NULL, ARG_ERROR);
-    }
-
-    return (const char **) command->description;
-}
-
-const char ** get_command_examples(const Command *command) {
-
-    if (command == NULL) {
-        FAILED(NULL, ARG_ERROR);
+    if (commandInfo == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
 
-    return (const char **) command->examples;
+    return (const char **) commandInfo->description;
 }
 
-const char * get_cmd_from_cmd_tokens(CommandTokens *cmdTokens) {
+const char ** get_command_info_examples(const CommandInfo *commandInfo) {
+
+    if (commandInfo == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    return (const char **) commandInfo->examples;
+}
+
+char * get_command_input(CommandTokens *cmdTokens) {
 
     if (cmdTokens == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
+    }
+    return cmdTokens->input;
+}
+
+
+const char * get_command(CommandTokens *cmdTokens) {
+
+    if (cmdTokens == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
     return cmdTokens->command;
 }
 
-const char * get_arg_from_cmd_tokens(CommandTokens *cmdTokens, int index) {
+void set_command(CommandTokens *cmdTokens, const char *command) {
 
     if (cmdTokens == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
+    }
+    cmdTokens->command = command; 
+}
+
+const char * get_command_argument(CommandTokens *cmdTokens, int index) {
+
+    if (cmdTokens == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
 
     const char *arg = NULL;
@@ -289,11 +314,40 @@ const char * get_arg_from_cmd_tokens(CommandTokens *cmdTokens, int index) {
     return arg;
 }
 
-int get_arg_count_from_cmd_tokens(CommandTokens *cmdTokens) {
+const char ** get_command_arguments(CommandTokens *cmdTokens) {
 
     if (cmdTokens == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    return (const char **) cmdTokens->args;
+}
+
+void set_command_argument(CommandTokens *cmdTokens, const char *arg, int index) {
+
+    if (cmdTokens == NULL || arg == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    if (index >= 0 && index < MAX_TOKENS) {
+        cmdTokens->args[index] = arg;
+    }
+}
+
+int get_command_argument_count(CommandTokens *cmdTokens) {
+
+    if (cmdTokens == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
 
     return cmdTokens->argCount;
+}
+
+void set_command_argument_count(CommandTokens *cmdTokens, int argCount) {
+
+    if (cmdTokens == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    cmdTokens->argCount = argCount;
 }

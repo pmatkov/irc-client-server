@@ -8,11 +8,11 @@
 void set_content(LineEditor *lnEditor, int cursor, int charCount, const char *content) {
 
     RegMessage *message = create_reg_message(content);
-    enqueue(lnEditor->buffer, message);
+    enqueue(lnEditor->cmdQueue, message);
 
     lnEditor->cursor = cursor;
     lnEditor->charCount = charCount;
-    lnEditor->buffer->currentItem--;
+    lnEditor->cmdQueue->currentItem--;
 
     delete_message(message);
 }
@@ -83,7 +83,7 @@ START_TEST(test_delete_char) {
     ck_assert_int_eq(lnEditor->charCount, strlen(content) - 1);
     ck_assert_int_eq(lnEditor->cursor, PROMPT_SIZE + strlen(content) - 1);
 
-    RegMessage *message = get_current_item(lnEditor->buffer);
+    RegMessage *message = get_current_item(lnEditor->cmdQueue);
     ck_assert_str_eq(get_reg_message_content(message), "messag");
 
     delete_line_editor(lnEditor);
@@ -103,7 +103,7 @@ START_TEST(test_add_char) {
     ck_assert_int_eq(lnEditor->charCount, strlen(content) + 1);
     ck_assert_int_eq(lnEditor->cursor, PROMPT_SIZE + strlen(content) + 1);
 
-    RegMessage *message = get_current_item(lnEditor->buffer);
+    RegMessage *message = get_current_item(lnEditor->cmdQueue);
     ck_assert_str_eq(get_reg_message_content(message), "message1");
 
     delete_line_editor(lnEditor);
@@ -123,7 +123,7 @@ START_TEST(test_use_backspace) {
     ck_assert_int_eq(lnEditor->charCount, strlen(content) - 1);
     ck_assert_int_eq(lnEditor->cursor, PROMPT_SIZE + strlen(content) - 1);
 
-    RegMessage *message = get_current_item(lnEditor->buffer);
+    RegMessage *message = get_current_item(lnEditor->cmdQueue);
     ck_assert_str_eq(get_reg_message_content(message), "messag");
 
     delete_line_editor(lnEditor);
@@ -143,7 +143,7 @@ START_TEST(test_use_delete) {
     ck_assert_int_eq(lnEditor->charCount, strlen(content));
     ck_assert_int_eq(lnEditor->cursor, PROMPT_SIZE + strlen(content));
 
-    RegMessage *message = get_current_item(lnEditor->buffer);
+    RegMessage *message = get_current_item(lnEditor->cmdQueue);
     ck_assert_str_eq(get_reg_message_content(message), "message");
 
     delete_line_editor(lnEditor);

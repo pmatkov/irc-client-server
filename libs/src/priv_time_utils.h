@@ -6,23 +6,31 @@
 
 #include <stddef.h>
 #include <time.h>
+#include <sys/time.h>
 
 #define HM_TIME_LENGTH 6
 #define HMS_TIME_LENGTH 9
 #define DATE_LENGTH 11
 #define DATETIME_LENGTH 21
 
+#define DEF_INTERVAL 60
+
 typedef enum {
     HM_TIME,
     HMS_TIME,
     DATE,
     DATETIME,
-    DATETIME_COUNT
+    DATETIME_FORMAT_COUNT
 } DateTimeFormat;
 
+typedef enum {
+    SECONDS,
+    MICROSECONDS
+} TimeFormat;
+
 typedef struct {
-    time_t startTime;
-    time_t endTime;
+    struct timeval startTime;
+    struct timeval endTime;
     int isActive;
 } Timer;
 
@@ -34,7 +42,10 @@ void delete_timer(Timer *timer);
 void start_timer(Timer *timer);
 void stop_timer(Timer *timer);
 void reset_timer(Timer *timer);
-int get_elapsed_time(Timer *timer);
+long get_elapsed_time(Timer *timer, TimeFormat timeFormat);
 int is_timer_active(Timer *timer);
+
+struct itimerval * create_interval_timer(int seconds);
+void delete_interval_timer(struct itimerval *timer);
 
 #endif

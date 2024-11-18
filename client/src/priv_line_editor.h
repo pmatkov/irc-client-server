@@ -13,7 +13,7 @@
 
 typedef struct {
     WINDOW *window;
-    Queue *buffer;
+    Queue *cmdQueue;
     int cursor;
     int charCount;
 } LineEditor;
@@ -45,7 +45,7 @@ LnEditorFunc get_lneditor_function(int index);
 int get_le_func_index(int keyCode);
 
 WINDOW * le_get_window(LineEditor *lnEditor);
-Queue * le_get_buffer(LineEditor *lnEditor);
+Queue * le_get_cmd_queue(LineEditor *lnEditor);
 int le_get_char_count(LineEditor *lnEditor);
 void le_set_char_count(LineEditor *lnEditor, int charCount);
 int le_get_cursor(LineEditor *lnEditor);

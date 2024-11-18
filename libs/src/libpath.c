@@ -7,7 +7,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 
-#define MAX_PATH 64
+#define MAX_PATH_LEN 64
 
 int is_dir(const char *dirName) {
 
@@ -42,11 +42,10 @@ int get_bin_path(char *binPath, int size) {
     return status;
 }
 
-// traverse up dir path
 int traverse_up_path(char *buffer, int size, char *path,  int level) {
 
     if (path == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     char *pathCopy = strdup(path);
@@ -76,20 +75,26 @@ int traverse_up_path(char *buffer, int size, char *path,  int level) {
 int create_path(char *buffer, int size, const char *path) {
 
     if (buffer == NULL || path == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    char binPath[MAX_PATH + 1] = {'\0'};
-    int level = 2;
     int status = 0;
 
+    char binPath[MAX_PATH_LEN + 1] = {'\0'};
+    get_bin_path(binPath, sizeof(binPath));
+
+    /* test binaries are located one level below the regular 
+        binaries, so to get the project dir path we must move
+        one level more (three in total) */
     #ifdef TEST
-    level = 3;
+    int level = 3;
+    #else
+    int level = 2;
     #endif
 
-    if (get_bin_path(binPath, MAX_PATH) && traverse_up_path(buffer, MAX_PATH, binPath, level)) {
+    if (strlen(binPath) && traverse_up_path(buffer, MAX_PATH_LEN, binPath, level)) {
 
-        if (strlen(path) + strlen(buffer) < size) {
+        if (strlen(path) + strlen(buffer) < size - 1) {
 
             strcat(buffer, path);
             status = 1;

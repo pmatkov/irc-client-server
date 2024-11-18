@@ -4,7 +4,7 @@
 #ifndef HASH_TABLE_H
 #define HASH_TABLE_H
 
-#define LOAD_FACTOR 2.0
+#define MAX_LOAD_FACTOR 2.0
 
 typedef unsigned long (*HashFunc)(void *key);
 typedef int (*ComparatorFunc)(void *key1, void *key2);

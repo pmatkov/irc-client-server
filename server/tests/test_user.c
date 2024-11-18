@@ -22,18 +22,20 @@ START_TEST(test_create_user) {
 }
 END_TEST
 
-START_TEST(test_add_remove_message_from_user_queue) {
+START_TEST(test_copy_user) {
 
     User *user = create_user("john", NULL, NULL, NULL, 0);
+    User *userCopy = copy_user(user);
 
-    add_message_to_user_queue(user, &(RegMessage){"message"});
+    ck_assert_ptr_ne(user, NULL);
+    ck_assert_ptr_ne(user, userCopy);
 
-    ck_assert_int_eq(user->outQueue->count, 1);
+    ck_assert_str_eq(userCopy->nickname, "john");
+    ck_assert_str_eq(userCopy->username, "");
+    ck_assert_int_eq(userCopy->fd, 0);
+    ck_assert_ptr_ne(userCopy->outQueue, NULL);
 
-    RegMessage *message = remove_message_from_user_queue(user);
-    ck_assert_ptr_ne(message, NULL);
-    ck_assert_int_eq(user->outQueue->count, 0);
-
+    delete_user(userCopy);
     delete_user(user);
 }
 END_TEST
@@ -73,17 +75,52 @@ START_TEST(test_add_nickname_to_list) {
 
     User *user = create_user("john", NULL, NULL, NULL, 0);
 
-    StringList *stringList = create_string_list(LIST_CAPACITY, MAX_NICKNAME_LEN);
+    struct {
+        char buffer[MAX_CHARS + 1];
+    } data = {{'\0'}};
 
-    add_nickname_to_list(user, stringList);
+    add_nickname_to_list(user, &data);
 
-    ck_assert_int_eq(stringList->count, 1);
+    ck_assert_str_eq(data.buffer, "john");
 
-    delete_string_list(stringList);
     delete_user(user);
 
 }
 END_TEST
+
+START_TEST(test_enqueue_dequeue_user) {
+
+    User *user = create_user("john", NULL, NULL, NULL, 0);
+
+    enqueue_to_user_queue(user, "message");
+
+    ck_assert_int_eq(user->outQueue->count, 1);
+
+    char *message = dequeue_from_user_queue(user);
+
+    ck_assert_int_eq(user->outQueue->count, 0);
+    ck_assert_str_eq(message, "message");
+
+    delete_user(user);
+}
+END_TEST
+
+
+START_TEST(test_create_user_info) {
+
+    User *user = create_user("jdoe", "john", "irc.client.com", NULL, 0);
+
+    char userInfo[MAX_CHARS + 1] = {'\0'};
+
+    create_user_info(userInfo, MAX_CHARS, user);
+
+    ck_assert_str_eq(userInfo, "jdoe!john@irc.client.com");
+
+    delete_user(user);
+
+}
+END_TEST
+
 
 START_TEST(test_get_user_data) {
 
@@ -109,10 +146,12 @@ Suite* user_suite(void) {
 
     // Add the test case to the test suite
     tcase_add_test(tc_core, test_create_user);
-    tcase_add_test(tc_core, test_add_remove_message_from_user_queue);
+    tcase_add_test(tc_core, test_copy_user);
     tcase_add_test(tc_core, test_set_user_data);
     tcase_add_test(tc_core, test_are_users_equal);
     tcase_add_test(tc_core, test_add_nickname_to_list);
+    tcase_add_test(tc_core, test_enqueue_dequeue_user);
+    tcase_add_test(tc_core, test_create_user_info);
     tcase_add_test(tc_core, test_get_user_data);
     
     suite_add_tcase(s, tc_core);

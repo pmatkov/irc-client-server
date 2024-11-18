@@ -5,8 +5,7 @@
 
 #define MAX_TOKENS 5
 
-/* commandType represents a list of commands
-    supported by the client and the server */
+/* represents a list of commands */
 typedef enum {
     HELP,
     CONNECT,
@@ -16,16 +15,14 @@ typedef enum {
     JOIN,
     PART,
     PRIVMSG,
-    SERVER_ADDRESS,
-    SERVER_PORT,
+    ADDRESS,
+    PORT,
     QUIT, 
     UNKNOWN_COMMAND_TYPE,
     COMMAND_TYPE_COUNT
 } CommandType;
 
-/* commandUser represents the app which may
-    execute the command, either the client, 
-    the server or both */
+/* represents an app that may execute the command */
 typedef enum {
     CLIENT_COMMAND,
     SERVER_COMMAND,
@@ -34,50 +31,45 @@ typedef enum {
     COMMAND_USER_COUNT
 } CommandUser;
 
-/* the client receives commands from the terminal 
-    and the server from the network. each command
-    string (either command line input or network 
-    message) is parsed into tokens. these tokens are 
-    then divided to an actual command and command 
-    parameters */
-typedef struct {
-    char input[MAX_CHARS + 1];
-    const char *command;
-    const char *args[MAX_TOKENS];
-    int argCount;
-} CommandTokens;
+/* commands are parsed into a series of tokens. the 
+    command string is stored in the command token 
+    while the arguments are stored in the args array */
+typedef struct CommandTokens CommandTokens;
 
-/* command is a container for all information related
-    to commands. commands parsed by the client contain
-    a label, a syntax, a description and examples */
-typedef struct Command Command;
+/* contains command info like syntax, description and 
+    examples */
+typedef struct CommandInfo CommandInfo;
 
-CommandTokens * create_command_tokens(void);
+CommandTokens * create_command_tokens(int count);
 void delete_command_tokens(CommandTokens *cmdTokens);
 
 /* reset command tokens to default values */
-void reset_cmd_tokens(CommandTokens *cmdTokens);
+void reset_command_tokens(CommandTokens *cmdTokens);
 
 const char * command_type_to_string(CommandType commandType);
 CommandType string_to_command_type(const char *string);
 
 int is_valid_command(CommandType commandType);
 
-/* a valid command line command should start with 
-    '/' prefix */
+/* a valid command starts with '/' prefix */
 int has_command_prefix(const char *string);
 
-const Command * get_commands(void);
-const Command * get_command(CommandType commandType);
-int get_command_size(void);
+const CommandInfo * get_command_infos(void);
+const CommandInfo * get_command_info(CommandType commandType);
+int get_command_info_size(void);
 
-const char * get_command_label(const Command *command);
-const char * get_command_syntax(const Command *command);
-const char ** get_command_description(const Command *command);
-const char ** get_command_examples(const Command *command);
+const char * get_command_info_label(const CommandInfo *commandInfo);
+const char * get_command_info_syntax(const CommandInfo *commandInfo);
+const char ** get_command_info_description(const CommandInfo *commandInfo);
+const char ** get_command_info_examples(const CommandInfo *commandInfo);
 
-const char * get_cmd_from_cmd_tokens(CommandTokens *cmdTokens);
-const char * get_arg_from_cmd_tokens(CommandTokens *cmdTokens, int index);
-int get_arg_count_from_cmd_tokens(CommandTokens *cmdTokens);
+char * get_command_input(CommandTokens *cmdTokens);
+const char * get_command(CommandTokens *cmdTokens);
+const char ** get_command_arguments(CommandTokens *cmdTokens);
+void set_command(CommandTokens *cmdTokens, const char *command);
+const char * get_command_argument(CommandTokens *cmdTokens, int index);
+void set_command_argument(CommandTokens *cmdTokens, const char *arg, int index);
+int get_command_argument_count(CommandTokens *cmdTokens);
+void set_command_argument_count(CommandTokens *cmdTokens, int argCount);
 
 #endif

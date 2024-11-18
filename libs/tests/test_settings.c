@@ -1,152 +1,159 @@
 #include "../src/priv_settings.h"
-#include "../src/priv_lookup_table.h"
 #include "../src/string_utils.h"
 
 #include <check.h>
 
-#define MAX_SETTINGS 5
+enum OptionType {OT_NICKNAME, OT_USERNAME, OT_PORT, OPTION_TYPE_COUNT};
 
-enum clientProperty {NICKNAME, USERNAME, PORT};
-static int keys[] = {NICKNAME, USERNAME, PORT};
-static const char *values[] = {"nickname", "username", "port"};
+static Settings *settings;
+
+static void initialize_test_suite(void) {
+
+    settings = create_settings(OPTION_TYPE_COUNT);
+}
+
+static void cleanup_test_suite(void) {
+
+    delete_settings(settings);
+}
+
+static void reset_settings(void) {
+
+    settings->count = 0;
+
+    for (int i = 0; i < settings->capacity; i++) {
+
+       reset_option(i);
+    }
+}
 
 START_TEST(test_create_settings) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
-    Settings *settings = create_settings(MAX_SETTINGS);
-
     ck_assert_ptr_ne(settings, NULL);
-    ck_assert_int_eq(settings->capacity, MAX_SETTINGS);
+    ck_assert_int_eq(settings->capacity, OPTION_TYPE_COUNT);
     ck_assert_int_eq(settings->count, 0);
 
-    delete_settings(settings);
-    delete_lookup_table(lookupTable);
+}
+END_TEST
+
+START_TEST(test_register_option) {
+
+    register_option(CHAR_TYPE, OT_NICKNAME, "nickname", "john");
+
+    ck_assert_int_eq(settings->count, 1);
+    ck_assert_int_eq(is_option_registered(OT_NICKNAME), 1);
+
+    reset_settings();
+}
+END_TEST
+
+START_TEST(test_unregister_option) {
+
+    register_option(CHAR_TYPE, OT_NICKNAME, "nickname", "john");
+
+    ck_assert_int_eq(settings->count, 1);
+    ck_assert_int_eq(is_option_registered(OT_NICKNAME), 1);
+
+    unregister_option(OT_NICKNAME);
+
+    ck_assert_int_eq(settings->count, 0);
+    ck_assert_int_eq(is_option_registered(OT_NICKNAME), 0);
+
+    reset_settings();
+}
+END_TEST
+
+START_TEST(test_get_set_option_data) {
+
+    register_option(CHAR_TYPE, OT_NICKNAME, "nickname", "john");
+    ck_assert_str_eq(get_char_option_value(OT_NICKNAME), "john");
+
+    ck_assert_int_eq(get_option_data_type(OT_NICKNAME), CHAR_TYPE);
+    ck_assert_str_eq(get_option_label(OT_NICKNAME), "nickname");
+
+    set_option_value(OT_NICKNAME, "mark");
+    ck_assert_str_eq(get_char_option_value(OT_NICKNAME), "mark");
+
+    register_option(INT_TYPE, OT_PORT, "port", &((int){10}));
+    ck_assert_int_eq(get_int_option_value(OT_PORT), 10);
+
+    reset_settings();
+}
+END_TEST
+
+START_TEST(test_is_option_registered) {
+
+    ck_assert_int_eq(is_option_registered(OT_NICKNAME), 0);
 
 }
 END_TEST
 
-START_TEST(test_register_property) {
+START_TEST(test_is_valid_option_type) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
-    Settings *settings = create_settings(MAX_SETTINGS);
-
-    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "john");
-    ck_assert_int_eq(is_property_registered(NICKNAME), 1);
-
-    delete_settings(settings);
-    delete_lookup_table(lookupTable);
-
-}
-END_TEST
-
-START_TEST(test_get_set_property_value) {
-
-    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
-    Settings *settings = create_settings(MAX_SETTINGS);
-
-    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "john");
-
-    ck_assert_str_eq((const char *)get_property_value(NICKNAME), "john");
-
-    set_property_value(NICKNAME, "mark");
-    ck_assert_str_eq((const char *) get_property_value(NICKNAME), "mark");
-
-    register_property(INT_TYPE, get_lookup_pair(lookupTable, PORT), &((int){10}));
-
-    ck_assert_int_eq(*((const int *) get_property_value(PORT)), 10);
-
-    delete_settings(settings);
-    delete_lookup_table(lookupTable);
-
-}
-END_TEST
-
-START_TEST(test_is_property_registered) {
-
-    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
-    Settings *settings = create_settings(MAX_SETTINGS);
-
-    ck_assert_int_eq(is_property_registered(NICKNAME), 0);
-
-    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "john");
-    ck_assert_int_eq(is_property_registered(NICKNAME), 1);
-
-    delete_settings(settings);
-    delete_lookup_table(lookupTable);
-}
-END_TEST
-
-START_TEST(test_is_valid_property) {
-
-    Settings *settings = create_settings(MAX_SETTINGS);
-
-    ck_assert_int_eq(is_valid_property(USERNAME), 1);
-    ck_assert_int_eq(is_valid_property(10), 0);
-
-    delete_settings(settings);
-}
-END_TEST
-
-START_TEST(test_write_settings) {
-
-    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
-    Settings *settings = create_settings(MAX_SETTINGS);
-
-    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "steve");
-
-    write_settings("tests/data/settings.conf");
-
-    delete_settings(settings);
-    delete_lookup_table(lookupTable);
+    ck_assert_int_eq(is_valid_option_type(OT_USERNAME), 1);
+    ck_assert_int_eq(is_valid_option_type(10), 0);
 
 }
 END_TEST
 
 START_TEST(test_read_settings) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
-    Settings *settings = create_settings(MAX_SETTINGS);
+    register_option(CHAR_TYPE, OT_NICKNAME, "nickname", "");
+    
+    read_settings("tests/data/settings.conf");
+    ck_assert_str_eq(get_char_option_value(OT_NICKNAME), "steve");
 
-    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "");
-    read_settings(lookupTable, "tests/data/settings.conf");
-
-    ck_assert_str_eq(get_property_value(NICKNAME), "steve");
-
-    delete_settings(settings);
-    delete_lookup_table(lookupTable);
+    reset_settings();
 
 }
 END_TEST
 
-START_TEST(test_read_property_string) {
+START_TEST(test_write_settings) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
-    Settings *settings = create_settings(MAX_SETTINGS);
+    register_option(CHAR_TYPE, OT_NICKNAME, "nickname", "steve");
 
-    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "");
+    write_settings("tests/data/settings.conf");
+
+    reset_settings();
+
+}
+END_TEST
+
+START_TEST(test_label_to_option_type) {
+
+    register_option(CHAR_TYPE, OT_NICKNAME, "nickname", "");
+
+    ck_assert_int_eq(label_to_option_type("nickname"), OT_NICKNAME);
+    ck_assert_int_eq(label_to_option_type("username"), -1);
+
+    reset_settings();
+
+}
+END_TEST
+
+START_TEST(test_read_option_string) {
+
+    register_option(CHAR_TYPE, OT_NICKNAME, "nickname", "");
 
     char buffer[] = "nickname=john";
-    read_property_string(lookupTable, buffer);
-    ck_assert_str_eq((const char *) get_property_value(NICKNAME), "john");
+    read_option_string(buffer);
+    ck_assert_str_eq(get_char_option_value(OT_NICKNAME), "john");
 
-    delete_settings(settings);
-    delete_lookup_table(lookupTable);
+    reset_settings();
+
 }
 END_TEST
 
-START_TEST(test_create_property_string) {
+START_TEST(test_create_option_string) {
 
-    LookupTable *lookupTable = create_lookup_table(keys, values, ARR_SIZE(keys));
-    Settings *settings = create_settings(MAX_SETTINGS);
-
-    register_property(CHAR_TYPE, get_lookup_pair(lookupTable, NICKNAME), "john");
+    register_option(CHAR_TYPE, OT_NICKNAME, "nickname", "john");
 
     char buffer[MAX_CHARS + 1];
-    create_property_string(buffer, MAX_CHARS + 1, &settings->properties[NICKNAME]);
+    create_option_string(buffer, MAX_CHARS + 1, &settings->options[OT_NICKNAME]);
     ck_assert_str_eq(buffer, "nickname=john");
 
-    delete_settings(settings);
-    delete_lookup_table(lookupTable);
+    reset_settings();
+
 }
 END_TEST
 
@@ -160,14 +167,16 @@ Suite* settings_suite(void) {
     // Add the test case to the test suite
 
     tcase_add_test(tc_core, test_create_settings);
-    tcase_add_test(tc_core, test_register_property);
-    tcase_add_test(tc_core, test_get_set_property_value);
-    tcase_add_test(tc_core, test_is_property_registered);
-    tcase_add_test(tc_core, test_is_valid_property);
-    tcase_add_test(tc_core, test_write_settings);
+    tcase_add_test(tc_core, test_register_option);
+    tcase_add_test(tc_core, test_unregister_option);
+    tcase_add_test(tc_core, test_get_set_option_data);
+    tcase_add_test(tc_core, test_is_option_registered);
+    tcase_add_test(tc_core, test_is_valid_option_type);
     tcase_add_test(tc_core, test_read_settings);
-    tcase_add_test(tc_core, test_read_property_string);
-    tcase_add_test(tc_core, test_create_property_string);
+    tcase_add_test(tc_core, test_write_settings);
+    tcase_add_test(tc_core, test_label_to_option_type);
+    tcase_add_test(tc_core, test_read_option_string);
+    tcase_add_test(tc_core, test_create_option_string);
 
     suite_add_tcase(s, tc_core);
 
@@ -183,9 +192,13 @@ int main(void) {
     s = settings_suite();
     sr = srunner_create(s);
 
+    initialize_test_suite();
+
     srunner_run_all(sr, CK_NORMAL);
     number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
+
+    cleanup_test_suite();
 
     return (number_failed == 0) ? 0 : 1;
 }

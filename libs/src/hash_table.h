@@ -6,6 +6,7 @@ typedef int (*ComparatorFunc)(void *key1, void *key2);
 typedef void (*DeleteKeyFunc)(void *key);
 typedef void (*DeleteValueFunc)(void *value);
 
+/* generic hash table that can use any data type */
 typedef struct HashItem HashItem;
 typedef struct HashTable HashTable;
 

@@ -39,7 +39,7 @@ Suite* command_suite(void) {
     Suite *s;
     TCase *tc_core;
 
-    s = suite_create("Command");
+    s = suite_create("CommandInfo");
     tc_core = tcase_create("Core");
 
     // Add the test case to the test suite

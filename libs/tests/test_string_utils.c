@@ -1,66 +1,99 @@
 #include "../src/string_utils.h"
+#include "../src/error_control.h"
 
 #include <check.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
 
-#define LIST_CAPACITY 10
-#define STRING_LENGTH 20
+#define DEF_CAPACITY 10
 
-START_TEST(test_create_string_list) {
+typedef struct {
+    char **strings;
+    int count;
+    int capacity;
+} StringList;
 
-    StringList *stringList = create_string_list(LIST_CAPACITY, STRING_LENGTH);
+static StringList * create_string_list(int capacity) {
 
-    ck_assert_ptr_ne(stringList, NULL);
-    ck_assert_int_eq(stringList->stringLength, STRING_LENGTH);
-    ck_assert_int_eq(stringList->capacity, LIST_CAPACITY);
-    ck_assert_int_eq(stringList->count, 0);
+    StringList *stringList = (StringList*) malloc(sizeof(StringList));
+    if (stringList == NULL) {
+        FAILED(NO_ERRCODE, "Error allocating memory");
+    }
 
-    delete_string_list(stringList);
+    if (capacity > DEF_CAPACITY) {
+        capacity = DEF_CAPACITY;
+    }
+
+    stringList->strings = (char**) malloc(capacity * sizeof(char*));
+
+    if (stringList->strings == NULL) {
+        FAILED(NO_ERRCODE, "Error allocating memory");
+    }
+
+    for (int i = 0; i < capacity; i++) {
+
+        stringList->strings[i] = (char*) malloc((MAX_CHARS + 1) * sizeof(char));
+        if (stringList->strings[i] == NULL) {
+            FAILED(NO_ERRCODE, "Error allocating memory");
+        }
+    }
+
+    stringList->capacity = capacity;
+    stringList->count = 0;
+
+    return stringList;
 }
-END_TEST
 
-START_TEST(test_is_string_list_empty) {
+static void delete_string_list(StringList *stringList) {
 
-    StringList *stringList = create_string_list(LIST_CAPACITY, STRING_LENGTH);
+    if (stringList != NULL) {
+           
+        for (int i = 0; i < stringList->capacity; i++) {
 
-    ck_assert_int_eq(is_string_list_empty(stringList), 1);
+            free(stringList->strings[i]);
+        }
+        free(stringList->strings);
+    }
 
-    delete_string_list(stringList);
+    free(stringList);
 }
-END_TEST
 
-START_TEST(test_is_string_list_full) {
+static void str_to_upper(const char *string, void *arg) {
 
-    StringList *stringList = create_string_list(LIST_CAPACITY, STRING_LENGTH);
+    if (string != NULL && ((StringList*)arg)->count < ((StringList*)arg)->capacity) {
 
-    ck_assert_int_eq(is_string_list_full(stringList), 0);
+        int i = 0;
+        char buffer[MAX_CHARS + 1] = {'\0'};
 
-    delete_string_list(stringList);
+        while (*string) {
+            buffer[i] = toupper(*string);
+            string++;
+            i++;
+        }
+        safe_copy(((StringList*)arg)->strings[((StringList*)arg)->count], MAX_CHARS + 1, buffer);
+        ((StringList*)arg)->count++;
+    }
 }
-END_TEST
 
-START_TEST(test_add_remove_string_from_string_list) {
+static void print_upper(const char *string, void *arg) {
 
-    StringList *stringList = create_string_list(LIST_CAPACITY, STRING_LENGTH);
+    if (string != NULL) {
 
-    add_string_to_string_list(stringList, "john");
-
-    ck_assert_int_eq(stringList->count, 1);
-    ck_assert_str_eq(stringList->strings[0], "john");
-
-    remove_string_from_string_list(stringList);
-    ck_assert_int_eq(stringList->count, 0);
-    ck_assert_str_eq(stringList->strings[0], "");
-
-    delete_string_list(stringList);
+        while (*string) {
+            putchar(toupper(*string++));
+        }
+        printf("\n");
+    }
 }
-END_TEST
 
-START_TEST(test_split_input_string) {
 
-    const char *tokens[3] = {NULL};  
+START_TEST(test_tokenize_string) {
+
+    const char *tokens[5] = {NULL};  
     char msg1[] = "/msg john what is going on";
 
-    int tkCount = split_input_string(msg1, tokens, 3, " ");
+    int tkCount = tokenize_string(msg1, tokens, 3, " ");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 3);
@@ -70,7 +103,7 @@ START_TEST(test_split_input_string) {
 
     char msg2[] = "/msg john";
 
-    tkCount = split_input_string(msg2, tokens, 2, " ");
+    tkCount = tokenize_string(msg2, tokens, 2, " ");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 2);
@@ -79,7 +112,7 @@ START_TEST(test_split_input_string) {
 
     char msg3[] = "/msg john";
 
-    tkCount = split_input_string(msg3, tokens, 2, "\n");
+    tkCount = tokenize_string(msg3, tokens, 2, "\n");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 1);
@@ -87,7 +120,7 @@ START_TEST(test_split_input_string) {
 
     char msg4[] = "/msg john ";
 
-    tkCount = split_input_string(msg4, tokens, 1, " ");
+    tkCount = tokenize_string(msg4, tokens, 1, " ");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 1);
@@ -95,14 +128,14 @@ START_TEST(test_split_input_string) {
 
     char msg5[] = "/msg john ";
 
-    tkCount = split_input_string(msg5, tokens, 0, " ");
+    tkCount = tokenize_string(msg5, tokens, 0, " ");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 0);
 
     char msg6[] = "/msg john ";
 
-    tkCount = split_input_string(msg6, tokens, 2, " ");
+    tkCount = tokenize_string(msg6, tokens, 2, " ");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 2);
@@ -111,7 +144,7 @@ START_TEST(test_split_input_string) {
 
     char msg7[] = "PRIVMSG #cmsc23300 :Hello everybody";
 
-    tkCount = split_input_string(msg7, tokens, 3, ":");
+    tkCount = tokenize_string(msg7, tokens, 3, ":");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 2);
@@ -119,7 +152,7 @@ START_TEST(test_split_input_string) {
     ck_assert_str_eq(tokens[1], "Hello everybody");
 
     char msg8[] = "";
-    tkCount = split_input_string(msg8, tokens, 5, " ");
+    tkCount = tokenize_string(msg8, tokens, 5, " ");
 
     ck_assert_ptr_ne(tokens, NULL);
     ck_assert_int_eq(tkCount, 0);
@@ -142,13 +175,13 @@ START_TEST(test_concat_tokens) {
 
     tkCount = concat_tokens(buffer, 10, tokens, 2, " ");
 
-    ck_assert_str_eq(buffer, "/help con");
+    ck_assert_str_eq(buffer, "/help conn");
 
     memset(buffer, '\0', sizeof(buffer));
 
     const char *msgTokens[] = {"PRIVMSG", "#general", NULL};
 
-    concat_tokens(buffer, MAX_CHARS + 1, msgTokens, 3, " ");
+    concat_tokens(buffer, MAX_CHARS, msgTokens, 3, " ");
 
     ck_assert_str_eq(buffer, "PRIVMSG #general");
 
@@ -187,22 +220,115 @@ START_TEST(test_prepend_char) {
 }
 END_TEST
 
-START_TEST(test_crlf_terminate) {
+START_TEST(test_delimit_messages) {
+
+    char string1[] = "message1\r\nmessage2\r\n";
+    const char *tokens[2] = {NULL};  
+
+    int count = delimit_messages(string1, tokens, 2, CRLF);
+
+    ck_assert_int_eq(count, 2);
+    ck_assert_str_eq(tokens[0], "message1");
+    ck_assert_str_eq(tokens[1], "message2");
+
+    char string2[] = "message1\r\nmessage2";
+
+    count = delimit_messages(string2, tokens, 1, CRLF);
+
+    ck_assert_int_eq(count, 1);
+    ck_assert_str_eq(tokens[0], "message1");
+
+}
+END_TEST
+
+START_TEST(test_extract_message) {
+
+    char buffer[MAX_CHARS + 1] = {'\0'};
+    char string[] = "message1\r\nmessage2\r\n";
+
+    extract_message(buffer, ARR_SIZE(buffer), string, CRLF);
+    ck_assert_str_eq(buffer, "message1");
+    extract_message(buffer, ARR_SIZE(buffer), string, CRLF);
+    ck_assert_str_eq(buffer, "message2");
+}
+END_TEST
+
+START_TEST(test_process_messages) {
+
+    char string[] = "message1\r\nmessage2\r\n";
+
+    process_messages(string, CRLF, print_upper, NULL);
+
+}
+END_TEST
+
+START_TEST(test_terminate_string) {
 
     char buffer[MAX_CHARS + 1] = {'\0'};
 
-    crlf_terminate(buffer, MAX_CHARS + 1, "message");
+    terminate_string(buffer, MAX_CHARS + 1, "message", CRLF);
 
     ck_assert_str_eq(buffer, "message\r\n");
 
 }
 END_TEST
 
-START_TEST(test_is_crlf_terminated) {
+START_TEST(test_clear_terminator) {
 
-    ck_assert_int_eq(is_crlf_terminated("message\r\n"), 1);
-    ck_assert_int_eq(is_crlf_terminated("message\n"), 0);
-    ck_assert_int_eq(is_crlf_terminated("message"), 0);
+    char string[] = "message\r\n";
+
+    clear_terminator(string, CRLF);
+
+    ck_assert_str_eq(string, "message");
+
+}
+END_TEST
+
+START_TEST(test_is_terminated) {
+
+    ck_assert_int_eq(is_terminated("message\r\n", CRLF), 1);
+    ck_assert_int_eq(is_terminated("message\n", CRLF), 0);
+    ck_assert_int_eq(is_terminated("message ", " "), 1);
+
+    char *string = "message one ";
+    ck_assert_int_eq(is_terminated(&string[strlen("message") + 1], " "), 1);
+
+}
+END_TEST
+
+START_TEST(test_find_delimiter) {
+
+    char *string = "message1\r\nmessage2\r\n";
+    ck_assert_ptr_eq(find_delimiter(string, CRLF), &string[strlen("message1")]);
+
+}
+END_TEST
+
+START_TEST(test_count_delimiters) {
+
+    char *string = "message1\r\nmessage2\r\n";
+    ck_assert_int_eq(count_delimiters(string, CRLF), 2);
+
+}
+END_TEST
+
+START_TEST(test_escape_crlf_sequence) {
+
+    char string[] = "message1\r\nmessage2\r\n";
+    char escapedMsg[MAX_CHARS + 2 * sizeof(CRLF) + 1] = {'\0'};
+
+    escape_crlf_sequence(escapedMsg, sizeof(escapedMsg), string);
+
+    ck_assert_str_eq(escapedMsg, "message1\\r\\nmessage2\\r\\n");
+
+}
+END_TEST
+
+START_TEST(test_count_format_specifiers) {
+
+    int fsCount = count_format_specifiers("This is a %s long %s");
+
+    ck_assert_int_eq(fsCount, 2);
 
 }
 END_TEST
@@ -214,6 +340,22 @@ START_TEST(test_is_valid_name) {
     ck_assert_int_eq(is_valid_name("(john)", 0), 0);
     ck_assert_int_eq(is_valid_name("#general", 1), 1);
     ck_assert_int_eq(is_valid_name("general", 1), 0);
+
+}
+END_TEST
+
+START_TEST(test_iterate_string_list) {
+
+    const char *strings[] = {"apple", "orange", "banana"};
+
+    StringList *stringList = create_string_list(ARR_SIZE(strings));
+
+    iterate_string_list(strings, ARR_SIZE(strings), str_to_upper, stringList);
+
+    ck_assert_str_eq(stringList->strings[0], "APPLE");
+    ck_assert_str_eq(stringList->strings[1], "ORANGE");
+
+    delete_string_list(stringList);
 
 }
 END_TEST
@@ -264,7 +406,7 @@ START_TEST(test_uint_to_str) {
     ck_assert_int_eq(status, 1);
     ck_assert_str_eq(buffer, "100");
     
-    status = uint_to_str(buffer, 2, 10);
+    status = uint_to_str(buffer, 1, 10);
 
     ck_assert_int_eq(status, 0);
     ck_assert_str_eq(buffer, "100");
@@ -272,10 +414,6 @@ START_TEST(test_uint_to_str) {
     status = uint_to_str(buffer, 0, 100);
     ck_assert_int_eq(status, 0);
 
-    char *nullPtr = NULL;
-
-    status = uint_to_str(nullPtr, 0, 100);
-    ck_assert_int_eq(status, 0);
 
 }
 END_TEST
@@ -287,18 +425,22 @@ Suite* string_utils_suite(void) {
     s = suite_create("String utils");
     tc_core = tcase_create("Core");
 
-    // Add the test case to the test suite
-    tcase_add_test(tc_core, test_create_string_list);
-    tcase_add_test(tc_core, test_is_string_list_empty);
-    tcase_add_test(tc_core, test_is_string_list_full);
-    tcase_add_test(tc_core, test_add_remove_string_from_string_list);
-    tcase_add_test(tc_core, test_split_input_string);
+    tcase_add_test(tc_core, test_tokenize_string);
     tcase_add_test(tc_core, test_concat_tokens);
     tcase_add_test(tc_core, test_count_tokens);
     tcase_add_test(tc_core, test_prepend_char);
-    tcase_add_test(tc_core, test_crlf_terminate);
-    tcase_add_test(tc_core, test_is_crlf_terminated);
+    tcase_add_test(tc_core, test_delimit_messages);
+    tcase_add_test(tc_core, test_extract_message);
+    tcase_add_test(tc_core, test_process_messages);
+    tcase_add_test(tc_core, test_terminate_string);
+    tcase_add_test(tc_core, test_clear_terminator);
+    tcase_add_test(tc_core, test_is_terminated);
+    tcase_add_test(tc_core, test_find_delimiter);
+    tcase_add_test(tc_core, test_count_delimiters);
+    tcase_add_test(tc_core, test_escape_crlf_sequence);
+    tcase_add_test(tc_core, test_count_format_specifiers);
     tcase_add_test(tc_core, test_is_valid_name);
+    tcase_add_test(tc_core, test_iterate_string_list);
     tcase_add_test(tc_core, test_safe_copy);
     tcase_add_test(tc_core, test_str_to_uint);
     tcase_add_test(tc_core, test_uint_to_str);

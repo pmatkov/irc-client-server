@@ -1,8 +1,7 @@
 #ifndef RESPONSE_CODE_H
 #define RESPONSE_CODE_H
 
-/* responseType represents IRC server response 
-    codes */
+/* represents IRC server response codes */
 typedef enum {
     RPL_WELCOME,
     RPL_NOTOPIC,
@@ -25,7 +24,7 @@ typedef enum {
     RESPONSE_CODE_COUNT
 } ResponseType;
 
-/* a responseCode is a type for managing
+/* represents a container for managing
     response codes */
 typedef struct ResponseCode ResponseCode;
 

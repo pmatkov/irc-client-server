@@ -6,13 +6,21 @@
 
 #include <ncursesw/curses.h>
 
+/* represents different types of backing
+    stores for the ncurses window */
 typedef enum {
     SCROLLBACK,
     LINE_EDITOR,
     NO_BACKING
 } BackingType;
 
+/* a backing store is used to save both 
+on-screen and off-screen data, providing 
+control over the display of that data */
 typedef union BackingStore BackingStore;
+
+/* represents container for ncurses window 
+    and an optional backing store */
 typedef struct UIWindow UIWindow;
 
 UIWindow * create_ui_window(WINDOW *window, void *backingItem, BackingType backingType);

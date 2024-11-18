@@ -9,16 +9,27 @@
 #define DATE_LENGTH 11
 #define DATETIME_LENGTH 21
 
+#define DEF_INTERVAL 60
+
+/* represents date and time formats */
 typedef enum {
     HM_TIME,
     HMS_TIME,
     DATE,
     DATETIME,
-    DATETIME_COUNT
+    DATETIME_FORMAT_COUNT
 } DateTimeFormat;
 
+typedef enum {
+    SECONDS,
+    MICROSECONDS
+} TimeFormat;
+
+/* contains timer status, the start and the end time  */
 typedef struct Timer Timer;
 
+/* date and/ or time is accessed via callback that
+    specifies desired format */
 void (*get_format_function(DateTimeFormat format))(char *, size_t, struct tm *);
 void get_datetime(void (*format_function)(char *, size_t, struct tm *), char *timestamp, size_t length);
 
@@ -27,7 +38,12 @@ void delete_timer(Timer *timer);
 void start_timer(Timer *timer);
 void stop_timer(Timer *timer);
 void reset_timer(Timer *timer);
-int get_elapsed_time(Timer *timer);
+long get_elapsed_time(Timer *timer, TimeFormat timeFormat);
 int is_timer_active(Timer *timer);
+
+/* interval timer is used for generating SIGALRM
+    signals in desired intervals */
+struct itimerval * create_interval_timer(int seconds);
+void delete_interval_timer(struct itimerval *timer);
 
 #endif

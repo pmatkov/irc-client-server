@@ -1,9 +1,13 @@
+#define _XOPEN_SOURCE 700
+
 #ifdef TEST
 #include "priv_channel.h"
 #else
 #include "channel.h"
 #endif
 
+#include "main.h"
+#include "../../libs/src/settings.h"
 #include "../../libs/src/priv_message.h"
 #include "../../libs/src/error_control.h"
 #include "../../libs/src/logger.h"
@@ -26,6 +30,7 @@ struct Channel {
     char topic[MAX_CHARS + 1];
     ChannelType channelType;
     Queue *outQueue;
+    pthread_rwlock_t channelLock;
     Channel *next;
 };
 
@@ -35,15 +40,16 @@ Channel * create_channel(const char *name, const char *topic, ChannelType channe
 
     Channel *channel = (Channel*) malloc(sizeof(Channel));
     if (channel == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
     if (is_valid_name(name, 1)) {
-        safe_copy(channel->name, MAX_CHANNEL_NAME + 1, name);
+        safe_copy(channel->name, sizeof(channel->name), name);
     }
-    safe_copy(channel->topic, MAX_CHARS + 1, topic);
+    safe_copy(channel->topic, sizeof(channel->topic), topic);
     channel->channelType = channelType;
     channel->outQueue = create_queue(capacity, sizeof(RegMessage));
+    pthread_rwlock_init(&channel->channelLock, NULL);
     channel->next = NULL;
 
     return channel;
@@ -53,33 +59,42 @@ void delete_channel(void *channel) {
 
     if (channel != NULL) {
         delete_queue(((Channel*)channel)->outQueue);
+        pthread_rwlock_destroy(&((Channel*)channel)->channelLock);
     }
 
     free(channel);
 }
 
-void add_message_to_channel_queue(void *channel, void *content) {
+void enqueue_to_channel_queue(void *channel, void *content) {
 
     if (channel == NULL || content == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    RegMessage *message = create_reg_message(content);
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_wrlock(&((Channel *)channel)->channelLock);
+    }
+    enqueue(((Channel *)channel)->outQueue, content);
 
-    enqueue(((Channel *)channel)->outQueue, message);
-
-    delete_message(message); 
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_unlock(&((Channel *)channel)->channelLock);
+    }
 }
 
-void * remove_message_from_channel_queue(Channel *channel) {
+void * dequeue_from_channel_queue(Channel *channel) {
 
     if (channel == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    RegMessage *message = NULL;
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_wrlock(&((Channel *)channel)->channelLock);
+    }
+    void *message = dequeue(((Channel *)channel)->outQueue);
 
-    message = dequeue(((Channel *)channel)->outQueue);
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_unlock(&((Channel *)channel)->channelLock);
+    }
 
     return message; 
 }
@@ -98,7 +113,7 @@ int are_channels_equal(void *channel1, void *channel2) {
 const char *get_channel_name(Channel *channel) {
 
     if (channel == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return channel->name;
@@ -107,7 +122,7 @@ const char *get_channel_name(Channel *channel) {
 const char *get_channel_topic(Channel *channel) {
 
     if (channel == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return channel->topic;
@@ -116,7 +131,7 @@ const char *get_channel_topic(Channel *channel) {
 ChannelType get_channel_type(Channel *channel) {
 
     if (channel == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return channel->channelType;
@@ -125,8 +140,17 @@ ChannelType get_channel_type(Channel *channel) {
 Queue * get_channel_queue(Channel *channel) {
 
     if (channel == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    return channel->outQueue;
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_rdlock(&((Channel *)channel)->channelLock);
+    }
+    Queue *queue = channel->outQueue;
+
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_unlock(&((Channel *)channel)->channelLock);
+    }
+
+    return queue;
 }

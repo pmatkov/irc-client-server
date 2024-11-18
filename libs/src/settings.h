@@ -1,53 +1,47 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
-#include "lookup_table.h"
+#include "data_type.h"
 
-/* dataType represents the data types used
-    for properties */
-typedef enum {
-    INT_TYPE,
-    CHAR_TYPE,
-    UNKNOWN_DATA_TYPE,
-    DATA_TYPE_COUNT
-} DataType;
-
-/* in this context, property represents a 
-    configuration option for the app. each
-    property has an initial value that can
-    be modified according to the user's preferences.
-    a group of properties represents the settings.  */
-typedef struct Property Property;
+/* an option is a configurable item within the settings */
+typedef struct Option Option;
 
 /* settings represent a collection of configurable
-    properties */
+    options */
 typedef struct Settings Settings;
 
 Settings * create_settings(int capacity);
 void delete_settings(Settings *settings);
 
-/* before it can be used, a property has to be
-    registered */
-void register_property(DataType dataType, Pair *pair, const void *value);
+/* properties are registered by assigning a data type, 
+    a label and a corresponding value */
+void register_option(DataType dataType, int , const char *label, void *value);
 
-/* accessor and mutator methods for property
-    values */
-const void * get_property_value(int propertyType);
-void set_property_value(int propertyType, const void *value);
+/* option may be unregistered be specifying an option
+    type */
+void unregister_option(int optionType);
 
-DataType get_property_data_type(int propertyType);
+/* set default option value */
+void reset_option(int optionType);
 
-int is_property_registered(int propertyType);
-int is_valid_property(int propertyType);
+void * get_option_value(int optionType);
+void set_option_value(int optionType, void *value);
+
+int get_int_option_value(int optionType);
+char * get_char_option_value(int optionType);
+
+DataType get_option_data_type(int optionType);
+const char * get_option_label(int optionType);
+
+int is_option_registered(int optionType);
+int is_valid_option_type(int optionType);
 
 int get_settings_capacity(void);
-const char * get_property_label(int propertyType);
 
-/* reads settings from a file */
-void read_settings(LookupTable *lookupTable, const char *fileName);
+/* read settings from the file */
+void read_settings(const char *fileName);
 
-/* write settings from memory
-    to the file */
+/* write settings to the file */
 void write_settings(const char *fileName);
 
 #endif

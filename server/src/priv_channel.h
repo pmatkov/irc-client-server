@@ -1,3 +1,4 @@
+#define _XOPEN_SOURCE 700
 /* --INTERNAL HEADER--
    used for testing */
 
@@ -7,7 +8,9 @@
 #include "../../libs/src/priv_queue.h"
 #include "../../libs/src/string_utils.h"
 
-#define MAX_CHANNEL_NAME 50
+#include <pthread.h>
+
+#define MAX_CHANNEL_LEN 50
 #define MAX_USERS_PER_CHANNEL 100
 
 typedef enum {
@@ -17,18 +20,19 @@ typedef enum {
 } ChannelType;
 
 typedef struct Channel {
-    char name[MAX_CHANNEL_NAME + 1];
+    char name[MAX_CHANNEL_LEN + 1];
     char topic[MAX_CHARS + 1];
     ChannelType channelType;
     Queue *outQueue;
+    pthread_rwlock_t channelLock;
     struct Channel *next;  
 } Channel;
 
 Channel * create_channel(const char *name, const char *topic, ChannelType channelType, int capacity);
 void delete_channel(void *channel);
 
-void add_message_to_channel_queue(void *channel, void *content);
-void * remove_message_from_channel_queue(Channel *channel);
+void enqueue_to_channel_queue(void *channel, void *content);
+void * dequeue_from_channel_queue(Channel *channel);
 
 int are_channels_equal(void *channel1, void *channel2);
 

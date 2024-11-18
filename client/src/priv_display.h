@@ -14,7 +14,6 @@
 
 #define KEY_NEWLINE '\n'
 
-// Unicode block character
 #define BLOCK_CHAR L"\u2588"     
 
 #define PROMPT "> "
@@ -24,10 +23,6 @@
 
 #define BITS_PER_HEX 4
 
-/* compress bits from 0x<abc><def> where
-    bit x_i, i ∈ {a, b, c} and bit y_i, 
-    i ∈ {d, e, f} are combined to form 
-    0x<x]><y> */
 #define COMPRESS_BITS(hex1, hex2, value) ((value) >> (((hex2) - 1) * BITS_PER_HEX) ) | (((value) >> ((hex1) * BITS_PER_HEX)) & 0xF)
 
 #define get_remaining_cchars(array) ARR_SIZE(array) - count_complex_chars(array)
@@ -43,21 +38,13 @@
 #define CYAN 0x04
 #define CYAN_REV 0x5
 
-// font color of separator, origin and message
 #define COLOR_SEP(color) ((color) << (0))
 #define COLOR_ORG(color) ((color) << (4))
 #define COLOR_CNT(color) ((color) << (8))
 
-#define ATTR_SEP(attr) ((attr) << (12))
-#define ATTR_ORG(attr) ((attr) << (16))
-#define ATTR_CNT(attr) ((attr) << (20))
-
-#define PRINT_TS 0x01   // print timestamp
-#define PRINT_SEP 0x02  // print separator
-#define PRINT_ORG 0x04  // print origin
-#define PRINT_MSG 0x08  // print message
-#define PRINT_STD 0x0B  // print timestamp, separator and message
-#define PRINT_ALL 0xFF  // print timestamp, separator, origin and message
+#define STYLE_SEP(style) ((style) << (12))
+#define STYLE_ORG(style) ((style) << (16))
+#define STYLE_CNT(style) ((style) << (20))
 
 #define get_wwidth(win) getmaxx(win)
 #define get_wheight(win) getmaxy(win)
@@ -76,14 +63,6 @@ typedef enum {
     ITALIC,
     ATTR_COUNT
 } Attributes;
-
-// typedef struct {
-//     WINDOW *stdscr;
-//     WINDOW *titlewin;
-//     WINDOW *chatwin;
-//     WINDOW *statuswin;
-//     WINDOW *inputwin;
-// } WindowManager;
 
 typedef struct {
     WINDOW *stdscr;
@@ -117,11 +96,13 @@ void printstr(PrintTokens *printTokens, WindowManager *windowManager);
 int string_to_complex_string(cchar_t *buffer, int size, const char *string, uint32_t format);
 int count_complex_chars(cchar_t *string);
 
-void display_commands(WindowManager *windowManager, const Command *commands, int count);
-void display_usage(WindowManager *windowManager, const Command *command);
+void display_commands(WindowManager *windowManager, const CommandInfo *commands, int count);
+void display_usage(WindowManager *windowManager, const CommandInfo *command);
 void display_response(WindowManager *windowManager, const char *response, ...);
 void display_settings(WindowManager *windowManager);
+void display_time(WindowManager *windowManager);
 void display_status(WindowManager *windowManager, const char *status, ...);
+void display_server_message(const char *string, void *arg);
 
 void resize_ui(WindowManager *windowManager, int useColors);
 
@@ -136,8 +117,10 @@ void set_print_function(PrintFunc pf);
 #ifdef TEST
 
 void create_window_borders(WindowManager *windowManager, int useColor);
+void draw_border(WINDOW *window, int y, int x, int width);
 void print_complex_string(WindowManager *windowManager, cchar_t *string, int size);
-void display_string_list(WindowManager *windowManager, const char **stringList, int count, const char *title);
+void display_list_item(const char *string, void *arg);
+// void display_string_list(WindowManager *windowManager, const char **stringList, int count, const char *title);
 
 #endif
 

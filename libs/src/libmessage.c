@@ -11,7 +11,6 @@
 #include <string.h>
 
 #define CRLF_LEN 2
-#define LEAD_CHAR_LEN 1
 
 #ifndef TEST
 
@@ -33,12 +32,12 @@ struct ExtMessage {
 RegMessage * create_reg_message(const char *content) {
 
     if (content == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     RegMessage *regMessage = (RegMessage*) calloc(1, sizeof(RegMessage));
     if (regMessage == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
     safe_copy(regMessage->content, sizeof(regMessage->content), content);
@@ -49,12 +48,12 @@ RegMessage * create_reg_message(const char *content) {
 ExtMessage * create_ext_message(const char *sender, const char *recipient, const char *content) {
 
     if (sender == NULL || recipient == NULL || content == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     ExtMessage *extMessage = (ExtMessage*) calloc(1, sizeof(ExtMessage));
     if (extMessage == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
     safe_copy(extMessage->sender, sizeof(extMessage->sender), sender);
@@ -72,11 +71,10 @@ void delete_message(void *message) {
 char get_char_from_message(void *message, int index, ContentRetrieveFunc contentRetrieveFunc) {
 
     if (message == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     char *content = contentRetrieveFunc(message);
-    
     char ch = '\0';
 
     if (index >= 0 && index < strlen(content)) {
@@ -89,12 +87,12 @@ char get_char_from_message(void *message, int index, ContentRetrieveFunc content
 void set_char_in_message(void *message, char ch, int index, ContentRetrieveFunc contentRetrieveFunc) {
 
     if (message == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     char *content = contentRetrieveFunc(message);
 
-    if (strlen(content) < MAX_CHARS - CRLF_LEN - LEAD_CHAR_LEN) {
+    if (strlen(content) < MAX_CHARS - CRLF_LEN) {
         content[index] = ch;
     }
 }

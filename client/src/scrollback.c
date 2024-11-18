@@ -23,23 +23,22 @@
 
 #ifndef TEST
 
-/* a ScrollbackCmd adjusts a visible portion 
-    of the scrollback buffer. each scrollback 
-    command is mapped to a function which 
-    performs a desired scrollback action */
+/*  adjusts a visible portion of the scrollback
+    buffer. each scrollback command is mapped 
+    to a function which performs a desired 
+    scrollback action */
 struct ScrollbackCmd {
     int keyCode;
     ScrollbackFunc scrollbackFunc;
 };
 
-/* a scrollback is a fixed size circular buffer.
-    when this buffer is full, the next line to
-    be added will overwrite the oldest in the 
+/* a scrollback is a circular buffer of a fixed size.
+    when the buffer is full, the next line to
+    be added, will overwrite the oldest in the 
     buffer. the head refers to the last line 
     and the tail to the first line in the 
     buffer. the topLine and the bottomLine 
-    define the visible part of the scrollback */
-
+    represent the visible area of the scrollback */
 struct Scrollback {
     WINDOW *window;
     cchar_t **buffer;
@@ -68,9 +67,9 @@ static const ScrollbackCmd SCROLLBACK_CMD[] = {
     a minimum scrollback size is usually the 
     size of one "chat window". the sizeMultiplier
     indicates how much space will be allocated
-    to the scrollback relative to the size of
-    that window. if the sizeMultiplier is 0, 
-    a default value will be used */
+    relative to the size of the window. if the
+    sizeMultiplier is 0, a default value will 
+    be used */
 
 Scrollback * create_scrollback(WINDOW *window, int sizeMultiplier) {
 
@@ -89,19 +88,19 @@ Scrollback * create_scrollback(WINDOW *window, int sizeMultiplier) {
 
     Scrollback *scrollback = (Scrollback*) malloc(sizeof(Scrollback));
     if (scrollback == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
     scrollback->buffer = (cchar_t **) malloc(sbSize * sizeof(cchar_t*));
     if (scrollback->buffer == NULL) {
-        FAILED("Error allocating memory", NO_ERRCODE);
+        FAILED(NO_ERRCODE, "Error allocating memory");
     }
 
     for (int i = 0; i < sbSize; i++) {
 
         scrollback->buffer[i] = (cchar_t *) calloc(MAX_CHARS + 1, sizeof(cchar_t));
         if (scrollback->buffer[i] == NULL) {
-            FAILED("Error allocating memory", NO_ERRCODE);
+            FAILED(NO_ERRCODE, "Error allocating memory");
         }
     }
 
@@ -131,7 +130,7 @@ void delete_scrollback(Scrollback *scrollback) {
 int is_scrollback_empty(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return scrollback->count == 0;
@@ -140,7 +139,7 @@ int is_scrollback_empty(Scrollback *scrollback) {
 int is_scrollback_full(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     return scrollback->count == scrollback->capacity;
@@ -149,13 +148,11 @@ int is_scrollback_full(Scrollback *scrollback) {
 void add_to_scrollback(Scrollback *scrollback, const cchar_t *string, int length) {
 
     if (scrollback == NULL || string == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
-    /* when the scrollback is full, the tail 
-        will move to create space for additional
-        lines */
-
+    /* when the scrollback is full, the tail will
+        move, overwriting the oldest entries */
     if (is_scrollback_full(scrollback)) {
         scrollback->tail = (scrollback->tail + 1) % scrollback->capacity; 
     } else {
@@ -178,26 +175,28 @@ void add_to_scrollback(Scrollback *scrollback, const cchar_t *string, int length
 void print_from_scrollback(Scrollback *scrollback, int lineWnd, int lineSb) {
 
     if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     if (lineWnd < -1 || lineWnd > get_wheight(scrollback->window)) {
-        FAILED("Invalid window line %d", NO_ERRCODE, lineWnd);
+        FAILED(NO_ERRCODE, "Invalid window line %d", lineWnd);
     }
 
     if (lineSb < 1 || lineSb > scrollback->capacity) {
-        FAILED("Invalid scrollback line %d", NO_ERRCODE, lineSb);
+        FAILED(NO_ERRCODE, "Invalid scrollback line %d", lineSb);
     }
 
     int y, x;
 
     if (lineWnd == -1) {
 
-        /*  a primary print operation leaves cursor at the end
-            of the printed text. therefore, before printing
-            the next line of text, the cursor must be moved 
-            to the next row */
-
+        /*  when wadd_wch is used, the cursor is moved one
+            place to the right for each added char (not
+            considering special situations). that means that
+            the cursor will be at the end of the text, after 
+            the whole string is printed. therefore, before
+            the next line can be printed, the cursor must be
+            moved to the next row */
         save_cursor(scrollback->window, y, x);
 
         if (x > 0) {
@@ -213,14 +212,12 @@ void print_from_scrollback(Scrollback *scrollback, int lineWnd, int lineSb) {
         }
     }
     else {
-        /* a secondary print operation is used for 
-            scrolling. when the window is scrolled, a
-            blank space that is left behind must be filled 
-            with lines from the scrollback buffer. 
-            for this purpose, wadd_wchstr function is used.
-            this function doesn't move the cursor when printing
-            chars */
-
+        /* instead of wadd_wch, wadd_wchstr is used to print text
+            when the window is scrolled. in that case, it's not
+            important to move the cursor to the end of the text (and 
+            wadd_wchstr doesn't move the cursor). a blank space that
+            is left behind when the window is scrolled is filled with
+            the lines from the scrollback buffer */
         save_cursor(scrollback->window, y, x);
 
         wmove(scrollback->window, lineWnd, 0);
@@ -233,15 +230,14 @@ void print_from_scrollback(Scrollback *scrollback, int lineWnd, int lineSb) {
 void restore_from_scrollback(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     /* the visible part of the scrollback will be
-        repainted on the screen during a resize event,
-        as long as least one line of the "chat window"
-        remains visible. the bottomLine marker poosition
-        will be adjusted accordingly */
-
+        resored when the window is resized, as 
+        long as at least one line of the "chat 
+        window" remains visible. the bottomLine 
+        marker is adjusted accordingly */
     int rows = get_wheight(scrollback->window);
 
     if (rows) {
@@ -264,17 +260,15 @@ void restore_from_scrollback(Scrollback *scrollback) {
 void scroll_line_up(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int rows = get_wheight(scrollback->window);
 
-    /* the bottomLine position won't be adjusted
-        if the window was expanded and there is an 
-        additional space which may be used to 
-        display more lines from the scrollback
-        buffer */
-
+    /* position of the bottomLine marker won't be
+        adjusted if the window was resized and there
+        is now extra space that may be used to display
+        additional lines from the scrollback buffer */
     int topLines = count_remaining_top_lines(scrollback);
     int fixed = count_visible_lines(scrollback) < rows;
 
@@ -294,7 +288,7 @@ void scroll_line_up(Scrollback *scrollback) {
 void scroll_line_down(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int rows = get_wheight(scrollback->window);
@@ -316,7 +310,7 @@ void scroll_line_down(Scrollback *scrollback) {
 void scroll_page_up(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int rows = get_wheight(scrollback->window);
@@ -340,7 +334,7 @@ void scroll_page_up(Scrollback *scrollback) {
 void scroll_page_down(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int rows = get_wheight(scrollback->window);
@@ -360,12 +354,12 @@ void scroll_page_down(Scrollback *scrollback) {
     }
 }
 
-/* count the lines between the topLIne and the bottomLine
-    (the visible part of the scrollback) */
+/* count the lines that represent the visible part
+    of the scrollback area */
 STATIC int count_visible_lines(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int count = 0;
@@ -380,12 +374,12 @@ STATIC int count_visible_lines(Scrollback *scrollback) {
     return count;
 }
 
-/* count lines above the topLine (hidden
-    part of the scrollback) */
+/* count the lines above the topLine (hidden part of 
+    the scrollback buffer) */
 STATIC int count_remaining_top_lines(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int count = 0;
@@ -400,12 +394,12 @@ STATIC int count_remaining_top_lines(Scrollback *scrollback) {
     return count; 
 }
 
-/* count ines below the bottomLine (hidden
-    part of the scrollback) */
+/* count the lines below the bottomLine (hidden part of
+    the scrollback buffer) */
 STATIC int count_remaining_bottom_lines(Scrollback *scrollback) {
 
     if (scrollback == NULL) {
-        FAILED(NULL, ARG_ERROR);
+        FAILED(ARG_ERROR, NULL);
     }
 
     int count = 0;
@@ -446,9 +440,8 @@ int get_sb_func_index(int keyCode) {
 
 int remap_ctrl_key(int ch) {
 
-    /* kUP5 and kDN5 are ncurses identifiers
-        which represent key combinations CTRL + up and 
-        down arrow */
+    /* kUP5 and kDN5 are ncurses identifiers that
+        represent CTRL + up and down arrow */
     const char *keystr = keyname(ch);
 
     if (keystr != NULL) {
