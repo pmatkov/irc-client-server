@@ -1,7 +1,10 @@
 #include "../src/priv_linked_list.h"
+#include "../src/common.h"
 #include "../src/string_utils.h"
 
 #include <check.h>
+#include <stdio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 
 #define QUEUE_CAPACITY 3
@@ -11,9 +14,9 @@ typedef struct {
     int age;
 } Person;
 
-int are_persons_equal(void *person1, void *person2) {
+bool are_persons_equal(void *person1, void *person2) {
     
-    int equal = 0;
+    bool equal = 0;
 
     if (person1 != NULL && person2 != NULL) {
         equal = strcmp(((Person*)person1)->name, ((Person*)person2)->name) == 0;
@@ -26,7 +29,7 @@ Person * create_person(const char *name, int age) {
 
     Person *person = (Person*) malloc(sizeof(Person));
     person->name = (char*) calloc(MAX_CHARS + 1, sizeof(char));
-    strcpy(person->name, name);
+    safe_copy(person->name, MAX_CHARS + 1, name);
     person->age = age;
 
     return person;
@@ -74,7 +77,7 @@ START_TEST(test_append_node) {
     LinkedList *linkedList = create_linked_list(are_persons_equal, delete_person);
 
     Person *person1 = create_person("john", 35);
-    Person *person2 = create_person("mark", 33);
+    Person *person2 = create_person("lisa", 33);
 
     Node *node1 = create_node(person1);
     Node *node2 = create_node(person2);
@@ -95,7 +98,7 @@ START_TEST(test_remove_node) {
     LinkedList *linkedList = create_linked_list(are_persons_equal, delete_person);
 
     Person *person1 = create_person("john", 35);
-    Person *person2 = create_person("mark", 33);
+    Person *person2 = create_person("lisa", 33);
 
     Node *node1 = create_node(person1);
     Node *node2 = create_node(person2);
@@ -107,7 +110,7 @@ START_TEST(test_remove_node) {
     ck_assert_int_eq(status, 1);
 
     ck_assert_ptr_eq(linkedList->head, node2);
-    ck_assert_str_eq(((Person*)linkedList->head->data)->name, "mark");
+    ck_assert_str_eq(((Person*)linkedList->head->data)->name, "lisa");
     ck_assert_int_eq(linkedList->count, 1);
 
     delete_linked_list(linkedList);
@@ -119,7 +122,7 @@ START_TEST(test_find_node) {
     LinkedList *linkedList = create_linked_list(are_persons_equal, delete_person);
 
     Person *person1 = create_person("john", 35);
-    Person *person2 = create_person("mark", 33);
+    Person *person2 = create_person("lisa", 33);
 
     Node *node1 = create_node(person1);
     Node *node2 = create_node(person2);
@@ -132,6 +135,34 @@ START_TEST(test_find_node) {
     ck_assert_ptr_ne(node, NULL);
     ck_assert_str_eq(((Person*)node->data)->name, "john");
     ck_assert_int_eq(linkedList->count, 2);
+
+    delete_linked_list(linkedList);
+}
+END_TEST
+
+START_TEST(test_iterate_list) {
+
+    LinkedList *linkedList = create_linked_list(are_persons_equal, delete_person);
+
+    Person *person1 = create_person("john", 35);
+    Person *person2 = create_person("lisa", 24);
+    Person *person3 = create_person("mark", 33);
+
+    Node *node1 = create_node(person1);
+    Node *node2 = create_node(person2);
+    Node *node3 = create_node(person3);
+
+    append_node(linkedList, node1);
+    append_node(linkedList, node2);
+    append_node(linkedList, node3);
+
+    reset_iterator(linkedList);
+
+    Node *node = NULL;
+    while ((node = iterator_next(linkedList)) != NULL) {
+        Person *person = (Person*)node->data;
+        printf("Name: %s age: %d\n", person->name, person->age);
+    }
 
     delete_linked_list(linkedList);
 }
@@ -150,6 +181,7 @@ Suite* linked_list_suite(void) {
     tcase_add_test(tc_core, test_append_node);
     tcase_add_test(tc_core, test_remove_node);
     tcase_add_test(tc_core, test_find_node);
+    tcase_add_test(tc_core, test_iterate_list);
 
     suite_add_tcase(s, tc_core);
 

@@ -8,13 +8,13 @@ START_TEST(test_create_client) {
     Client *client = create_client();
 
     ck_assert_ptr_ne(client, NULL);
-    ck_assert_ptr_eq(client->fd, NULL);
+    ck_assert_int_eq(client->fd, UNASSIGNED);
     ck_assert_str_eq(client->nickname, "");
+    ck_assert_str_eq(client->clientIdentifier, "");
+    ck_assert_int_eq(client->identifierType, UNKNOWN_HOST_IDENTIFIER);
+    ck_assert_int_eq(client->port, UNASSIGNED);
     ck_assert_str_eq(client->inBuffer, "");
-    ck_assert_str_eq(client->ipv4Address, "");
-    ck_assert_int_eq(client->port, 0);
-    ck_assert_int_eq(client->registered, 0);
-    ck_assert_ptr_ne(client->timer, NULL);
+    ck_assert_int_eq(client->stateType, DISCONNECTED);
 
     delete_client(client);
 }
@@ -24,10 +24,23 @@ START_TEST(test_get_set_client_data) {
 
     Client *client = create_client();
 
-    set_client_fd(client, &(int){3});
-    ck_assert_int_eq(*get_client_fd(client), 3);
+    set_client_fd(client, 3);
+    ck_assert_int_eq(get_client_fd(client), 3);
+
     set_client_nickname(client, "john");
     ck_assert_str_eq(get_client_nickname(client), "john");
+    
+    set_client_identifier(client, "client.irc.com");
+    ck_assert_str_eq(get_client_identifier(client), "client.irc.com");
+
+    set_client_identifier_type(client, HOSTNAME);
+    ck_assert_int_eq(get_client_identifier_type(client), HOSTNAME);
+
+    set_client_port(client, 50101);
+    ck_assert_int_eq(get_client_port(client), 50101);
+
+    set_client_state_type(client, DISCONNECTED);
+    ck_assert_int_eq(get_client_state_type(client), DISCONNECTED);
 
     delete_client(client);
 }

@@ -9,7 +9,6 @@ START_TEST(test_is_dir) {
     int status = is_dir("log");
 
     ck_assert_int_eq(status, 1);
-
 }
 END_TEST
 
@@ -21,19 +20,18 @@ START_TEST(test_get_bin_path) {
 
     ck_assert_int_eq(status, 1);
     ck_assert_str_ne(binPath, "");
-
 }
 END_TEST
 
 START_TEST(test_traverse_up_path) {
 
     char buffer[MAX_PATH + 1] = {'\0'};  
-    char path[] = "/home/pmatkov/programming/c/buzz/libs/tests/bin/test_logger";
+    char path[] = "/home/pmatkov/dev/c/buzz/libs/tests/bin/test_logger";
 
     int status = traverse_up_path(buffer, MAX_PATH, path, 2);
 
     ck_assert_int_eq(status, 1);
-    ck_assert_str_eq(buffer, "/home/pmatkov/programming/c/buzz/libs/tests");
+    ck_assert_str_eq(buffer, "/home/pmatkov/dev/c/buzz/libs/tests");
 
 }
 END_TEST
@@ -45,12 +43,12 @@ START_TEST(test_create_path) {
     int status = create_path(buffer, MAX_PATH, "/log");
 
     ck_assert_int_eq(status, 1);
-    ck_assert_str_eq(buffer, "/home/pmatkov/programming/c/buzz/libs/log");
+    ck_assert_str_eq(buffer, "/home/pmatkov/dev/c/buzz/libs/log");
 
     status = create_path(buffer, MAX_PATH, "/data/config.conf");
 
     ck_assert_int_eq(status, 1);
-    ck_assert_str_eq(buffer, "/home/pmatkov/programming/c/buzz/libs/data/config.conf");
+    ck_assert_str_eq(buffer, "/home/pmatkov/dev/c/buzz/libs/data/config.conf");
 
 }
 END_TEST

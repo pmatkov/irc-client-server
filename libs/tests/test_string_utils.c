@@ -1,4 +1,5 @@
 #include "../src/string_utils.h"
+#include "../src/common.h"
 #include "../src/error_control.h"
 
 #include <check.h>
@@ -18,7 +19,7 @@ static StringList * create_string_list(int capacity) {
 
     StringList *stringList = (StringList*) malloc(sizeof(StringList));
     if (stringList == NULL) {
-        FAILED(NO_ERRCODE, "Error allocating memory");
+        FAILED(ALLOC_ERROR, NULL);
     }
 
     if (capacity > DEF_CAPACITY) {
@@ -28,14 +29,14 @@ static StringList * create_string_list(int capacity) {
     stringList->strings = (char**) malloc(capacity * sizeof(char*));
 
     if (stringList->strings == NULL) {
-        FAILED(NO_ERRCODE, "Error allocating memory");
+        FAILED(ALLOC_ERROR, NULL);
     }
 
     for (int i = 0; i < capacity; i++) {
 
         stringList->strings[i] = (char*) malloc((MAX_CHARS + 1) * sizeof(char));
         if (stringList->strings[i] == NULL) {
-            FAILED(NO_ERRCODE, "Error allocating memory");
+            FAILED(ALLOC_ERROR, NULL);
         }
     }
 
@@ -59,20 +60,17 @@ static void delete_string_list(StringList *stringList) {
     free(stringList);
 }
 
-static void str_to_upper(const char *string, void *arg) {
+static void upper(const char *string, void *arg) {
 
-    if (string != NULL && ((StringList*)arg)->count < ((StringList*)arg)->capacity) {
+    StringList *stringList = arg;
 
-        int i = 0;
+    if (string != NULL && stringList != NULL && stringList->count < stringList->capacity) {
+
         char buffer[MAX_CHARS + 1] = {'\0'};
+        str_to_upper(buffer, ARRAY_SIZE(buffer), string);
 
-        while (*string) {
-            buffer[i] = toupper(*string);
-            string++;
-            i++;
-        }
-        safe_copy(((StringList*)arg)->strings[((StringList*)arg)->count], MAX_CHARS + 1, buffer);
-        ((StringList*)arg)->count++;
+        safe_copy(stringList->strings[stringList->count], MAX_CHARS + 1, buffer);
+        stringList->count++;
     }
 }
 
@@ -86,7 +84,6 @@ static void print_upper(const char *string, void *arg) {
         printf("\n");
     }
 }
-
 
 START_TEST(test_tokenize_string) {
 
@@ -171,13 +168,13 @@ START_TEST(test_concat_tokens) {
     ck_assert_int_eq(tkCount, 2);
     ck_assert_str_eq(buffer, "/help connect");
 
-    memset(buffer, '\0', sizeof(buffer));
+    memset(buffer, '\0', ARRAY_SIZE(buffer));
 
     tkCount = concat_tokens(buffer, 10, tokens, 2, " ");
 
-    ck_assert_str_eq(buffer, "/help conn");
+    ck_assert_str_eq(buffer, "/help con");
 
-    memset(buffer, '\0', sizeof(buffer));
+    memset(buffer, '\0', ARRAY_SIZE(buffer));
 
     const char *msgTokens[] = {"PRIVMSG", "#general", NULL};
 
@@ -244,12 +241,16 @@ END_TEST
 START_TEST(test_extract_message) {
 
     char buffer[MAX_CHARS + 1] = {'\0'};
-    char string[] = "message1\r\nmessage2\r\n";
+    char string[] = "message1\r\nmessage2\r\nmes";
+    char *messages[] = {"message1", "message2", "mes"};
 
-    extract_message(buffer, ARR_SIZE(buffer), string, CRLF);
-    ck_assert_str_eq(buffer, "message1");
-    extract_message(buffer, ARR_SIZE(buffer), string, CRLF);
-    ck_assert_str_eq(buffer, "message2");
+    int i = 0;
+    while (extract_message(buffer, ARRAY_SIZE(buffer), string, CRLF)) {
+        ck_assert_str_eq(buffer, messages[i]);
+        i++;
+    }
+    ck_assert_int_eq(i, 2);
+    ck_assert_str_eq(string, messages[i]);
 }
 END_TEST
 
@@ -267,8 +268,11 @@ START_TEST(test_terminate_string) {
     char buffer[MAX_CHARS + 1] = {'\0'};
 
     terminate_string(buffer, MAX_CHARS + 1, "message", CRLF);
-
     ck_assert_str_eq(buffer, "message\r\n");
+    
+    memset(buffer, '\0', ARRAY_SIZE(buffer));
+    terminate_string(buffer, MAX_CHARS + 1, ":irc.server.com 001 tom :Welcome to the IRC Network", CRLF);
+    ck_assert_str_eq(buffer, ":irc.server.com 001 tom :Welcome to the IRC Network\r\n");
 
 }
 END_TEST
@@ -335,11 +339,51 @@ END_TEST
 
 START_TEST(test_is_valid_name) {
 
-    ck_assert_int_eq(is_valid_name("john", 0), 1);
-    ck_assert_int_eq(is_valid_name("john doe", 0), 0);
-    ck_assert_int_eq(is_valid_name("(john)", 0), 0);
-    ck_assert_int_eq(is_valid_name("#general", 1), 1);
-    ck_assert_int_eq(is_valid_name("general", 1), 0);
+    const char *validChars = "$#\\[]{}";
+
+    ck_assert_int_eq(is_valid_name("john", validChars), 1);
+    ck_assert_int_eq(is_valid_name("john$", validChars), 1);
+    ck_assert_int_eq(is_valid_name("john doe", validChars), 0);
+    ck_assert_int_eq(is_valid_name("(john)", validChars), 0);
+
+}
+END_TEST
+
+START_TEST(test_str_to_upper_lower) {
+
+    char buffer[MAX_CHARS + 1] = {'\0'};
+
+    str_to_upper(buffer, ARRAY_SIZE(buffer), "mark");
+    ck_assert_str_eq(buffer, "MARK");
+    str_to_lower(buffer, ARRAY_SIZE(buffer), "JOHN");
+    ck_assert_str_eq(buffer, "john");
+
+}
+END_TEST
+
+START_TEST(test_strn_to_upper_lower) {
+
+    char buffer[MAX_CHARS + 1] = {'\0'};
+
+    strn_to_upper(buffer, ARRAY_SIZE(buffer), "markus", 4);
+    ck_assert_str_eq(buffer, "MARK");
+    strn_to_lower(buffer, ARRAY_SIZE(buffer), "JOHNATHAN", 4);
+    ck_assert_str_eq(buffer, "john");
+
+}
+END_TEST
+
+START_TEST(test_shift_chars) {
+
+    char buffer1[MAX_CHARS + 1] = "message";
+
+    shift_chars(buffer1, ARRAY_SIZE(buffer1), 2, 5);
+    ck_assert_str_eq(buffer1, "mege");
+
+    char buffer2[MAX_CHARS + 1] = "message";
+
+    shift_chars(buffer2, ARRAY_SIZE(buffer2), 5, 6);
+    ck_assert_str_eq(buffer2, "messae");
 
 }
 END_TEST
@@ -348,9 +392,9 @@ START_TEST(test_iterate_string_list) {
 
     const char *strings[] = {"apple", "orange", "banana"};
 
-    StringList *stringList = create_string_list(ARR_SIZE(strings));
+    StringList *stringList = create_string_list(ARRAY_SIZE(strings));
 
-    iterate_string_list(strings, ARR_SIZE(strings), str_to_upper, stringList);
+    iterate_string_list(strings, ARRAY_SIZE(strings), upper, stringList);
 
     ck_assert_str_eq(stringList->strings[0], "APPLE");
     ck_assert_str_eq(stringList->strings[1], "ORANGE");
@@ -414,7 +458,6 @@ START_TEST(test_uint_to_str) {
     status = uint_to_str(buffer, 0, 100);
     ck_assert_int_eq(status, 0);
 
-
 }
 END_TEST
 
@@ -440,6 +483,9 @@ Suite* string_utils_suite(void) {
     tcase_add_test(tc_core, test_escape_crlf_sequence);
     tcase_add_test(tc_core, test_count_format_specifiers);
     tcase_add_test(tc_core, test_is_valid_name);
+    tcase_add_test(tc_core, test_str_to_upper_lower);
+    tcase_add_test(tc_core, test_strn_to_upper_lower);
+    tcase_add_test(tc_core, test_shift_chars);
     tcase_add_test(tc_core, test_iterate_string_list);
     tcase_add_test(tc_core, test_safe_copy);
     tcase_add_test(tc_core, test_str_to_uint);

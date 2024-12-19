@@ -1,69 +1,71 @@
- #include "../src/priv_message.h"
+#include "../src/priv_message.h"
 
 #include <check.h>
 
-START_TEST(test_create_reg_message) {
+START_TEST(test_create_message) {
 
-    RegMessage *message = create_reg_message("message");
-
-    ck_assert_ptr_ne(message, NULL);
-    ck_assert_str_eq(message->content, "message");
-
-    delete_message(message);
-
-}
-END_TEST
-
-START_TEST(test_create_ext_message) {
-
-    ExtMessage *message = create_ext_message("john", "mark", "message");
+    Message *message = create_message("/JOIN #general", "", MSG_COMMAND, NORMAL_PRIORTY);
 
     ck_assert_ptr_ne(message, NULL);
-    ck_assert_str_eq(message->sender, "john"); 
-    ck_assert_str_eq(message->recipient, "mark"); 
-    ck_assert_str_eq(message->content, "message");
+    ck_assert_str_eq(message->content, "/JOIN #general");
+    ck_assert_str_eq(message->separator, "");
+    ck_assert_int_eq(message->messageType, MSG_COMMAND);
+    ck_assert_int_eq(message->messagePriority, NORMAL_PRIORTY);
 
     delete_message(message);
 
 }
 END_TEST
 
-START_TEST(test_get_char_from_message) {
+START_TEST(test_set_message_char) {
 
-    RegMessage *message = create_reg_message("message");
+    Message *message = create_message("rock", "", MSG_STANDARD, NORMAL_PRIORTY);
 
-    char ch = get_char_from_message(message, 1, get_reg_message_content);
-    ck_assert_int_eq(ch, 'e');
-
-    ch = get_char_from_message(message, strlen(message->content), get_reg_message_content);
-    ck_assert_int_eq(ch, '\0');
+    set_message_char(message, 's', 0);
+    ck_assert_str_eq(message->content, "sock");
 
     delete_message(message);
+
 }
 END_TEST
 
-START_TEST(test_set_char_in_message) {
+START_TEST(test_get_set_message_data) {
 
-    RegMessage *message = create_reg_message("message");
+    Message *message = create_message("blueberry", "", MSG_STANDARD, NORMAL_PRIORTY);
 
-    set_char_in_message(message, '1', strlen(message->content), get_reg_message_content);
+    ck_assert_str_eq(get_message_content(message), "blueberry");
 
-    ck_assert_str_eq(message->content, "message1");
+    set_message_content(message, "apple");
+    ck_assert_str_eq(get_message_content(message), "apple");
+
+    ck_assert_int_eq(get_message_type(message), MSG_STANDARD);
+    ck_assert_int_eq(get_message_priority(message), NORMAL_PRIORTY);
 
     delete_message(message);
+
 }
 END_TEST
 
-START_TEST(test_get_message_content_recipient) {
+START_TEST(test_serialize_deserialize_message) {
 
-    ExtMessage *message = create_ext_message("", "john", "message");
+    Message *message = create_message("blueberry", "", MSG_STANDARD, NORMAL_PRIORTY);
 
-    ck_assert_str_eq(get_ext_message_content(message), "message");
-    ck_assert_str_eq(get_ext_message_recipient(message), "john");
+    char buffer[MAX_CHARS * 2 + 1] = {'\0'};
+
+    Message result;
+
+    serialize_message(buffer, ARRAY_SIZE(buffer), message);
+    deserialize_message(buffer, ARRAY_SIZE(buffer), &result);
+
+    ck_assert_str_eq(get_message_content(message), "blueberry");
+    ck_assert_int_eq(get_message_type(message), MSG_STANDARD);
+    ck_assert_int_eq(get_message_priority(message), NORMAL_PRIORTY);
 
     delete_message(message);
+
 }
 END_TEST
+
 
 Suite* message_suite(void) {
     Suite *s;
@@ -73,11 +75,10 @@ Suite* message_suite(void) {
     tc_core = tcase_create("Core");
 
     // Add the test case to the test suite
-    tcase_add_test(tc_core, test_create_reg_message);
-    tcase_add_test(tc_core, test_create_ext_message);
-    tcase_add_test(tc_core, test_get_char_from_message);
-    tcase_add_test(tc_core, test_set_char_in_message);
-    tcase_add_test(tc_core, test_get_message_content_recipient);
+    tcase_add_test(tc_core, test_create_message);
+    tcase_add_test(tc_core, test_set_message_char);
+    tcase_add_test(tc_core, test_get_set_message_data);
+    tcase_add_test(tc_core, test_serialize_deserialize_message);
 
     suite_add_tcase(s, tc_core);
 

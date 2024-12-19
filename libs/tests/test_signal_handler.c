@@ -1,34 +1,29 @@
 #include "../src/signal_handler.h"
+#include "../src/common.h"
 #include "../src/io_utils.h"
 #include "../src/time_utils.h"
-#include "../src/string_utils.h"
 
 #include <check.h>
 #include <signal.h>
 #include <unistd.h>
 
-#define PIPE_FD_COUNT 2
-
-static int pipeFd[PIPE_FD_COUNT];
-
 START_TEST(test_handle_client_sigint) {
 
     char buffer[MAX_CHARS + 1] = {'\0'};
 
-    create_pipe(pipeFd);
-    set_client_pipe(pipeFd[WRITE_PIPE]);
+    StreamPipe *streamPipe = create_pipe();
+    set_client_pipe_fd(get_pipe_fd(streamPipe, WRITE_PIPE));
 
     set_sigaction(handle_client_sigint, SIGINT, (int[]){SIGINT, 0});
 
     raise(SIGINT);
 
-    int readStatus = read_message(pipeFd[READ_PIPE], buffer, sizeof(buffer));
+    int readStatus = read_message(get_pipe_fd(streamPipe, READ_PIPE), buffer, sizeof(buffer));
 
     ck_assert_int_eq(readStatus, 1);
     ck_assert_str_eq(buffer, "sigint");
 
-    close(pipeFd[READ_PIPE]);
-    close(pipeFd[WRITE_PIPE]);
+    delete_pipe(streamPipe);
 
 }
 END_TEST
@@ -38,8 +33,8 @@ START_TEST(test_handle_sigalrm) {
 
     char buffer[MAX_CHARS + 1] = {'\0'};
 
-    create_pipe(pipeFd);
-    set_client_pipe(pipeFd[WRITE_PIPE]);
+    StreamPipe *streamPipe = create_pipe();
+    set_client_pipe_fd(get_pipe_fd(streamPipe, WRITE_PIPE));
     
     set_sigaction(handle_sigalrm, SIGALRM, NULL);
 
@@ -47,15 +42,15 @@ START_TEST(test_handle_sigalrm) {
 
     sleep(2);
 
-    int readStatus = read_message(pipeFd[READ_PIPE], buffer, sizeof(buffer));
+    int readStatus = read_message(get_pipe_fd(streamPipe, READ_PIPE), buffer, sizeof(buffer));
 
     ck_assert_int_eq(readStatus, 1);
     ck_assert_str_eq(buffer, "sigalrm");
 
     delete_interval_timer(timer);
 
-    close(pipeFd[READ_PIPE]);
-    close(pipeFd[WRITE_PIPE]);
+    delete_pipe(streamPipe);
+
 
 }
 END_TEST

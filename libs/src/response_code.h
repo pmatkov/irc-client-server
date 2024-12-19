@@ -1,9 +1,10 @@
 #ifndef RESPONSE_CODE_H
 #define RESPONSE_CODE_H
 
-/* represents IRC server response codes */
+/* represents IRC response codes */
 typedef enum {
     RPL_WELCOME,
+    RPL_WHOISUSER,
     RPL_NOTOPIC,
     RPL_TOPIC,
     RPL_NAMREPLY,

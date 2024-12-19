@@ -1,160 +1,177 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-/* activate ncurses wide char support */
-#define NCURSES_WIDECHAR 1
-
-#include "ui_window.h"
-#include "scrollback.h"
-#include "line_editor.h"
+#include "base_window.h"
+#include "input_window.h"
 #include "../../libs/src/command.h"
 
-#include <ncursesw/curses.h>
+#define MARKER_COUNT 2
 
-#define KEY_NEWLINE '\n'
-
-/* used to create window borders */
-#define BLOCK_CHAR L"\u2588"
-
-/* prompt for the "input window" */
-#define PROMPT "> "
-#define PROMPT_SIZE 2
-
-#define SPACE "    "
-#define SPACE_2 "        "
-
-#define BITS_PER_HEX 4
-
-/* let 0xabcdef be a number containing color and
-    style attributes of the text. [abc] and [def]
-    represent groups of three hex digits each, 
-    or 24 bits in total. out of these 24 bits, 
-    4 bits in each group are active. this macro
-    shifts position of those 4 + 4 bits so that
-    they occupy positons e and f in the initial 
-    number */
-#define COMPRESS_BITS(hex1, hex2, value) ((value) >> (((hex2) - 1) * BITS_PER_HEX) ) | (((value) >> ((hex1) * BITS_PER_HEX)) & 0xF)
-
-#define get_remaining_cchars(array) ARR_SIZE(array) - count_complex_chars(array)
-
-#define BIT_MASK_SEP 0x00F00F
-#define BIT_MASK_ORG 0x0F00F0
-#define BIT_MASK_CNT 0xF00F00
-
-#define WHITE 0x00
-#define RED 0x01
-#define BLUE 0x02
-#define MAGENTA 0x03
-#define CYAN 0x04
-#define CYAN_REV 0x5
-
-/* create a bit field for text colors and
-    styles to be applied during printing */
-#define COLOR_SEP(color) ((color) << (0))
-#define COLOR_ORG(color) ((color) << (4))
-#define COLOR_CNT(color) ((color) << (8))
-
-#define STYLE_SEP(style) ((style) << (12))
-#define STYLE_ORG(style) ((style) << (16))
-#define STYLE_CNT(style) ((style) << (20))
-
-#define get_wwidth(win) getmaxx(win)
-#define get_wheight(win) getmaxy(win)
-
-/* delete complete or partial line on the
-    screen (partial delete deletes the text
-    from the cursor until the end of the 
-    line) */
-#define delete_line(win) (wmove((win), 0, 0) == ERR ? ERR : wclrtoeol((win)))
-#define delete_part_line(win, x) (wmove((win), 0, x) == ERR ? ERR : wclrtoeol((win)))
-
-/* save cursor position */
-#define save_cursor(win, lasty, lastx) getyx(win, lasty, lastx)
-/* return cursor to previously saved 
-    position */
-#define restore_cursor(win, lasty, lastx) wmove(win, lasty, lastx)
-
-/* text styles */
 typedef enum {
-    NORMAL, 
-    BOLD, 
-    STANDOUT, 
-    DIM, 
-    ITALIC,
-    ATTR_COUNT
-} Attributes;
+    MAIN_STATUS,
+    SIDE_STATUS,
+    TIME_STATUS,
+    STATUS_TYPE_COUNT
+} StatusType;
 
-/* a container for UIWindow type */
+typedef struct {
+    StatusType statusType;
+    int textStart;
+    int fieldStart;
+    int fieldWidth;
+    const char *marker[MARKER_COUNT];
+    const char *message;
+    uint32_t format;
+} StatusParams;
+
+/**
+ * @struct WindowManager
+ * @brief Container for UI windows.
+ */
 typedef struct WindowManager WindowManager;
 
-/* the text to be printed is divided into
-    the following tokens:
-    "<timestamp> <separator> <origin> <content>"
-    each token can be individually formated with
-    the color and the style of the format field */
-typedef struct PrintTokens PrintTokens;
+/**
+ * @brief Create a window manager.
+ * 
+ * @param sbMultiplier Scrollback multiplier.
+ * @param cmdHistoryCount Command history count.
+ * @return Pointer to the created WindowManager.
+ */
+WindowManager * create_window_manager(int sbMultiplier, int cmdHistoryCount);
 
-/* a function pointer to a function that prints 
-    complex chars */
-typedef void(*PrintFunc)(WindowManager *windowManager, cchar_t *string, int size);
+/**
+ * @brief Delete a window manager.
+ * 
+ * @param windowManager Pointer to the WindowManager to be deleted.
+ */
+void delete_window_manager(WindowManager *windowManager);
 
-WindowManager * create_windows(int sbMultiplier);
-void delete_windows(WindowManager *);
-
-PrintTokens * create_print_tokens(int useTimestamp, const char *separator, const char *origin, const char *content, uint32_t format);
-void delete_print_tokens(PrintTokens *printTokens);
-
-/* set ncurses modes and options */
+/**
+ * @brief Set ncurses modes and options.
+ * 
+ * @param windowManager Pointer to the WindowManager.
+ */
 void set_windows_options(WindowManager *windowManager);
 
-/* initialize ncurses colors */
+/**
+ * @brief Initialize ncurses colors.
+ * 
+ * @param useColor Flag to indicate whether to use colors.
+ */
 void init_colors(int useColor);
 
-/* set default layout, including the title,
-    the borders and the messages */
+/**
+ * @brief Set default layout, including the title, borders, and messages.
+ * 
+ * @param windowManager Pointer to the WindowManager.
+ * @param useColor Flag to indicate whether to use colors.
+ */
 void init_ui(WindowManager *windowManager, int useColor);
 
-/* print a complex string */
-void printstr(PrintTokens *printTokens, WindowManager *windowManager);
+/**
+ * @brief Display a list of available commands.
+ * 
+ * @param windowManager Pointer to the WindowManager.
+ * @param commandInfos Array of command information.
+ * @param count Number of commands.
+ */
+void display_commands(WindowManager *windowManager, const CommandInfo **commandInfos, int count);
 
-/* convert a regular string to a cchar_t
-    representation and return the number
-    of converted characters */
-int string_to_complex_string(cchar_t *buffer, int size, const char *string, uint32_t format);
+/**
+ * @brief Display usage instructions for a command.
+ * 
+ * @param windowManager Pointer to the WindowManager.
+ * @param commandInfo Pointer to the command information.
+ */
+void display_usage(WindowManager *windowManager, const CommandInfo *commandInfo);
 
-/* count cchar_t characters */
-int count_complex_chars(cchar_t *string);
-
-/* display a list of available commands */
-void display_commands(WindowManager *windowManager, const CommandInfo *commands, int count);
-
-/* display usage instructions for a command */
-void display_usage(WindowManager *windowManager, const CommandInfo *command);
-
-/* display app response to user commands*/
+/**
+ * @brief Display app response to user commands.
+ * 
+ * @param windowManager Pointer to the WindowManager.
+ * @param response Response message format string.
+ * @param ... Additional arguments for the response format string.
+ */
 void display_response(WindowManager *windowManager, const char *response, ...);
 
-/* display settings values */
-void display_settings(WindowManager *windowManager);
-
-/* display current time */
-void display_time(WindowManager *windowManager);
-
-/* display status information */
-void display_status(WindowManager *windowManager, const char *status, ...);
-
-/* display message received from the server */
+/**
+ * @brief Display message received from the server.
+ * 
+ * @param string Message string.
+ * @param arg Additional argument.
+ */
 void display_server_message(const char *string, void *arg);
 
-/* reload and adjust UI elements after resize */
+/**
+ * @brief Display settings values.
+ * 
+ * @param windowManager Pointer to the WindowManager.
+ */
+void display_settings(WindowManager *windowManager);
+
+/**
+ * @brief Display time status information.
+ * 
+ * @param windowManager Pointer to the WindowManager.
+ */
+void display_time_status(WindowManager *windowManager);
+
+/**
+ * @brief Displays the status on the given status window.
+ *
+ * This function updates the status window with the provided status parameters.
+ * Additional arguments can be passed to customize the display further.
+ *
+ * @param statusWindow Pointer to the BaseWindow where the status will be displayed.
+ * @param inputWindow Pointer to the InputWindow for user input.
+ * @param statusParams Pointer to the StatusParams containing the status information.
+ * @param ... Additional arguments for extended functionality.
+ */
+void display_status(BaseWindow *statusWindow, InputWindow *inputWindow, StatusParams *statusParams, ...);
+
+/**
+ * @brief Resizes the user interface.
+ *
+ * This function adjusts the size of the user interface elements based on the
+ * current window size and optionally applies color settings.
+ *
+ * @param windowManager A pointer to the WindowManager.
+ * @param useColors An integer flag indicating whether to use colors (non-zero)
+ *                  or not (zero).
+ */
 void resize_ui(WindowManager *windowManager, int useColors);
 
-UIWindow * get_titlewin(WindowManager *windowManager);
-UIWindow * get_chatwin(WindowManager *windowManager);
-UIWindow * get_statuswin(WindowManager *windowManager);
-UIWindow * get_inputwin(WindowManager *windowManager);
+/**
+ * @brief Retrieves the title window from the window manager.
+ *
+ * @param windowManager A pointer to the WindowManager.
+ * @return A pointer to the BaseWindow representing the title window.
+ * 
+ */
+BaseWindow * get_title_window(WindowManager *windowManager);
 
-PrintFunc get_print_function(void);
-void set_print_function(PrintFunc pf);
+/**
+ * @brief Retrieves the main windows group from the window manager.
+ *
+ * @param windowManager A pointer to the WindowManager.
+ * @return A pointer to the WindowGroup representing the main windows.
+ */
+WindowGroup * get_main_windows(WindowManager *windowManager);
+
+/**
+ * @brief Retrieves the status window from the window manager.
+ *
+ * @param windowManager A pointer to the WindowManager.
+ * @return A pointer to the BaseWindow representing the status window.
+ */
+BaseWindow * get_status_window(WindowManager *windowManager);
+
+/**
+ * @brief Retrieves the input window from the window manager.
+ *
+ * @param windowManager A pointer to the WindowManager.
+ * @return A pointer to the InputWindow representing the input window.
+ */
+InputWindow * get_input_window(WindowManager *windowManager);
 
 #endif

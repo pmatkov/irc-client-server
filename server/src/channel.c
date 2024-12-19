@@ -4,16 +4,18 @@
 #include "priv_channel.h"
 #else
 #include "channel.h"
+#include "../../libs/src/common.h"
 #endif
 
-#include "main.h"
+#include "config.h"
+#include "../../libs/src/common.h"
 #include "../../libs/src/settings.h"
-#include "../../libs/src/priv_message.h"
 #include "../../libs/src/error_control.h"
 #include "../../libs/src/logger.h"
 
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #ifdef TEST
 #define STATIC
@@ -36,19 +38,27 @@ struct Channel {
 
 #endif
 
+static const char *CHANNEL_TYPE_STRINGS[] = {
+    "Permanent",
+    "Temporary",
+    "Unknown"
+};
+
+ASSERT_ARRAY_SIZE(CHANNEL_TYPE_STRINGS, CHANNEL_TYPE_COUNT)
+
 Channel * create_channel(const char *name, const char *topic, ChannelType channelType, int capacity) {
 
     Channel *channel = (Channel*) malloc(sizeof(Channel));
     if (channel == NULL) {
-        FAILED(NO_ERRCODE, "Error allocating memory");
+        FAILED(ALLOC_ERROR, NULL);
     }
 
-    if (is_valid_name(name, 1)) {
+    if (is_valid_channel_name(name)) {
         safe_copy(channel->name, sizeof(channel->name), name);
     }
-    safe_copy(channel->topic, sizeof(channel->topic), topic);
+    safe_copy(channel->topic, ARRAY_SIZE(channel->topic), topic);
     channel->channelType = channelType;
-    channel->outQueue = create_queue(capacity, sizeof(RegMessage));
+    channel->outQueue = create_queue(capacity, MAX_CHARS + 1);
     pthread_rwlock_init(&channel->channelLock, NULL);
     channel->next = NULL;
 
@@ -99,15 +109,30 @@ void * dequeue_from_channel_queue(Channel *channel) {
     return message; 
 }
 
-int are_channels_equal(void *channel1, void *channel2) {
+bool are_channels_equal(void *channel1, void *channel2) {
 
-    int equal = 0;
+    bool equal = 0;
 
     if (channel1 != NULL && channel2 != NULL) {
         equal = strcmp(((Channel*)channel1)->name, ((Channel*)channel2)->name) == 0;
     }
     return equal;
 
+}
+
+bool is_valid_channel_name(const char *string) {
+
+    if (string == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    bool valid = 0;
+
+    if (string[0] == '#' && is_valid_name(string, "#-_\\[]{}|^~")) {
+        valid = 1;
+    };
+
+    return valid;
 }
 
 const char *get_channel_name(Channel *channel) {

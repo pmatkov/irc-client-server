@@ -1,29 +1,23 @@
 #include "../src/priv_command.h"
-#include "../../libs/src/string_utils.h"
 #include "../../libs/src/response_code.h"
 
 #include <check.h>
 
+START_TEST(test_create_command_tokens) {
 
-START_TEST(test_command_type_to_string) {
+    CommandTokens *cmdTokens = create_command_tokens(1);
 
-    ck_assert_str_eq(command_type_to_string(HELP), "help");
+    ck_assert_ptr_ne(cmdTokens, NULL);
 
+    delete_command_tokens(cmdTokens);
 }
 END_TEST
+
 
 START_TEST(test_string_to_command_type) {
 
     ck_assert_int_eq(string_to_command_type("/help"), HELP);
     ck_assert_int_eq(string_to_command_type("connect"), CONNECT);
-}
-END_TEST
-
-START_TEST(test_is_valid_command) {
-
-    ck_assert_int_eq(is_valid_command(HELP), 1);
-    ck_assert_int_eq(is_valid_command(20), 0);
-
 }
 END_TEST
 
@@ -35,18 +29,30 @@ START_TEST(test_has_command_prefix) {
 }
 END_TEST
 
+START_TEST(test_get_command_data) {
+
+    const CommandInfo **commandInfos = get_cmd_infos();
+    const CommandInfo *command = get_cmd_info(HELP);
+
+    ck_assert_ptr_ne(commandInfos, NULL);
+    ck_assert_ptr_ne(command, NULL);
+    ck_assert_str_eq(command->label, "help");
+
+}
+END_TEST
+
 Suite* command_suite(void) {
     Suite *s;
     TCase *tc_core;
 
-    s = suite_create("CommandInfo");
+    s = suite_create("Command");
     tc_core = tcase_create("Core");
 
     // Add the test case to the test suite
-    tcase_add_test(tc_core, test_command_type_to_string);
+    tcase_add_test(tc_core, test_create_command_tokens);
     tcase_add_test(tc_core, test_string_to_command_type);
-    tcase_add_test(tc_core, test_is_valid_command);
     tcase_add_test(tc_core, test_has_command_prefix);
+    tcase_add_test(tc_core, test_get_command_data);
 
     suite_add_tcase(s, tc_core);
 

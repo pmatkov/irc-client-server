@@ -1,43 +1,54 @@
 /* --INTERNAL HEADER--
    used for testing */
-
 #ifndef MESSAGE_H
 #define MESSAGE_H
 
-#include "string_utils.h"
-
-#define MAX_NICKNAME_LEN 9
-#define MAX_CHANNEL_LEN 50
+#include "common.h"
 
 typedef enum {
-    REGULAR_MSG,
-    EXTENDED_MSG,
+    MSG_RESTART,
+    MSG_SIGNAL,
+    MSG_COMMAND,
+    MSG_RESPONSE,
+    MSG_STANDARD,
+    MSG_PING,
+    MSG_PONG,
+    UNKNOWN_MESSAGE_TYPE,
     MESSAGE_TYPE_COUNT
 } MessageType;
 
-typedef struct {
-    char content[MAX_CHARS + 1];
-} RegMessage;
+typedef enum {
+    NO_PRIORITY,
+    LOW_PRIORITY,
+    NORMAL_PRIORTY,
+    HIGH_PRIORITY,
+    UNKNOWN_PRIORITY,
+    MESSAGE_PRIORITY_COUNT
+} MessagePriority;
 
 typedef struct {
-    char sender[MAX_NICKNAME_LEN + 1];
-    char recipient[MAX_CHANNEL_LEN + 1];
     char content[MAX_CHARS + 1];
-} ExtMessage;
+    char separator[MAX_SEPARATOR_LEN + 1];
+    MessageType messageType;
+    MessagePriority messagePriority;
+} Message;
 
-typedef char * (*ContentRetrieveFunc)(void *message);
+Message * create_message(const char *content, const char *separator, MessageType messageType, MessagePriority messagePriority);
+void delete_message(Message *message);
 
-RegMessage * create_reg_message(const char *content);
-ExtMessage * create_ext_message(const char *sender, const char *recipient, const char *content);
+void set_message_char(Message *message, char ch, int index);
 
-void delete_message(void *message);
+const char * get_message_content(Message *message);
+void set_message_content(Message *message, const char *content);
 
-char get_char_from_message(void *message, int index, ContentRetrieveFunc contentRetrieveFunc);
-void set_char_in_message(void *message, char ch, int index, ContentRetrieveFunc contentRetrieveFunc);
+MessageType get_message_type(Message *message);
+void set_message_type(Message *message, MessageType type);
+MessagePriority get_message_priority(Message *message);
+void set_message_priority(Message *message, MessagePriority priority);
 
-char * get_reg_message_content(void *message);
-char * get_ext_message_content(void *message);
+int get_message_size(void);
 
-char * get_ext_message_recipient(void *message);
+void serialize_message(char *buffer, int size, Message *message);
+void deserialize_message(char *buffer, int size, Message *message);
 
 #endif

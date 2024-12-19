@@ -1,5 +1,5 @@
-#include "../src/io_utils.h"
-#include "../src/string_utils.h"
+#include "../src/priv_io_utils.h"
+#include "../src/common.h"
 #include "../src/mock.h"
 
 #include <check.h>
@@ -14,16 +14,14 @@ static void initialize_mock_objects(char *buffer, int size) {
 
 START_TEST(test_create_pipe) {
 
-    int pipeFd[2];
+    StreamPipe *streamPipe = create_pipe();
 
-    create_pipe(pipeFd);
+    ck_assert_ptr_ne(streamPipe, NULL);
+    ck_assert_int_ne(streamPipe->pipeFd[READ_PIPE], 0);
+    ck_assert_int_ne(streamPipe->pipeFd[WRITE_PIPE], 0);
+    ck_assert_ptr_ne(streamPipe->buffer, NULL);
 
-    ck_assert_int_ne(pipeFd[READ_PIPE], 0);
-    ck_assert_int_ne(pipeFd[WRITE_PIPE], 0);
-
-    close(pipeFd[READ_PIPE]);
-    close(pipeFd[WRITE_PIPE]);
-
+    delete_pipe(streamPipe);
 }
 END_TEST
 
@@ -47,7 +45,7 @@ START_TEST(test_write_string) {
     char *string = "message";
     char buffer[MAX_CHARS + 1] = {'\0'};
 
-    initialize_mock_objects(buffer, ARR_SIZE(buffer));
+    initialize_mock_objects(buffer, ARRAY_SIZE(buffer));
 
     int status = write_string(get_mock_fd(), string);
 
@@ -76,7 +74,7 @@ START_TEST(test_write_message) {
     char *string = "message";
     char buffer[MAX_CHARS + 1] = {'\0'};
 
-    initialize_mock_objects(buffer, ARR_SIZE(buffer));
+    initialize_mock_objects(buffer, ARRAY_SIZE(buffer));
 
     int writeStatus = write_message(get_mock_fd(), string);
 

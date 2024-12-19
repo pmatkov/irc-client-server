@@ -1,39 +1,46 @@
 #ifndef CLIENT_H
 #define CLIENT_H
 
-#include "../../libs/src/string_utils.h"
-#include "../../libs/src/time_utils.h"
+#include "../../libs/src/common.h"
+#include "../../libs/src/session_state.h"
+#include "../../libs/src/network_utils.h"
 
-#include <arpa/inet.h>
-
-#define MAX_NICKNAME_LEN 9
+#include <stdbool.h>
 
 typedef struct {
-    int *fd;
+    int fd;
     char nickname[MAX_NICKNAME_LEN + 1];
-    char inBuffer[MAX_CHARS + 1];
-    char ipv4Address[INET_ADDRSTRLEN + 1];
+    char clientIdentifier[MAX_CHARS + 1];
+    HostIdentifierType identifierType;
     int port;
-    int registered;
-    Timer *timer;
+    char inBuffer[MAX_CHARS + 1];
+    SessionStateType stateType;
 } Client;
 
 Client * create_client(void);
 void delete_client(Client *client);
 
-int * get_client_fd(Client *client);
-void set_client_fd(Client *client, int *fd);
+int get_client_fd(Client *client);
+void set_client_fd(Client *client, int fd);
+
 const char * get_client_nickname(Client *client);
 void set_client_nickname(Client *client, const char *nickname);
-char * get_client_inbuffer(Client *client);
-void set_client_inbuffer(Client *client, const char *content);
 
-const char * get_client_ipv4address(Client *client);
-void set_client_ipv4address(Client *client, const char *ipv4address);
+const char * get_client_identifier(Client *client);
+void set_client_identifier(Client *client, const char *clientIdentifier);
+
+HostIdentifierType get_client_identifier_type(Client *client);
+void set_client_identifier_type(Client *client, HostIdentifierType identifierType);
+
 int get_client_port(Client *client);
 void set_client_port(Client *client, int port);
 
-int is_client_registered(Client *client);
-void set_client_registered(Client *client, int registered);
+char * get_client_inbuffer(Client *client);
+void set_client_inbuffer(Client *client, const char *content);
+
+SessionStateType get_client_state_type(Client *client);
+void set_client_state_type(Client *client, SessionStateType stateType);
+
+bool is_client_connected(Client *client);
 
 #endif

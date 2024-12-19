@@ -7,12 +7,13 @@
 #include <string.h>
 #include <arpa/inet.h>
 
-static int mockFd;
-static void *mockBuffer;
-static size_t mockBufferSize;
-static int mockPort;
-static struct sockaddr_in *mockSockaddr;
-static WINDOW * mockStdscr;
+static int mockFd = -1;
+static void *mockBuffer = NULL;
+static size_t mockBufferSize = 0;
+static int mockPort = 0;
+static struct sockaddr_in *mockSockaddr = NULL;
+static int mockWidth = 0;
+static int mockHeight = 0;
 
 static int fdCount = 0;
 
@@ -66,16 +67,6 @@ void set_mock_sockaddr(struct sockaddr_in *sockaddr) {
    mockSockaddr = sockaddr; 
 }
 
-WINDOW * get_mock_stdscr(void) {
-
-    return mockStdscr;
-}
-
-void set_mock_stdscr(WINDOW *stdscr) {
-
-   mockStdscr = stdscr; 
-}
-
 ssize_t mock_read(int fd, void *buffer, size_t readBytes) {
 
     ssize_t bytesRead = -1;
@@ -111,7 +102,6 @@ ssize_t mock_write(int fd, const void *buffer, size_t writeBytes) {
         
         bytesWritten = (ssize_t) writeBytes;
     }
-
     return bytesWritten; 
 }
 
@@ -132,7 +122,6 @@ int mock_socket(int domain, int type, int protocol) {
     if (domain == AF_INET && type == SOCK_STREAM && (protocol == AF_UNSPEC || protocol == AF_INET)) {
         fd = mockFd;
     } 
-
     return fd;
 }
 
@@ -144,7 +133,6 @@ int mock_connect(int fd, struct sockaddr *servAddr, socklen_t len) {
 
         status = 0;
     }
-
     return status;
 }
 
@@ -152,45 +140,58 @@ int mock_accept(int fd, struct sockaddr *clientAddr, socklen_t *len) {
 
     int connectFd = -1;
 
-    if (fd == mockFd) {
+    if (fd == mockFd && clientAddr != NULL && len != NULL) {
 
-        if (clientAddr != NULL && len != NULL) {
+        struct sockaddr_in *mockAddr = (struct sockaddr_in *)clientAddr;
+        mockAddr->sin_family = AF_INET;
+        mockAddr->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        mockAddr->sin_port = htons(mockPort);
+        *len = sizeof(struct sockaddr_in);
 
-            struct sockaddr_in *mockAddr = (struct sockaddr_in *)clientAddr;
-            mockAddr->sin_family = AF_INET;
-            mockAddr->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-            mockAddr->sin_port = htons(mockPort);
-            *len = sizeof(struct sockaddr_in);
-
-            connectFd = ++fdCount;
-        }
+        connectFd = ++fdCount;
     }
-
     return connectFd;
 }
 
-int mock_get_address(char *buffer, int size, int *port, int fd) {
+bool mock_get_address(char *buffer, int size, int *port, int fd) {
 
-    int converted = 0; 
+    bool converted = 0; 
 
     if (mockSockaddr != NULL) {
 
-        if (buffer != NULL && inet_ntop(AF_INET, &mockSockaddr->sin_addr, buffer, size) > 0) {
+        if (buffer != NULL) { 
+            inet_ntop(AF_INET, &mockSockaddr->sin_addr, buffer, size);
             converted = 1;
         }
 
         if (port != NULL) {
             *port = ntohs(mockSockaddr->sin_port);
+            converted = 1;
         }
     }
 
     return converted;
 }
 
+int mock_get_wheight(WINDOW *window) {
+
+    return mockHeight;
+}
+
+int mock_get_wwidth(WINDOW *window) {
+    
+    return mockWidth;
+}
+
 WINDOW * mock_initscr(void) {
 
-    return get_mock_stdscr();
+    return stdscr;
 }
+
+/* newterm sets the global values stdscr and 
+    curscr, just like initscr(). when switching
+    screens with set_term(), the pointers for 
+    stdscr and curscr are updated */
 
 SCREEN * create_terminal(void) {
 

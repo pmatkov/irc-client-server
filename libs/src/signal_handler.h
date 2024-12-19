@@ -19,7 +19,7 @@ void set_thread_callback(NotifyThreadFunc func);
 void set_thread_pool(ThreadPool *pool);
 void set_thread(Thread *th);
 
-void set_client_pipe(int pipeFd);
-void set_server_pipe(int pipeFd);
+void set_client_pipe_fd(int pipeFd);
+void set_server_pipe_fd(int pipeFd);
 
 #endif

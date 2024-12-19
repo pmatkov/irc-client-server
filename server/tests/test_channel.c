@@ -1,6 +1,5 @@
 #include "../src/priv_channel.h"
 #include "../../libs/src/priv_queue.h"
-#include "../../libs/src/priv_message.h"
 
 #include <check.h>
 
@@ -23,10 +22,10 @@ START_TEST(test_enqueue_dequeue_channel) {
     enqueue_to_channel_queue(channel, "message");
     ck_assert_int_eq(channel->outQueue->count, 1);
 
-    RegMessage *message = dequeue_from_channel_queue(channel);
+    const char *content = dequeue_from_channel_queue(channel);
     ck_assert_int_eq(channel->outQueue->count, 0);
 
-    ck_assert_str_eq(get_reg_message_content(message), "message");
+    ck_assert_str_eq(content, "message");
 
     delete_channel(channel);
 }
@@ -52,8 +51,8 @@ START_TEST(test_get_channel_data) {
     ChannelType type = get_channel_type(channel);
     ck_assert_int_eq(type, TEMPORARY);
 
-    const char *channelName = get_channel_name(channel);
-    ck_assert_str_eq(channelName, "#general");
+    const char *name = get_channel_name(channel);
+    ck_assert_str_eq(name, "#general");
 
     Queue *queue = get_channel_queue(channel);
     ck_assert_ptr_ne(queue, NULL);

@@ -1,6 +1,5 @@
 /* --INTERNAL HEADER--
    used for testing */
-
 #ifndef LOGGER_H
 #define LOGGER_H
 
@@ -8,6 +7,7 @@
 #include "error_control.h"
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <pthread.h>
 
 #define LOG(level, msg, ...) \
@@ -27,10 +27,11 @@ typedef struct {
     char **logBuffer;
     LogLevel logLevel;
     int logFrequency;
-    int stdoutEnabled;
-    int logPending;
+    bool stdoutEnabled;
+    bool logPending;
+    int currentCount;
+    int totalCount;
     int capacity;
-    int count;
 } Logger;
 
 typedef void (*LogFunc)(void *arg);
@@ -43,11 +44,9 @@ void write_log_to_file(void);
 void log_message(LogLevel level, const char *msg, const char *function, const char *file, int line, ...);
 void log_error(ErrorCode errorCode, const char *msg, const char *function, const char *file, int line, int errnosv, ...);
 
-const char * log_level_to_string(LogLevel logLevel);
-LogLevel string_to_log_level(const char *string);
-int is_valid_log_level(LogLevel logLevel);
+const char ** get_log_level_strings(void);
 
-int is_stdout_enabled(void);
+bool is_stdout_enabled(void);
 void enable_stdout_logging(int stdoutEnabled);
 
 void set_log_thread(Thread *thread);
@@ -59,6 +58,7 @@ void notify_log_pending(void);
 #ifdef TEST
 
 FILE * open_log_file(char *dirPath, char *identifier);
+void finalize_logging(void);
 
 #endif
 

@@ -1,7 +1,7 @@
 #include "../src/priv_threads.h"
+#include "../src/common.h"
 #include "../src/time_utils.h"
 #include "../src/io_utils.h"
-#include "../src/string_utils.h"
 
 #include <check.h>
 #include <stdio.h>
@@ -11,20 +11,20 @@
 #include <pthread.h>
 
 #define THREAD_COUNT 10
-#define ARRAY_SIZE (1000 * 100)
+#define MAX_NUMS (1000 * 100)
 
-static int numbers[ARRAY_SIZE];
+static int numbers[MAX_NUMS];
 static int primeCount;
 static int signal = 0; 
-static Timer *timer;
+static Timer *timer = NULL;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER; 
 
 static void fill_array(void) {
 
-    for (int i = 0; i < ARRAY_SIZE; i++) {
+    for (int i = 0; i < MAX_NUMS; i++) {
 
-        numbers[i] = rand() % ARRAY_SIZE;
+        numbers[i] = rand() % MAX_NUMS;
     }
 }
 
@@ -83,7 +83,7 @@ static void * reader(void *arg) {
     ThreadData *threadData = (ThreadData*) arg;
 
     char buffer[MAX_CHARS + 1] = {'\0'};
-    read_message(threadData->pipeFd[READ_PIPE], buffer, sizeof(buffer));
+    read_message(get_pipe_fd(threadData->streamPipe, READ_PIPE), buffer, sizeof(buffer));
 
     pthread_mutex_unlock(&mutex);
 
@@ -98,7 +98,7 @@ static void * reader(void *arg) {
 
 START_TEST(test_thread_pool) {
 
-    ThreadPool *threadPool = create_thread_pool(THREAD_COUNT, ARRAY_SIZE);
+    ThreadPool *threadPool = create_thread_pool(THREAD_COUNT, MAX_NUMS);
     ck_assert_ptr_ne(threadPool, NULL);
 
     start_timer(timer);
@@ -122,7 +122,7 @@ START_TEST(test_thread) {
     Thread *thread = create_thread();
     ck_assert_ptr_ne(thread, NULL);
 
-    set_thread_data(thread, &(ThreadData) {0, 0, 0, ARRAY_SIZE});
+    set_thread_data(thread, &(ThreadData) {0, 0, 0, MAX_NUMS});
 
     start_timer(timer);
     run_single_thread(thread, count_primes);
@@ -151,13 +151,13 @@ START_TEST(test_get_thread_data) {
 
     delete_thread(thread);
 
-    ThreadPool *threadPool = create_thread_pool(THREAD_COUNT, ARRAY_SIZE);
+    ThreadPool *threadPool = create_thread_pool(THREAD_COUNT, MAX_NUMS);
     threadData = get_thread_data_from_pool(threadPool, 0);
 
     ck_assert_int_eq(threadData->threadId, 0);
     ck_assert_int_eq(threadData->startIdx, 0);
-    ck_assert_int_eq(threadData->endIdx, ARRAY_SIZE/ THREAD_COUNT);
-    ck_assert_int_eq(get_thread_pool_workload(threadPool), ARRAY_SIZE);
+    ck_assert_int_eq(threadData->endIdx, MAX_NUMS/ THREAD_COUNT);
+    ck_assert_int_eq(get_thread_pool_workload(threadPool), MAX_NUMS);
 
     int threadId = get_thread_id_by_range_idx(threadPool, 10000);
     ck_assert_int_eq(threadId, 1);
@@ -177,7 +177,7 @@ START_TEST(test_thread_messaging) {
     pthread_mutex_lock(&mutex);
 
     ck_assert_ptr_ne(thread->threadData, NULL);
-    write_message(thread->threadData->pipeFd[WRITE_PIPE], "message");
+    write_message(get_pipe_fd(thread->threadData->streamPipe, WRITE_PIPE), "message");
     signal = 1;
 
     pthread_cond_signal(&cond);

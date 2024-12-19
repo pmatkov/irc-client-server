@@ -2,29 +2,34 @@
 #include "priv_client.h"
 #else
 #include "client.h"
+#include "../../libs/src/common.h"
 #endif
 
-#include "../../libs/src/time_utils.h"
+#include "../../libs/src/enum_utils.h"
+
 #include "../../libs/src/error_control.h"
 #include "../../libs/src/logger.h"
 
 #include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
-#include <netinet/in.h>
 
-#define MAX_FDS 1024         
-#define MAX_NICKNAME_LEN 9
+#ifdef TEST
+#define STATIC
+#else
+#define STATIC static
+#endif
 
 #ifndef TEST
 
 struct Client {
-    int *fd;
+    int fd;
     char nickname[MAX_NICKNAME_LEN + 1];
-    char inBuffer[MAX_CHARS + 1];
-    char ipv4Address[INET_ADDRSTRLEN + 1];
+    char clientIdentifier[MAX_CHARS + 1];
+    HostIdentifierType identifierType;
     int port;
-    int registered;
-    Timer *timer;
+    char inBuffer[MAX_CHARS + 1];
+    SessionStateType stateType;
 };
 
 #endif
@@ -33,30 +38,30 @@ Client * create_client(void) {
 
     Client *client = (Client *) malloc(sizeof(Client));
     if (client == NULL) {
-        FAILED(NO_ERRCODE, "Error allocating memory");  
+        FAILED(ALLOC_ERROR, NULL);  
     }
 
-    client->fd = NULL;
+    client->fd = UNASSIGNED;
     memset(client->nickname, '\0', sizeof(client->nickname));
+    memset(client->clientIdentifier, '\0', ARRAY_SIZE(client->clientIdentifier));
+    client->identifierType = UNKNOWN_HOST_IDENTIFIER;
+    client->port = UNASSIGNED;
     memset(client->inBuffer, '\0', sizeof(client->inBuffer));
-    memset(client->ipv4Address, '\0', sizeof(client->ipv4Address));
-    client->port = 0;
-    client->registered = 0;
-    client->timer = create_timer();
+    client->stateType = DISCONNECTED;
 
     return client;
 }
 
 void delete_client(Client *client) {
 
-    if (client != NULL) {
-
-        delete_timer(client->timer);
+    if (client == NULL) {
+        FAILED(ARG_ERROR, NULL);
     }
+    
     free(client);
 }
 
-int * get_client_fd(Client *client) {
+int get_client_fd(Client *client) {
 
     if (client == NULL) {
         FAILED(ARG_ERROR, NULL);
@@ -64,7 +69,7 @@ int * get_client_fd(Client *client) {
     return client->fd;
 }
 
-void set_client_fd(Client *client, int *fd) {
+void set_client_fd(Client *client, int fd) {
 
     if (client == NULL) {
         FAILED(ARG_ERROR, NULL);
@@ -77,7 +82,6 @@ const char * get_client_nickname(Client *client) {
     if (client == NULL) {
         FAILED(ARG_ERROR, NULL);
     }
-
     return client->nickname;
 }
 
@@ -87,39 +91,43 @@ void set_client_nickname(Client *client, const char *nickname) {
         FAILED(ARG_ERROR, NULL);
     }
 
-    safe_copy(client->nickname, sizeof(client->nickname), nickname);
+    safe_copy(client->nickname, ARRAY_SIZE(client->nickname), nickname);
 }
 
-char * get_client_inbuffer(Client *client) {
+const char * get_client_identifier(Client *client) {
 
     if (client == NULL) {
         FAILED(ARG_ERROR, NULL);
     }
-    return client->inBuffer;
+
+    return client->clientIdentifier;
 }
 
-void set_client_inbuffer(Client *client, const char *content) {
+void set_client_identifier(Client *client, const char *clientIdentifier) {
 
-    if (client == NULL || content == NULL) {
+    if (client == NULL || clientIdentifier == NULL) {
         FAILED(ARG_ERROR, NULL);
     }
-    safe_copy(client->inBuffer, sizeof(client->inBuffer), content);
+
+    safe_copy(client->clientIdentifier, ARRAY_SIZE(client->clientIdentifier), clientIdentifier);
 }
 
-const char * get_client_ipv4address(Client *client) {
+HostIdentifierType get_client_identifier_type(Client *client) {
 
     if (client == NULL) {
         FAILED(ARG_ERROR, NULL);
     }
-    return client->ipv4Address;  
+
+    return client->identifierType;
 }
 
-void set_client_ipv4address(Client *client, const char *ipv4address) {
+void set_client_identifier_type(Client *client, HostIdentifierType identifierType) {
 
-    if (client == NULL) {
+    if (client == NULL || !is_valid_enum_type(identifierType, HOST_IDENTIFIER_COUNT)) {
         FAILED(ARG_ERROR, NULL);
     }
-    safe_copy(client->ipv4Address, ARR_SIZE(client->ipv4Address), ipv4address);  
+
+    client->identifierType = identifierType;
 }
 
 int get_client_port(Client *client) {
@@ -138,18 +146,44 @@ void set_client_port(Client *client, int port) {
     client->port = port;  
 }
 
-int is_client_registered(Client *client) {
+char * get_client_inbuffer(Client *client) {
 
     if (client == NULL) {
         FAILED(ARG_ERROR, NULL);
     }
-    return client->registered;
+    return client->inBuffer;
 }
 
-void set_client_registered(Client *client, int registered) {
+void set_client_inbuffer(Client *client, const char *content) {
+
+    if (client == NULL || content == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+    safe_copy(client->inBuffer, ARRAY_SIZE(client->inBuffer), content);
+}
+
+SessionStateType get_client_state_type(Client *client) {
+    
+    if (client == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+    return client->stateType;
+}
+
+void set_client_state_type(Client *client, SessionStateType stateType) {
+    
+    if (client == NULL || !is_valid_enum_type(stateType, SESSION_STATE_TYPE_COUNT)) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    client->stateType = stateType;
+}
+
+bool is_client_connected(Client *client) {
 
     if (client == NULL) {
         FAILED(ARG_ERROR, NULL);
     }
-    client->registered = registered;
+
+    return client->stateType != DISCONNECTED;
 }

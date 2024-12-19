@@ -109,7 +109,6 @@ END_TEST
 START_TEST(test_mock_initscr) {
 
     SCREEN *screen = create_terminal();
-    set_mock_stdscr(stdscr);
 
     WINDOW *window = mock_initscr();
     ck_assert_ptr_ne(window, NULL);

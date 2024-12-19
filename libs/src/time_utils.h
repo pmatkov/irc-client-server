@@ -2,6 +2,7 @@
 #define TIME_UTILS_H
 
 #include <stddef.h>
+#include <stdbool.h>
 #include <time.h>
 
 #define HM_TIME_LENGTH 6
@@ -9,7 +10,7 @@
 #define DATE_LENGTH 11
 #define DATETIME_LENGTH 21
 
-#define DEF_INTERVAL 60
+#define DEF_TIMER_INTERVAL 60
 
 /* represents date and time formats */
 typedef enum {
@@ -25,12 +26,12 @@ typedef enum {
     MICROSECONDS
 } TimeFormat;
 
-/* contains timer status, the start and the end time  */
+/* contains timer status, the start and end time */
 typedef struct Timer Timer;
 
-/* date and/ or time is accessed via callback that
-    specifies desired format */
+/* return a pointer to date/ time formatter */
 void (*get_format_function(DateTimeFormat format))(char *, size_t, struct tm *);
+/* get formatted date/time */
 void get_datetime(void (*format_function)(char *, size_t, struct tm *), char *timestamp, size_t length);
 
 Timer * create_timer(void);
@@ -39,7 +40,7 @@ void start_timer(Timer *timer);
 void stop_timer(Timer *timer);
 void reset_timer(Timer *timer);
 long get_elapsed_time(Timer *timer, TimeFormat timeFormat);
-int is_timer_active(Timer *timer);
+bool is_timer_active(Timer *timer);
 
 /* interval timer is used for generating SIGALRM
     signals in desired intervals */

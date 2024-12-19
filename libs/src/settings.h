@@ -3,6 +3,8 @@
 
 #include "data_type.h"
 
+#include <stdbool.h>
+
 /* an option is a configurable item within the settings */
 typedef struct Option Option;
 
@@ -28,13 +30,13 @@ void * get_option_value(int optionType);
 void set_option_value(int optionType, void *value);
 
 int get_int_option_value(int optionType);
-char * get_char_option_value(int optionType);
+const char * get_char_option_value(int optionType);
 
 DataType get_option_data_type(int optionType);
 const char * get_option_label(int optionType);
 
-int is_option_registered(int optionType);
-int is_valid_option_type(int optionType);
+bool is_option_registered(int optionType);
+bool is_valid_option_type(int optionType);
 
 int get_settings_capacity(void);
 

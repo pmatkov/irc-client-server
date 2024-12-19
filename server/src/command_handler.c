@@ -9,11 +9,13 @@
 #include "channel.h"
 #include "session.h"
 #include "tcp_server.h"
+#include "../../libs/src/common.h"
+#include "../../libs/src/session_state.h"
 #include "../../libs/src/settings.h"
 #include "../../libs/src/irc_message.h"
 #include "../../libs/src/linked_list.h"
 #include "../../libs/src/network_utils.h"
-#include "../../libs/src/string_utils.h"
+#include "../../libs/src/enum_utils.h"
 #include "../../libs/src/logger.h"
 #include "../../libs/src/error_control.h"
 
@@ -27,18 +29,16 @@
 #define STATIC static
 #endif
 
-#define MAX_USER_INFO 64
-#define MAX_CHANNEL_LEN 50
-#define MAX_NICKNAME_LEN 9
-#define USER_MSG_PARAMS 4
+#define USER_CMD_PARAMS 4
 
-STATIC void cmd_nick(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
-STATIC void cmd_user(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
-STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
-STATIC void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
-STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
-STATIC void cmd_quit(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
-STATIC void cmd_unknown(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
+STATIC void cmd_nick(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
+STATIC void cmd_user(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
+STATIC void cmd_join(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
+STATIC void cmd_part(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
+STATIC void cmd_privmsg(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
+STATIC void cmd_whois(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
+STATIC void cmd_quit(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
+STATIC void cmd_unknown(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 
 STATIC void handle_nickname_change(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 STATIC void handle_user_registration(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
@@ -47,12 +47,9 @@ STATIC void handle_join_existing_channel(TCPServer *tcpServer, Client *client, C
 STATIC void handle_join_new_channel(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 STATIC void add_topic_message_to_queue(TCPServer *tcpServer, Client *client, Channel *channel, CommandTokens *cmdTokens);
 STATIC void handle_leave_channel(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
-STATIC void add_part_message_to_queue(TCPServer *tcpServer, Client *client, Channel *channel, CommandTokens *cmdTokens);
 
 STATIC void send_privmsg_to_channel(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
 STATIC void send_privmsg_to_user(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens);
-
-STATIC void remove_channel_data(Session *session, UserChannels *userChannels, Channel *channel);
 
 static const CommandFunc COMMAND_FUNCTIONS[] = {
     NULL,
@@ -65,23 +62,21 @@ static const CommandFunc COMMAND_FUNCTIONS[] = {
     cmd_privmsg,
     NULL,
     NULL,
+    cmd_whois,
     cmd_quit,
     cmd_unknown
 };
 
-static_assert(ARR_SIZE(COMMAND_FUNCTIONS) == COMMAND_TYPE_COUNT, "Array size mismatch");
+ASSERT_ARRAY_SIZE(COMMAND_FUNCTIONS, COMMAND_TYPE_COUNT)
 
-// parse received messages
-void parse_message(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
+void parse_message(const char *message, CommandTokens *cmdTokens) {
 
-    if (tcpServer == NULL || client == NULL || cmdTokens == NULL) {
+    if (message == NULL || cmdTokens == NULL) {
         FAILED(ARG_ERROR, NULL);
     }
 
     // input format "<COMMAND_INFO> [param 1] ... [param n] [:notice]"
-    char *input = get_client_inbuffer(client);
-
-    strcpy(get_command_input(cmdTokens), input);
+    safe_copy(get_command_input(cmdTokens), MAX_CHARS + 1, message);
 
     int tkCount = count_tokens(get_command_input(cmdTokens), ":");
     if (tkCount > MAX_TOKENS) {
@@ -93,14 +88,22 @@ void parse_message(TCPServer *tcpServer, Client *client, CommandTokens *cmdToken
     tokenize_string(get_command_input(cmdTokens), tokens, tkCount, " ");
 
     set_command(cmdTokens, tokens[0]);
-    set_command_argument_count(cmdTokens, tkCount - 1);
 
     for (int i = 0; i < tkCount - 1; i++) {
         set_command_argument(cmdTokens, tokens[i + 1], i);
     }
+
+    set_command_argument_count(cmdTokens, tkCount - 1);
 }
 
-STATIC void cmd_nick(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
+STATIC void cmd_nick(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
+
+    if (!is_allowed_state_command(get_server_session_states(), get_client_state_type(client), NICK)) {
+        // :server 451 * :You have not registered
+        const char *code = get_response_code(ERR_NOTREGISTERED);         
+        add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, "*"}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+        return;
+    }
 
     if (!get_command_argument_count(cmdTokens)) {
 
@@ -111,25 +114,30 @@ STATIC void cmd_nick(TCPServer *tcpServer, Client *client, CommandTokens *cmdTok
     }
     else {
 
-        if (strlen(get_command_argument(cmdTokens, 0)) > MAX_NICKNAME_LEN || !is_valid_name(get_command_argument(cmdTokens, 0), 0)) {
+        const char *nickname = get_command_argument(cmdTokens, 0);
+
+        if (strlen(nickname) > MAX_NICKNAME_LEN || !is_valid_user_name(nickname)) {
 
             // :server 432 <nickname> :Erroneous nickname
             const char *code = get_response_code(ERR_ERRONEUSNICKNAME);
-            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, get_command_argument(cmdTokens, 0)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+            LOG(DEBUG, "Nickname <%s> invalid", nickname);
         }
-        else if (find_user_in_hash_table(get_session(tcpServer), get_command_argument(cmdTokens, 0)) != NULL) {
+        else if (find_user_in_hash_table(get_session(tcpServer), nickname) != NULL) {
 
             // :server 433 <nickname> :Nickname is already in use
             const char *code = get_response_code(ERR_NICKNAMEINUSE);
-            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, get_command_argument(cmdTokens, 0)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+            LOG(DEBUG, "Nickname <%s> in use", nickname);
         }
         else {
-
-            if (is_client_registered(client)) {
-
+            if (get_client_state_type(client) == CONNECTED) {
+                set_client_state_type(client, START_REGISTRATION);
+            }
+            if (get_client_state_type(client) >= REGISTERED) {  
                 handle_nickname_change(tcpServer, client, cmdTokens);
             }
-            set_client_nickname(client, get_command_argument(cmdTokens, 0));
+            set_client_nickname(client, nickname);
         }
     }
 }
@@ -156,91 +164,95 @@ STATIC void handle_nickname_change(TCPServer *tcpServer, Client *client, Command
         iterate_list(get_channel_users_ll(get_session(tcpServer)), change_user_in_channel_users, userCopy);
 
         change_user_in_hash_table(get_session(tcpServer), user, userCopy);
+        LOG(DEBUG, "Nickname changed from <%s> to <%s>", get_client_nickname(client), get_command_argument(cmdTokens, 0));
     }
 }
 
-STATIC void cmd_user(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
+STATIC void cmd_user(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
-    const char *nickname = get_client_nickname(client);
+    if (!is_allowed_state_command(get_server_session_states(), get_client_state_type(client), USER)) {
+       
+        if (get_client_state_type(client) == DISCONNECTED || get_client_state_type(client) == CONNECTED) {
 
-    if (!strlen(get_client_nickname(client))) {
+            // :server 451 * :You have not registered
+            const char *code = get_response_code(ERR_NOTREGISTERED);         
+            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, "*"}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+        }
+        else {
 
-        // :server 451 * :You have not registered
-        const char *code = get_response_code(ERR_NOTREGISTERED);         
-        add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, "*"}, {get_response_message(code)}, 1, create_server_info, tcpServer});
-        
-    }
-    else if (is_client_registered(client)) {
-
-        // :server 462 <nickname> :Already registered
-        const char *code = get_response_code(ERR_ALREADYREGISTRED);
-        add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+            // :server 462 <nickname> :Already registered
+            const char *code = get_response_code(ERR_ALREADYREGISTRED);
+            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, get_client_nickname(client)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+            LOG(DEBUG, "User <%s> already registered", get_client_nickname(client));
+        }
     }
     else {
-        if (get_command_argument_count(cmdTokens) < USER_MSG_PARAMS) {
+        if (get_command_argument_count(cmdTokens) < USER_CMD_PARAMS) {
 
             // :server 461 <nickname> <cmd> :Not enough parameters
             const char *code = get_response_code(ERR_NEEDMOREPARAMS);
-            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command(cmdTokens)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, get_client_nickname(client), get_command(cmdTokens)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
         }
         else {
-            handle_user_registration(tcpServer, client, cmdTokens);
+            handle_user_registration(tcpServer, client, cmdTokens);           
         }
     }
 }
 
 STATIC void handle_user_registration(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
-    // const char *servername = get_servername(tcpServer);
     const char *nickname = get_client_nickname(client);
-
-    const char *address = NULL;
-    const char *ipv4Address = get_client_ipv4address(client);
+    const char *clientIdentifier = get_client_identifier(client);
     char hostname[MAX_CHARS + 1] = {'\0'};
 
-    if (ip_to_hostname(hostname, sizeof(hostname), ipv4Address)) {
-        address = hostname;
+    if (get_client_identifier_type(client) == IP_ADDRESS) {
+        ip_to_hostname(hostname, ARRAY_SIZE(hostname), get_client_identifier(client));
+        clientIdentifier = hostname;
+    }
+
+    const char *realname = NULL;
+
+    if (find_delimiter(get_command_argument(cmdTokens, 3), ":") != NULL) {
+        realname = &get_command_argument(cmdTokens, 3)[1];
     }
     else {
-        address = ipv4Address;
+        realname = get_command_argument(cmdTokens, 3);
     }
 
-    User *user = create_user(nickname, get_command_argument(cmdTokens, 0), address, get_command_argument(cmdTokens, 3), *get_client_fd(client));
+    User *user = create_user(get_client_fd(client), nickname, get_command_argument(cmdTokens, 0), clientIdentifier, realname);
 
     register_user(get_session(tcpServer), user);
-    set_client_registered(client, 1);
+    set_client_state_type(client, REGISTERED);
 
     // :server 001 <nickname> :Welcome to the IRC Network
     const char *code = get_response_code(RPL_WELCOME);
     add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+    LOG(DEBUG, "User <%s> registered", nickname);
 }
 
-STATIC void cmd_join(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
+STATIC void cmd_join(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
-    const char *nickname = get_client_nickname(client);
-
-    if (!is_client_registered(client)) {
-
-        const char *code = get_response_code(ERR_NOTREGISTERED);
+    if (!is_allowed_state_command(get_server_session_states(), get_client_state_type(client), JOIN)) {
+        // :server 451 * :You have not registered
+        const char *code = get_response_code(ERR_NOTREGISTERED);         
         add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, "*"}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+        return;
+    }
+
+    if (!get_command_argument_count(cmdTokens)) {
+
+        // :server 461 <nickname> <cmd> :Not enough parameters
+        const char *code = get_response_code(ERR_NEEDMOREPARAMS);
+        add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, get_client_nickname(client), get_command(cmdTokens)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
     }
     else {
+        Channel *channel = find_channel_in_hash_table(get_session(tcpServer), get_command_argument(cmdTokens, 0));
 
-        if (!get_command_argument_count(cmdTokens)) {
-
-            // :server 461 <nickname> <cmd> :Not enough parameters
-            const char *code = get_response_code(ERR_NEEDMOREPARAMS);
-            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command(cmdTokens)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+        if (channel != NULL) {
+            handle_join_existing_channel(tcpServer, client, cmdTokens); 
         }
         else {
-            Channel *channel = find_channel_in_hash_table(get_session(tcpServer), get_command_argument(cmdTokens, 0));
-
-            if (channel != NULL) {
-                handle_join_existing_channel(tcpServer, client, cmdTokens); 
-            }
-            else {
-                handle_join_new_channel(tcpServer, client, cmdTokens);
-            }
+            handle_join_new_channel(tcpServer, client, cmdTokens);
         }
     }
 }
@@ -260,6 +272,8 @@ STATIC void handle_join_existing_channel(TCPServer *tcpServer, Client *client, C
             // :server 471 <nickname> <channel> :Cannot join channel
             const char *code = get_response_code(ERR_CHANNELISFULL);
             add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command_argument(cmdTokens, 0)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+            LOG(DEBUG, "Channel <%s> is full", get_command_argument(cmdTokens, 0));
+
         }
         else {
             register_existing_channel_join(get_session(tcpServer), channel, user);
@@ -273,18 +287,23 @@ STATIC void handle_join_existing_channel(TCPServer *tcpServer, Client *client, C
             add_topic_message_to_queue(tcpServer, client, channel, cmdTokens);
 
             struct Data {
-                char buffer[MAX_CHARS + 1];
+                char nicknameList[MAX_CHARS + 1];
             } data = {{'\0'}};
 
             iterate_list(get_users_from_channel_users(channelUsers), add_nickname_to_list, &data);
 
             // :server 353 <nickname> <channel> :<nicknames list>
             const char *code = get_response_code(RPL_NAMREPLY);
-            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command_argument(cmdTokens, 0)}, {data.buffer}, 1, create_server_info, tcpServer});
+            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command_argument(cmdTokens, 0)}, {data.nicknameList}, 1, create_server_info, tcpServer});
 
             // :server 366 <nickname> <channel> :<End of NAMES list>
             code = get_response_code(RPL_ENDOFNAMES);
             add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command_argument(cmdTokens, 0)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+
+            if (get_client_state_type(client) == REGISTERED) {
+                set_client_state_type(client, IN_CHANNEL);
+            }
+            LOG(DEBUG, "Joined channel <%s>", get_command_argument(cmdTokens, 0));
         }
     }
 }
@@ -295,7 +314,7 @@ STATIC void handle_join_new_channel(TCPServer *tcpServer, Client *client, Comman
 
     User *user = find_user_in_hash_table(get_session(tcpServer), nickname);
 
-    if (strlen(get_command_argument(cmdTokens, 0)) > MAX_CHANNEL_LEN || !is_valid_name(get_command_argument(cmdTokens, 0), 1)) {
+    if (strlen(get_command_argument(cmdTokens, 0)) > MAX_CHANNEL_LEN || !is_valid_channel_name(get_command_argument(cmdTokens, 0))) {
 
         // :server 479 <nickname> <channel> :Illegal channel name
         const char *code = get_response_code(ERR_BADCHANNAME);
@@ -316,10 +335,15 @@ STATIC void handle_join_new_channel(TCPServer *tcpServer, Client *client, Comman
         const char *code = get_response_code(RPL_NOTOPIC);
         add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command_argument(cmdTokens, 0)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
 
+        if (get_client_state_type(client) == REGISTERED) {
+            set_client_state_type(client, IN_CHANNEL);
+        }
+        LOG(DEBUG, "Joined channel <%s>", get_command_argument(cmdTokens, 0));
     }
 }
 
 STATIC void add_topic_message_to_queue(TCPServer *tcpServer, Client *client, Channel *channel, CommandTokens *cmdTokens) {
+    
     const char *nickname = get_client_nickname(client);
 
     if (!strlen(get_channel_topic(channel))) {
@@ -335,30 +359,38 @@ STATIC void add_topic_message_to_queue(TCPServer *tcpServer, Client *client, Cha
     }
 }
 
-STATIC void cmd_part(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
+STATIC void cmd_part(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
-    // const char *servername = get_servername(tcpServer);
-    const char *nickname = get_client_nickname(client);
+    if (!is_allowed_state_command(get_server_session_states(), get_client_state_type(client), PART)) {
+       
+        if (get_client_state_type(client) == DISCONNECTED || get_client_state_type(client) == CONNECTED) {
 
-    if (!is_client_registered(client)) {
-
-        const char *code = get_response_code(ERR_NOTREGISTERED);
-        add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, "*"}, {get_response_message(code)}, 1, create_server_info, tcpServer});
-    }
-    else {
-
-        if (!get_command_argument_count(cmdTokens)) {
-
-            // :server 461 <nickname> <cmd> :Not enough parameters
-            const char *code = get_response_code(ERR_NEEDMOREPARAMS);
-            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command(cmdTokens)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+            // :server 451 * :You have not registered
+            const char *code = get_response_code(ERR_NOTREGISTERED);         
+            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, "*"}, {get_response_message(code)}, 1, create_server_info, tcpServer});
         }
         else {
-           handle_leave_channel(tcpServer, client, cmdTokens);
+            // :server 442 <nickname> <channel> :You're not on that channel
+            const char *code = get_response_code(ERR_NOTONCHANNEL);       
+            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, get_client_nickname(client), get_command_argument(cmdTokens, 0)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+            LOG(DEBUG, "Not on channel <%s>", get_command_argument(cmdTokens, 0));
         }
+        return;
     }
-}
 
+    const char *nickname = get_client_nickname(client);
+
+    if (!get_command_argument_count(cmdTokens)) {
+        // :server 461 <nickname> <cmd> :Not enough parameters
+        const char *code = get_response_code(ERR_NEEDMOREPARAMS);
+        add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command(cmdTokens)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+    }
+    else {
+        handle_leave_channel(tcpServer, client, cmdTokens);
+    
+    }
+
+}
 
 STATIC void handle_leave_channel(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
@@ -384,66 +416,55 @@ STATIC void handle_leave_channel(TCPServer *tcpServer, Client *client, CommandTo
             add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command_argument(cmdTokens, 0)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
         }
         else {
+
+            char fwdMessage[MAX_CHARS + CRLF_LEN + 1] = {'\0'};
+
+            create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessage){{get_command(cmdTokens), get_command_argument(cmdTokens, 0)}, {get_command_argument(cmdTokens, 1)}, 0, create_user_info, user});
+
             register_channel_leave(get_session(tcpServer), channel, user);
 
             if (get_channel_type(channel) == TEMPORARY && !get_channel_users_count(channelUsers)) {
 
-                remove_channel_users(get_session(tcpServer), channelUsers);
-                remove_channel_from_hash_table(get_session(tcpServer), channel);
+                remove_channel_data(get_session(tcpServer), channel);
+                add_message_to_queue(tcpServer, client, fwdMessage);
             }
             else {
-                add_part_message_to_queue(tcpServer, client, channel, cmdTokens);
+                enqueue_to_channel_queue(channel, fwdMessage);
+                add_channel_to_ready_list(channel, get_ready_list(get_session(tcpServer)));
+            }        
+            
+            if (get_client_state_type(client) == IN_CHANNEL && !get_channel_users_count(channelUsers)) {
+                set_client_state_type(client, REGISTERED);
             }
+            LOG(DEBUG, "Left channel <%s>", get_command_argument(cmdTokens, 0));
         }
     }
 }
 
-STATIC void add_part_message_to_queue(TCPServer *tcpServer, Client *client, Channel *channel, CommandTokens *cmdTokens) {
+STATIC void cmd_privmsg(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
-    const char *nickname = get_client_nickname(client);
-
-    User *user = find_user_in_hash_table(get_session(tcpServer), nickname);
-
-    char fwdMessage[MAX_CHARS + CRLF_LEN + 1] = {'\0'};
-
-    if (get_command_argument_count(cmdTokens) == 1) {
-        // <nickname!username@hostname> PART <channel_name>
-        create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessage){{get_command(cmdTokens), get_command_argument(cmdTokens, 0)}, {NULL}, 0, create_user_info, user});
-    }
-    else {
-        // <:nickname!username@hostname> PART <channel_name> <:message>
-        create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessage){{get_command(cmdTokens), get_command_argument(cmdTokens, 0)}, {get_command_argument(cmdTokens, 1)}, 0, create_user_info, user});
-    }
-    enqueue_to_channel_queue(channel, fwdMessage);
-    add_channel_to_ready_list(channel, get_ready_list(get_session(tcpServer)));
-}
-
-STATIC void cmd_privmsg(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
-
-    const char *nickname = get_client_nickname(client);
-
-    if (!is_client_registered(client)) {
-
-        const char *code = get_response_code(ERR_NOTREGISTERED);
+    if (!is_allowed_state_command(get_server_session_states(), get_client_state_type(client), PRIVMSG)) {
+        // :server 451 * :You have not registered
+        const char *code = get_response_code(ERR_NOTREGISTERED);         
         add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, "*"}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+        return;
+    }
+
+    const char *nickname = get_client_nickname(client);
+
+    if (get_command_argument_count(cmdTokens) < 2) {
+
+        // :server 461 <nickname> <cmd> :Not enough parameters
+        const char *code = get_response_code(ERR_NEEDMOREPARAMS);
+        add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command(cmdTokens)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
     }
     else {
-
-        if (get_command_argument_count(cmdTokens) < 2) {
-
-            // :server 461 <nickname> <cmd> :Not enough parameters
-            const char *code = get_response_code(ERR_NEEDMOREPARAMS);
-            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command(cmdTokens)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+        // if (get_command_argument(cmdTokens, 0)[0] == '#') {
+        if (is_valid_channel_name(get_command_argument(cmdTokens, 0))) {
+            send_privmsg_to_channel(tcpServer, client, cmdTokens);
         }
         else {
-
-            if (get_command_argument(cmdTokens, 0)[0] == '#') {
-
-                send_privmsg_to_channel(tcpServer, client, cmdTokens);
-            }
-            else {
-                send_privmsg_to_user(tcpServer, client, cmdTokens);
-            }
+            send_privmsg_to_user(tcpServer, client, cmdTokens);
         }
     }
 }
@@ -473,12 +494,14 @@ STATIC void send_privmsg_to_channel(TCPServer *tcpServer, Client *client, Comman
         }
         else {
 
-            // <:nickname!username@hostname> PRIVMSG <nickname | channel> <:message>        
+            // <:nickname!username@hostname> PRIVMSG <channel> <:message>        
             char fwdMessage[MAX_CHARS + CRLF_LEN + 1] = {'\0'};
 
             create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessage){{get_command(cmdTokens), get_command_argument(cmdTokens, 0)}, {get_command_argument(cmdTokens, 1)}, 0, create_user_info, user});
             enqueue_to_channel_queue(channel, fwdMessage);
             add_channel_to_ready_list(channel, get_ready_list(get_session(tcpServer)));
+
+            LOG(DEBUG, "Sent message to channel <%s>", get_command_argument(cmdTokens, 0));
         }
     }
 }
@@ -492,80 +515,107 @@ STATIC void send_privmsg_to_user(TCPServer *tcpServer, Client *client, CommandTo
 
     if (recipient == NULL) {
 
-        // :server 401 <nickname> <nickname> :No such nick
+        // :server 401 <client nickname> <nickname> :No such nick
         const char *code = get_response_code(ERR_NOSUCHNICK);
         add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command_argument(cmdTokens, 0)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
     }
     else {
-        // <:nickname!username@hostname> PRIVMSG <nickname | channel> <:message>       
+        // <:nickname!username@hostname> PRIVMSG <nickname> <:message>       
         char fwdMessage[MAX_CHARS + CRLF_LEN + 1] = {'\0'};
 
         create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessage){{get_command(cmdTokens), get_command_argument(cmdTokens, 0)}, {get_command_argument(cmdTokens, 1)}, 0, create_user_info, user});
         enqueue_to_user_queue(recipient, fwdMessage);
         add_user_to_ready_list(user, get_ready_list(get_session(tcpServer)));
+
+        LOG(DEBUG, "Sent message to user <%s>", get_command_argument(cmdTokens, 0));
     }
 }
 
-STATIC void cmd_quit(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
-    // const char *servername = get_servername(tcpServer);
+STATIC void cmd_whois(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
+
+    if (!is_allowed_state_command(get_server_session_states(), get_client_state_type(client), WHOIS)) {
+        // :server 451 * :You have not registered
+        const char *code = get_response_code(ERR_NOTREGISTERED);         
+        add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, "*"}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+        return;
+    }
+
     const char *nickname = get_client_nickname(client);
 
-    if (!is_client_registered(client)) {
+    if (!get_command_argument_count(cmdTokens)) {
 
-        const char *code = get_response_code(ERR_NOTREGISTERED);
-        add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, "*"}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+        // :server 461 <nickname> <cmd> :Not enough parameters
+        const char *code = get_response_code(ERR_NEEDMOREPARAMS);
+        add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command(cmdTokens)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
     }
     else {
 
-        User *user = find_user_in_hash_table(get_session(tcpServer), nickname);
+        User *whoisUser = find_user_in_hash_table(get_session(tcpServer), get_command_argument(cmdTokens, 0));
 
-        // <:nickname!username@hostname> QUIT <:message>
-        char fwdMessage[MAX_CHARS + CRLF_LEN + 1] = {'\0'};
+        if (whoisUser == NULL) {
 
-        create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessage){{get_command(cmdTokens)}, {get_command_argument(cmdTokens, 0)}, 0, create_user_info, user});
-
-        /* remove and notify channels */
-        UserChannels *userChannels = find_user_channels(get_session(tcpServer), user);
-        
-        if (userChannels != NULL) {
-
-            struct Data {
-                Session *session;
-                Channel *channels[MAX_CHANNELS_PER_USER];
-                int count;
-            } data = {get_session(tcpServer), {NULL}, 0};
-
-            iterate_list(get_channels_from_user_channels(userChannels), find_removable_channels, &data);
-
-            for (int i = 0; i < data.count; i++) {
-                remove_channel_data(data.session, userChannels, data.channels[i]);
-            }
-            iterate_list(get_channels_from_user_channels(userChannels), enqueue_to_channel_queue, fwdMessage);
-            iterate_list(get_channels_from_user_channels(userChannels), add_channel_to_ready_list, get_ready_list(get_session(tcpServer)));
-            remove_user_channels(get_session(tcpServer), userChannels);
+            // :server 401 <client nickname> <nickname> :No such nick
+            const char *code = get_response_code(ERR_NOSUCHNICK);
+            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command_argument(cmdTokens, 0)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
         }
-        remove_user_from_hash_table(get_session(tcpServer), user);
-        remove_client(tcpServer, find_fd_index(tcpServer, *get_client_fd(client)));
+        else {
+
+            // :server 311 <client nickname> <nickname> <username> <hostname> <realname>
+            const char *code = get_response_code(RPL_WHOISUSER);
+            add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, nickname, get_command_argument(cmdTokens, 0), get_user_username(whoisUser), get_user_hostname(whoisUser)}, {get_user_realname(whoisUser)}, 1, create_server_info, tcpServer});
+
+            LOG(DEBUG, "Performed WHOIS for user <%s>", get_command_argument(cmdTokens, 0));
+        }
     }
 }
 
-STATIC void remove_channel_data(Session *session, UserChannels *userChannels, Channel *channel) {
+STATIC void cmd_quit(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
 
-    remove_channel_in_user_channels(userChannels, channel);
-    ChannelUsers *channelUsers = find_channel_users(session, channel);
-    remove_channel_users(session, channelUsers);
-    remove_channel_from_hash_table(session, channel);
-}
-
-STATIC void cmd_unknown(TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
-    return;
-}
-
-CommandFunc get_command_function(CommandType commandType) {
-
-    if (is_valid_command(commandType)) {
-        return COMMAND_FUNCTIONS[commandType];
+    if (!is_allowed_state_command(get_server_session_states(), get_client_state_type(client), QUIT)) {
+        // :server 451 * :You have not registered
+        const char *code = get_response_code(ERR_NOTREGISTERED);         
+        add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, "*"}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+        return;
     }
-    return cmd_unknown;
+
+    User *user = find_user_in_hash_table(get_session(tcpServer), get_client_nickname(client));
+
+    // <:nickname!username@hostname> QUIT <:message>
+    char fwdMessage[MAX_CHARS + CRLF_LEN + 1] = {'\0'};
+
+    create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessage){{get_command(cmdTokens)}, {get_command_argument(cmdTokens, 0)}, 0, create_user_info, user});
+
+    LOG(INFO, "User quit (fd: %d)", get_client_fd(client));
+
+    leave_all_channels(get_session(tcpServer), user, fwdMessage);
+
+    ReadyList *readyList = get_ready_list(get_session(tcpServer));
+    remove_user_from_ready_list(get_ready_users(readyList), user);
+
+    unregister_user(get_session(tcpServer), user);
+    remove_client(tcpServer, eventManager, get_client_fd(client));
+}
+
+STATIC void cmd_unknown(EventManager *eventManager, TCPServer *tcpServer, Client *client, CommandTokens *cmdTokens) {
+
+    // :server 421 <command> :Unknown command
+    const char *code = get_response_code(ERR_UNKNOWNCOMMAND);
+    add_irc_message_to_queue(tcpServer, client, &(IRCMessage){{code, get_command(cmdTokens)}, {get_response_message(code)}, 1, create_server_info, tcpServer});
+
+    LOG(DEBUG, "Unknown command <%s>", get_command(cmdTokens));
+}
+
+CommandFunc get_command_function(CommandType cmdType) {
+
+    CommandFunc cmdFunc = NULL;
+
+    if (is_valid_enum_type(cmdType, COMMAND_TYPE_COUNT) && COMMAND_FUNCTIONS[cmdType] != NULL) {
+        cmdFunc = COMMAND_FUNCTIONS[cmdType];
+    }
+    else {
+        cmdFunc = cmd_unknown;
+    }
+
+    return cmdFunc;
 }

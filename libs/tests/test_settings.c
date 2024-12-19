@@ -5,7 +5,7 @@
 
 enum OptionType {OT_NICKNAME, OT_USERNAME, OT_PORT, OPTION_TYPE_COUNT};
 
-static Settings *settings;
+static Settings *settings = NULL;
 
 static void initialize_test_suite(void) {
 

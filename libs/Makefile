@@ -11,7 +11,8 @@ DLIB_FLAGS = -fPIC -shared -lc
 TEST_LDFLAGS = -lcheck -lm -lpthread -lrt -lsubunit
 LIB_LDFLAGS = -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB_TEST))
 LIB2_LDFLAGS = -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB_TEST2))
-MOCK_LDFLAGS = -lmock -lncursesw
+NCURSES_LDFLAG = -lncursesw
+MOCK_LDFLAGS = -lmock $(NCURSES_LDFLAG)
 
 # List of binaries that require linking with the mock library
 LINK_MOCK_BINS = test_mock test_io_utils test_threads
@@ -25,14 +26,13 @@ EXCLUDE_SRCS = $(SRCDIR)/libmock.c
 SRCS = $(filter-out $(EXCLUDE_SRCS), $(wildcard $(SRCDIR)/*.c))
 OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
 
-# EXCLUDE_TEST_SRCS = $(TESTDIR)/test_hash_table.c
 EXCLUDE_TEST_SRCS = 
 TEST_SRCS = $(filter-out $(EXCLUDE_TEST_SRCS), $(wildcard $(TESTDIR)/*.c))
 TEST_OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%_test.o, $(SRCS))
 TEST_BINS = $(patsubst $(TESTDIR)/%.c, $(TESTDIR)/bin/%, $(TEST_SRCS))
 
-EXCLUDE_OBJS = $(OBJDIR)/libthreads_test.o $(OBJDIR)/libio_utils_test.o
-INCLUDE_OBJS = $(OBJDIR)/libthreads_test2.o $(OBJDIR)/libio_utils_test2.o
+EXCLUDE_OBJS = $(OBJDIR)/threads_test.o $(OBJDIR)/io_utils_test.o
+INCLUDE_OBJS = $(OBJDIR)/threads_test2.o $(OBJDIR)/io_utils_test2.o
 
 DEPS = $(OBJS:.o=.d)
 
@@ -92,6 +92,7 @@ $(OBJDIR)/%_test.o: $(SRCDIR)/%.c
 	$(CC) $(TEST_CFLAGS) -c $< -o $@
 	$(CC) $(TEST_CFLAGS) -MM $< -MT $@ -MF $(patsubst %_test.o, %_test.d, $@)
 
+
 $(OBJDIR)/%_test2.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 	$(CC) $(CFLAGS) -MM $< -MT $@ -MF $(patsubst %_test2.o, %_test2.d, $@)
@@ -111,6 +112,9 @@ test: $(TEST_BINS)
 # build test binaries
 $(TESTDIR)/bin/%: $(TESTDIR)/%.c $(LIB_TEST) $(if $(filter $*, $(LINK_MOCK_BINS)), $(LIB_MOCK))
 	$(CC) $(TEST_CFLAGS) $< -o $@ $(TEST_LDFLAGS) $(LIB_LDFLAGS) $(if $(filter $*, $(LINK_MOCK_BINS)), $(MOCK_LDFLAGS))
+
+$(TESTDIR)/bin/test_print_utils: $(TESTDIR)/test_print_utils.c $(LIB_TEST)
+	$(CC) $(TEST_CFLAGS) $< -o $@ $(TEST_LDFLAGS) $(LIB_LDFLAGS) $(NCURSES_LDFLAG)
 
 $(TESTDIR)/bin/test_threads: $(TESTDIR)/test_threads.c $(LIB_TEST2)
 	$(CC) $(TEST_CFLAGS) $< -o $@ $(TEST_LDFLAGS) $(LIB2_LDFLAGS)

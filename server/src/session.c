@@ -7,7 +7,7 @@
 #include "../../libs/src/hash_table.h"
 #endif
 
-#include "main.h"
+#include "config.h"
 #include "../../libs/src/settings.h"
 #include "../../libs/src/error_control.h"
 #include "../../libs/src/logger.h"
@@ -22,13 +22,8 @@
 
 #ifndef TEST
 
-#define START_USERS 500
-#define START_CHANNELS 50
-
-#define MAX_USERS START_USERS * LOAD_FACTOR
-#define MAX_CHANNELS START_CHANNELS * LOAD_FACTOR
-
-#define LOAD_FACTOR 2.0
+#define MAX_USERS 1024
+#define MAX_CHANNELS 100
 
 /* keeps track of all user's channels */
 struct UserChannels {
@@ -62,10 +57,6 @@ struct Session {
     HashTable *channels;
     LinkedList *userChannelsLL;
     LinkedList *channelUsersLL;
-    int usersCapacity;
-    int usersCount;
-    int channelsCapacity;
-    int channelsCount;
     pthread_rwlock_t usersLock;
     pthread_rwlock_t channelsLock;
     pthread_rwlock_t usersCountLock;
@@ -85,20 +76,15 @@ Session * create_session(void) {
 
     Session *session = (Session *) malloc(sizeof(Session));
     if (session == NULL) {
-        FAILED(NO_ERRCODE, "Error allocating memory");
+        FAILED(ALLOC_ERROR, NULL);
     }
     session->readyList = create_ready_list();
 
-    session->users = create_hash_table(START_USERS, string_hash_function, are_strings_equal, NULL, delete_user);
-    session->channels = create_hash_table(START_CHANNELS, string_hash_function, are_strings_equal, NULL, delete_channel);
+    session->users = create_hash_table(MAX_USERS, 0, djb2_hash, are_strings_equal, NULL, delete_user);
+    session->channels = create_hash_table(MAX_CHANNELS, 0, djb2_hash, are_strings_equal, NULL, delete_channel);
 
     session->userChannelsLL = create_linked_list(are_user_channels_equal, delete_user_channels);
     session->channelUsersLL = create_linked_list(are_channel_users_equal, delete_channel_users);
-
-    session->usersCapacity = MAX_USERS;
-    session->usersCount = 0;
-    session->channelsCapacity = MAX_CHANNELS;
-    session->channelsCount = 0;
 
     pthread_rwlock_init(&session->usersLock, NULL);
     pthread_rwlock_init(&session->channelsLock, NULL);
@@ -144,15 +130,11 @@ void add_user_to_hash_table(Session *session, User *user) {
         pthread_rwlock_wrlock(&session->usersCountLock);
     }
 
-    if (session->usersCount < session->usersCapacity && find_item_in_hash_table(session->users, (char*)get_user_nickname(user)) == NULL) {
+    if (!is_hash_table_full(session->users) && find_item_in_hash_table(session->users, (char*)get_user_nickname(user)) == NULL) {
 
         HashItem *item = create_hash_item((char*)get_user_nickname(user), user); 
+        insert_item_to_hash_table(session->users, item);
 
-        int inserted = insert_item_to_hash_table(session->users, item);
-
-        if (inserted) {
-            session->usersCount++;
-        }
     }
 
     if (get_int_option_value(OT_THREADS)) {
@@ -173,15 +155,10 @@ void add_channel_to_hash_table(Session *session, Channel *channel) {
         pthread_rwlock_wrlock(&session->channelsCountLock);
     }
 
-    if (session->channelsCount < session->channelsCapacity && find_item_in_hash_table(session->channels, (char*) get_channel_name(channel)) == NULL) {
+    if (!is_hash_table_full(session->channels) && find_item_in_hash_table(session->channels, (char*) get_channel_name(channel)) == NULL) {
 
         HashItem *item = create_hash_item((char*)get_channel_name(channel), channel); 
-
-        int inserted = insert_item_to_hash_table(session->channels, item);
-
-        if (inserted) {
-            session->channelsCount++;
-        }
+        insert_item_to_hash_table(session->channels, item);
     }
     if (get_int_option_value(OT_THREADS)) {
         pthread_rwlock_unlock(&session->channelsCountLock);
@@ -200,14 +177,7 @@ void remove_user_from_hash_table(Session *session, User *user) {
         pthread_rwlock_wrlock(&session->usersCountLock);
     }
 
-    if (session->usersCount) {
-
-        int removed = remove_item_from_hash_table(session->users, (char*)get_user_nickname(user));
-
-        if (removed) {
-            session->usersCount--;
-        }
-    }
+    remove_item_from_hash_table(session->users, (char*)get_user_nickname(user));
 
     if (get_int_option_value(OT_THREADS)) {
         pthread_rwlock_unlock(&session->usersCountLock);
@@ -226,14 +196,7 @@ void remove_channel_from_hash_table(Session *session, Channel *channel) {
         pthread_rwlock_wrlock(&session->channelsCountLock);
     }
 
-    if (session->channelsCount) {
-
-        int removed = remove_item_from_hash_table(session->channels, (char*)get_channel_name(channel));
-
-        if (removed) {
-            session->channelsCount--;
-        }
-    }
+    remove_item_from_hash_table(session->channels, (char*)get_channel_name(channel));
 
     if (get_int_option_value(OT_THREADS)) {
         pthread_rwlock_unlock(&session->channelsCountLock);
@@ -295,7 +258,7 @@ ReadyList * create_ready_list(void) {
     
     ReadyList *readyList = (ReadyList *) malloc(sizeof(ReadyList));
     if (readyList == NULL) {
-        FAILED(NO_ERRCODE, "Error allocating memory");
+        FAILED(ALLOC_ERROR, NULL);
     }
 
     readyList->readyUsers = create_linked_list(are_users_equal, NULL);
@@ -357,6 +320,40 @@ void add_channel_to_ready_list(void *channel, void *readyList) {
     }
 }
 
+void remove_user_from_ready_list(LinkedList *readyUsers, User *user) {
+    
+    if (readyUsers == NULL || user == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_wrlock(&readyListLock);
+    }
+
+    remove_node(readyUsers, user);
+
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_unlock(&readyListLock);
+    }
+}
+
+void remove_channel_from_ready_list(LinkedList *readyChannels, Channel *channel) {
+    
+    if (readyChannels == NULL || channel == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_wrlock(&readyListLock);
+    }
+
+    remove_node(readyChannels, channel);
+
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_unlock(&readyListLock);
+    }
+}
+
 UserChannels * create_user_channels(User *user) {
 
     if (user == NULL) {
@@ -365,7 +362,7 @@ UserChannels * create_user_channels(User *user) {
 
     UserChannels *userChannels = (UserChannels*) malloc(sizeof(UserChannels));
     if (userChannels == NULL) {
-        FAILED(NO_ERRCODE, "Error allocating memory");
+        FAILED(ALLOC_ERROR, NULL);
     }
 
     userChannels->user = user;
@@ -384,7 +381,7 @@ ChannelUsers * create_channel_users(Channel *channel) {
 
     ChannelUsers *channelUsers = (ChannelUsers*) malloc(sizeof(ChannelUsers));
     if (channelUsers == NULL) {
-        FAILED(NO_ERRCODE, "Error allocating memory");
+        FAILED(ALLOC_ERROR, NULL);
     }
 
     channelUsers->channel = channel;
@@ -437,7 +434,6 @@ void add_user_channels(Session *session, UserChannels *userChannels) {
     if (get_int_option_value(OT_THREADS)) {
         pthread_rwlock_unlock(&userChannelsLock);
     }
-
 }
 
 void add_channel_users(Session *session, ChannelUsers *channelUsers) {
@@ -719,6 +715,18 @@ void register_user(Session *session, User *user) {
     add_user_channels(session, userChannels);
 }
 
+void unregister_user(Session *session, User *user) {
+
+    if (session == NULL || user == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    UserChannels *userChannels = find_user_channels(session, user);
+    remove_user_channels(session, userChannels);
+
+    remove_user_from_hash_table(session, user);
+}
+
 void register_new_channel_join(Session *session, Channel *channel, User *user) {
 
     if (session == NULL || channel == NULL || user == NULL) {
@@ -740,11 +748,12 @@ void register_existing_channel_join(Session *session, Channel *channel, User *us
     if (session == NULL || channel == NULL || user == NULL) {
         FAILED(ARG_ERROR, NULL);
     }
-    UserChannels *userChannels = find_user_channels(session, user);
-    add_channel_to_user_channels(userChannels, channel);
 
     ChannelUsers *channelUsers = find_channel_users(session, channel);
     add_user_to_channel_users(channelUsers, user);
+
+    UserChannels *userChannels = find_user_channels(session, user);
+    add_channel_to_user_channels(userChannels, channel);
 }
 
 void register_channel_leave(Session *session, Channel *channel, User *user) {
@@ -752,34 +761,53 @@ void register_channel_leave(Session *session, Channel *channel, User *user) {
     if (session == NULL || channel == NULL || user == NULL) {
         FAILED(ARG_ERROR, NULL);
     }
-    UserChannels *userChannels = find_user_channels(session, user);
-    remove_channel_in_user_channels(userChannels, channel);
 
     ChannelUsers *channelUsers = find_channel_users(session, channel);
     remove_user_in_channel_users(channelUsers, user);
+
+    UserChannels *userChannels = find_user_channels(session, user);
+    remove_channel_in_user_channels(userChannels, channel);
 }
 
-void find_removable_channels(void *channel, void *arg) {
+void leave_all_channels(Session *session, User *user, const char *message) {
 
-    if (channel == NULL || arg == NULL) {
-        FAILED(ARG_ERROR, NULL);
-    }
+    UserChannels *userChannels = find_user_channels(session, user);
 
-    struct {
-        Session *session;
-        Channel *channels[MAX_CHANNELS_PER_USER];
-        int count;
-    } *data = arg;
+    if (userChannels != NULL) {
 
-    ChannelUsers *channelUsers = find_channel_users(data->session, channel);
+        LinkedList *channels = get_channels_from_user_channels(userChannels);
+        reset_iterator(channels);
 
-    if (channelUsers != NULL && channelUsers->count == 1) {
+        Node *node = NULL;
 
-        data->channels[data->count++] = channel;
+        while ((node = iterator_next(channels)) != NULL) {
+
+            Channel *channel = get_data(node);
+            ChannelUsers *channelUsers = find_channel_users(session, channel);
+
+            register_channel_leave(session, channel, user);
+
+             /* remove channels with only client */
+            if (channelUsers != NULL && !get_channel_users_count(channelUsers)) {
+                remove_channel_data(session, channel);
+            }
+            /* send quit message to channel */
+            else {
+                enqueue_to_channel_queue(channel, (char*) message);
+                add_channel_to_ready_list(channel, get_ready_list(session));
+            }
+        }
     }
 }
 
-int is_channel_full(ChannelUsers *channelUsers) {
+void remove_channel_data(Session *session, Channel *channel) {
+
+    remove_channel_from_ready_list(get_ready_channels(get_ready_list(session)), channel);
+    remove_channel_users(session, find_channel_users(session, channel));
+    remove_channel_from_hash_table(session, channel);
+}
+
+bool is_channel_full(ChannelUsers *channelUsers) {
 
     if (channelUsers == NULL) {
         FAILED(ARG_ERROR, NULL);
@@ -796,9 +824,9 @@ int is_channel_full(ChannelUsers *channelUsers) {
 }
 
 
-int are_user_channels_equal(void *userChannels1, void *userChannels2) {
+bool are_user_channels_equal(void *userChannels1, void *userChannels2) {
 
-    int equal = 0;
+    bool equal = 0;
 
     if (get_int_option_value(OT_THREADS)) {
         pthread_rwlock_rdlock(&userChannelsLock);
@@ -811,6 +839,26 @@ int are_user_channels_equal(void *userChannels1, void *userChannels2) {
 
     if (get_int_option_value(OT_THREADS)) {
         pthread_rwlock_unlock(&userChannelsLock);
+    }
+
+    return equal;
+}
+
+bool are_channel_users_equal(void *channelUsers1, void *channelUsers2) {
+
+    bool equal = 0;
+
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_rdlock(&channelUsersLock);
+    }
+
+    if (channelUsers1 != NULL && channelUsers2 != NULL) {
+
+        equal = are_channels_equal(((ChannelUsers*)channelUsers1)->channel, ((ChannelUsers*)channelUsers2)->channel);
+    }
+
+    if (get_int_option_value(OT_THREADS)) {
+        pthread_rwlock_unlock(&channelUsersLock);
     }
 
     return equal;
@@ -873,25 +921,6 @@ LinkedList * get_ready_channels(ReadyList *readyList) {
     return readyChannels;
 }
 
-int are_channel_users_equal(void *channelUsers1, void *channelUsers2) {
-
-    int equal = 0;
-
-    if (get_int_option_value(OT_THREADS)) {
-        pthread_rwlock_rdlock(&channelUsersLock);
-    }
-
-    if (channelUsers1 != NULL && channelUsers2 != NULL) {
-
-        equal = are_users_equal(((ChannelUsers*)channelUsers1)->channel, ((ChannelUsers*)channelUsers2)->channel);
-    }
-
-    if (get_int_option_value(OT_THREADS)) {
-        pthread_rwlock_unlock(&channelUsersLock);
-    }
-
-    return equal;
-}
 
 LinkedList * get_channels_from_user_channels(UserChannels *userChannels) {
 

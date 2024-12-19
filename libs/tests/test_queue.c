@@ -7,13 +7,13 @@
 
 START_TEST(test_create_queue) {
 
-    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(RegMessage));
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(Message));
 
     ck_assert_ptr_ne(queue, NULL);
-    ck_assert_int_eq(queue->itemSize, sizeof(RegMessage));
+    ck_assert_int_eq(queue->itemSize, sizeof(Message));
     ck_assert_int_eq(queue->front, 0);
     ck_assert_int_eq(queue->rear, 0);
-    ck_assert_int_eq(queue->currentItem, 0);
+    ck_assert_int_eq(queue->currentIdx, 0);
     ck_assert_int_eq(queue->capacity, QUEUE_CAPACITY);
     ck_assert_int_eq(queue->count, 0);
 
@@ -23,7 +23,7 @@ END_TEST
 
 START_TEST(test_is_queue_empty) {
 
-    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(RegMessage));
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(Message));
 
     ck_assert_int_eq(is_queue_empty(queue), 1);
 
@@ -33,11 +33,11 @@ END_TEST
 
 START_TEST(test_is_queue_full) {
 
-    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(RegMessage));
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(Message));
 
-    enqueue(queue, &(ExtMessage){"john", "steven", "message1"});
-    enqueue(queue, &(ExtMessage){"john", "mark", "message2"});
-    enqueue(queue, &(ExtMessage){"john", "steven", "message3"});
+    enqueue(queue, &(Message){"message1", "", MSG_STANDARD, NORMAL_PRIORTY});
+    enqueue(queue, &(Message){"message2", "", MSG_STANDARD, NORMAL_PRIORTY});
+    enqueue(queue, &(Message){"message3", "", MSG_STANDARD, NORMAL_PRIORTY});
 
     ck_assert_int_eq(is_queue_full(queue), 1); 
 
@@ -47,31 +47,31 @@ END_TEST
 
 START_TEST(test_enqueue) {
 
-    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(ExtMessage));
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(Message));
 
-    enqueue(queue, &(ExtMessage){"john", "steven", "message1"});
+    enqueue(queue, &(Message){"message1", "", MSG_STANDARD, NORMAL_PRIORTY});
 
-    ExtMessage *message = get_previous_item(queue);
-
-    ck_assert_str_eq(message->sender, "john");
-    ck_assert_str_eq(message->recipient, "steven");
-    ck_assert_str_eq(message->content, "message1");
+    Message *message = get_previous_item(queue);
 
     ck_assert_int_eq(queue->rear, 1);
     ck_assert_int_eq(queue->front, 0);
+    ck_assert_int_eq(queue->currentIdx, 0);
     ck_assert_int_eq(queue->count, 1);
+    ck_assert_str_eq(message->content, "message1");
 
-    enqueue(queue, &(ExtMessage){"john", "mark", "message2"});
-    enqueue(queue, &(ExtMessage){"john", "steven", "message3"});
+    enqueue(queue, &(Message){"message2", "", MSG_STANDARD, NORMAL_PRIORTY});
+    enqueue(queue, &(Message){"message3", "", MSG_STANDARD, NORMAL_PRIORTY});
 
     ck_assert_int_eq(queue->rear, 0);
     ck_assert_int_eq(queue->front, 0);
+    ck_assert_int_eq(queue->currentIdx, 0);
     ck_assert_int_eq(queue->count, 3);
 
-    enqueue(queue, &(ExtMessage){"john", "steven", "message4"});
+    enqueue(queue, &(Message){"message4", "", MSG_STANDARD, NORMAL_PRIORTY});
 
     ck_assert_int_eq(queue->rear, 1);
     ck_assert_int_eq(queue->front, 1);
+    ck_assert_int_eq(queue->currentIdx, 1);
     ck_assert_int_eq(queue->count, 3);
 
     delete_queue(queue); 
@@ -80,25 +80,25 @@ END_TEST
 
 START_TEST(test_dequeue) {
 
-    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(ExtMessage));
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(Message));
 
-    enqueue(queue, &(ExtMessage){"john", "steven", "message1"});
-    enqueue(queue, &(ExtMessage){"john", "mark", "message2"});
-    enqueue(queue, &(ExtMessage){"john", "steven", "message3"});
+    enqueue(queue, &(Message){"message1", "", MSG_STANDARD, NORMAL_PRIORTY});
+    enqueue(queue, &(Message){"message2", "", MSG_STANDARD, NORMAL_PRIORTY});
+    enqueue(queue, &(Message){"message3", "", MSG_STANDARD, NORMAL_PRIORTY});
 
     ck_assert_int_eq(queue->rear, 0);
     ck_assert_int_eq(queue->front, 0);
+    ck_assert_int_eq(queue->currentIdx, 0);
     ck_assert_int_eq(queue->count, 3);
 
-    ExtMessage *message = dequeue(queue);
+    Message *message = dequeue(queue);
 
     ck_assert_ptr_ne(message, NULL);
-    ck_assert_str_eq(message->sender, "john");
-    ck_assert_str_eq(message->recipient, "steven");
     ck_assert_str_eq(message->content, "message1");
 
     ck_assert_int_eq(queue->rear, 0);
     ck_assert_int_eq(queue->front, 1);
+    ck_assert_int_eq(queue->currentIdx, 0);
     ck_assert_int_eq(queue->count, 2);
 
     dequeue(queue);
@@ -112,26 +112,34 @@ END_TEST
 
 START_TEST(test_get_item) {
 
-    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(RegMessage));
+    Queue *queue = create_queue(QUEUE_CAPACITY, sizeof(Message));
     
-    enqueue(queue, &(RegMessage){"message1"});
-    enqueue(queue, &(RegMessage){"message2"});
+    enqueue(queue, &(Message){"message1", "", MSG_STANDARD, NORMAL_PRIORTY});
+    enqueue(queue, &(Message){"message2", "", MSG_STANDARD, NORMAL_PRIORTY});
+    
+    Message *message = get_previous_item(queue);
 
-    RegMessage *message = get_previous_item(queue);
-
+    ck_assert_int_eq(queue->front, 0);
+    ck_assert_int_eq(queue->rear, 2);
+    ck_assert_int_eq(queue->currentIdx, 1);
     ck_assert_str_eq(message->content, "message2");
 
     message = get_previous_item(queue);
+
+    ck_assert_int_eq(queue->currentIdx, 0);
     ck_assert_str_eq(message->content, "message1");
 
     message = get_previous_item(queue);
-    ck_assert_ptr_eq(message, NULL);
 
-    message = get_current_item(queue);
-    ck_assert_str_eq(message->content, "message1");
+    ck_assert_ptr_eq(message, NULL);
+    ck_assert_int_eq(queue->currentIdx, 0);
 
     message = get_next_item(queue);
+    ck_assert_int_eq(queue->currentIdx, 1);
     ck_assert_str_eq(message->content, "message2");
+
+    message = get_next_item(queue);
+    ck_assert_int_eq(queue->currentIdx, 2);
 
     delete_queue(queue);
 }

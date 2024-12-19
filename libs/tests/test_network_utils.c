@@ -1,5 +1,5 @@
 #include "../src/network_utils.h"
-#include "../src/string_utils.h"
+#include "../src/common.h"
 
 #include <check.h>
 #include <unistd.h>
@@ -119,6 +119,21 @@ START_TEST(test_get_peer_address) {
 }
 END_TEST
 
+START_TEST(test_set_sockaddr) {
+
+    char ipv4Address[INET_ADDRSTRLEN];
+    struct sockaddr_in sa;
+
+    set_sockaddr(&sa, "127.0.0.1", 50105);
+
+    inet_ntop(AF_INET, &sa.sin_addr, ipv4Address, sizeof(ipv4Address));
+
+    ck_assert_str_eq(ipv4Address, "127.0.0.1");
+    ck_assert_int_eq(ntohs(sa.sin_port), 50105);
+
+}
+END_TEST
+
 START_TEST(test_is_valid_ip) {
 
     ck_assert_int_eq(is_valid_ip("127.0.0.1"), 1);
@@ -149,6 +164,7 @@ Suite* network_utils_suite(void) {
     tcase_add_test(tc_convert, test_ip_to_hostname);
     tcase_add_test(tc_convert, test_get_local_address);
     tcase_add_test(tc_convert, test_get_peer_address);
+    tcase_add_test(tc_convert, test_set_sockaddr);
     tcase_add_test(tc_core, test_is_valid_ip);
     tcase_add_test(tc_core, test_is_valid_port);
 

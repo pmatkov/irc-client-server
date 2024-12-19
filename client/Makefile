@@ -4,7 +4,7 @@ CC = gcc
 CFLAGS = -g -Wall
 TEST_CFLAGS = $(CFLAGS) -DTEST
 
-LDFLAGS = -lncursesw -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB))
+LDFLAGS = -lncursesw -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB)) -lm
 TEST_LDFLAGS = -lcheck -lm -lpthread -lrt -lsubunit
 LIB_LDFLAGS = -L$(LIBDIR) $(patsubst $(LIBDIR)/lib%.a, -l%, $(LIB_TEST))
 MOCK_LDFLAGS = -lmock -lncursesw
@@ -19,7 +19,8 @@ SRCS = $(wildcard $(SRCDIR)/*.c)
 OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(SRCS))
 BIN = $(BINDIR)/client
 
-TEST_SRCS = $(wildcard $(TESTDIR)/*.c)
+EXCLUDE_TEST_SRCS =
+TEST_SRCS = $(filter-out $(EXCLUDE_TEST_SRCS), $(wildcard $(TESTDIR)/*.c))
 TEST_OBJS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%_test.o, $(SRCS))
 TEST_BINS = $(patsubst $(TESTDIR)/%.c, $(TESTDIR)/bin/%, $(TEST_SRCS))
 

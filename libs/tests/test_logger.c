@@ -2,7 +2,7 @@
 
 #include <check.h>
 
-#define DEFAULT_LOG_FREQUENCY 20
+#define DEF_LOG_FREQUENCY 20
 
 START_TEST(test_create_logger) {
 
@@ -12,8 +12,9 @@ START_TEST(test_create_logger) {
     ck_assert_int_eq(logger->logLevel, DEBUG);
     ck_assert_int_eq(logger->logFrequency, 1);
     ck_assert_int_eq(logger->stdoutEnabled, 1);
-    ck_assert_int_eq(logger->capacity, DEFAULT_LOG_FREQUENCY);
-    ck_assert_int_eq(logger->count, 0);
+    ck_assert_int_eq(logger->capacity, DEF_LOG_FREQUENCY);
+    ck_assert_int_eq(logger->currentCount, 0);
+    ck_assert_int_eq(logger->totalCount, 0);
 
     delete_logger(logger);
 }
@@ -37,7 +38,8 @@ START_TEST(test_log_message) {
     log_message(INFO, "Test message", __func__, __FILE__, __LINE__);
     log_message(INFO, "Test message from: %s", __func__, __FILE__, __LINE__, "john");
 
-    ck_assert_int_eq(logger->count, 0);
+    ck_assert_int_eq(logger->currentCount, 0);
+    ck_assert_int_eq(logger->totalCount, 2);
 
     delete_logger(logger);
 
@@ -52,7 +54,8 @@ START_TEST(test_log_error) {
 
     log_error(NO_ERRCODE, "Error message", __func__, __FILE__, __LINE__, 0);
     log_error(ARG_ERROR, NULL, __func__, __FILE__, __LINE__, 0);
-    ck_assert_int_eq(logger->count, 0);
+    ck_assert_int_eq(logger->currentCount, 0);
+    ck_assert_int_eq(logger->totalCount, 2);
 
     delete_logger(logger);
 
@@ -70,29 +73,6 @@ START_TEST(test_set_streams) {
 }
 END_TEST
 
-START_TEST(test_is_valid_log_level) {
-
-    ck_assert_int_eq(is_valid_log_level(DEBUG), 1);
-    ck_assert_int_eq(is_valid_log_level(UNKNOWN_LOGLEVEL), 0);
-    
-}
-END_TEST
-
-START_TEST(test_log_level_to_string) {
-
-    ck_assert_str_eq(log_level_to_string(DEBUG), "debug");
-    ck_assert_ptr_eq(log_level_to_string(10), NULL);
-
-}
-END_TEST
-
-START_TEST(test_string_to_log_level) {
-
-    ck_assert_int_eq(string_to_log_level("debug"), DEBUG);
-    ck_assert_int_eq(string_to_log_level("level"), UNKNOWN_LOGLEVEL);
-
-}
-END_TEST
 
 Suite* logger_suite(void) {
     Suite *s;
@@ -107,9 +87,6 @@ Suite* logger_suite(void) {
     tcase_add_test(tc_core, test_log_message);
     tcase_add_test(tc_core, test_log_error);
     tcase_add_test(tc_core, test_set_streams);
-    tcase_add_test(tc_core, test_is_valid_log_level);
-    tcase_add_test(tc_core, test_log_level_to_string);
-    tcase_add_test(tc_core, test_string_to_log_level);
 
     suite_add_tcase(s, tc_core);
 

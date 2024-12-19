@@ -4,7 +4,7 @@
 #define READ_PIPE 0
 #define WRITE_PIPE 1
 #define PIPE_FD_COUNT 2
-#define DEFAULT_WORKLOAD 100
+#define DEF_WORKLOAD 100
 
 /* contains thread status, thread id,
     pipe fd's and, for threads in the pool,
@@ -20,7 +20,9 @@ typedef struct ThreadPool ThreadPool;
 typedef struct Thread Thread;
 
 typedef void * (*ThreadFunc)(void *arg);
-/* notify thread. arg is either thread or thread pool */
+
+/* notify thread. arg is either thread or thread 
+    pool */
 typedef void (*NotifyThreadFunc)(void *arg, const char *string);
 
 /* create a thread pool */
@@ -47,11 +49,13 @@ int get_thread_count(ThreadPool *threadPool);
 int get_thread_id(ThreadData *threadData);
 int get_start_idx(ThreadData *threadData);
 int get_end_idx(ThreadData *threadData);
+
 int get_thread_id_by_range_idx(ThreadPool *threadPool, int rangeIdx);
+int get_thread_idx_by_range_idx(ThreadPool *threadPool, int rangeIdx);
 
 int get_thread_pipe_fd(ThreadData *threadData, int pipeIdx);
 
-/* send messages to thread or thread pool */
+/* send a message to thread or thread pool */
 void notify_single_thread(void *thread, const char *message);
 void notify_thread_pool(void *threadPool, const char *message);
 

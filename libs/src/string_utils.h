@@ -1,29 +1,25 @@
 #ifndef STRING_UTILS_H
 #define STRING_UTILS_H
 
+#include <stdbool.h>
+
 #define TO_STRING(string) #string
-#define APPEND_PREFIX(prefix, string) prefix TO_STRING(string)
-
-#define ARR_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
-
-#define MAX_CHARS 512
-#define MAX_DIGITS 10
-#define CRLF "\r\n"
+#define APPEND_STR_PREFIX(prefix, string) prefix TO_STRING(string)
 
 typedef void (*StringListFunc)(const char *string, void *arg);
 
-/* tokenize string using delim. tkCount represents the 
-    desired number of tokens. if tkCount is less than 
+/* split string to tokens with delim. tkCount represents 
+    the desired number of tokens. if tkCount is less than 
     the maximum possible number of tokens, the last 
     token will contain all the remaining tokens. this 
-    function modifies the original string. 
+    function modifies the original string
 
     -example-
         string: "This is a long string", tkCount = 3, delim = ' '
         result: "This", "is", "a long string" */
 int tokenize_string(char *string, const char **tokens, int tkCount, const char *delim);
 
-/* concatenate tokens into a string using delim 
+/* concatenate tokens with delim
     
     -example-
     tokens = {"This", "is", "a" "long", "string"}, tkCount = 5, delim = ' '
@@ -58,7 +54,6 @@ void prepend_char(char *buffer, int size, const char *string, char ch);
     result: "message1", "message2" */
 int delimit_messages(char *string, const char **tokens, int tkCount, const char *delim);
 
-
 /* extract a single message from string using delimiter 
     and store it in buffer */
 int extract_message(char *buffer, int size, char *string, const char *delim); 
@@ -75,7 +70,7 @@ void terminate_string(char *buffer, int size, const char *string, const char *te
 void clear_terminator(char *string, const char *term);
 
 /* check if the string is terminated */
-int is_terminated(const char *string, const char *term);
+bool is_terminated(const char *string, const char *term);
 
 /* find the first occurence of a delimiter in a string */
 char * find_delimiter(const char *string, const char *delim);
@@ -93,9 +88,26 @@ void escape_crlf_sequence(char *buffer, int size, const char *string);
     result: 2 */
 int count_format_specifiers(const char *string);
 
-/* check whether the user's name or channel's name
-    contain allowed chars based on the IRC standard */
-int is_valid_name(const char *name, int isChannel);
+/* check whether the string contains allowed chars */
+bool is_valid_name(const char *name, const char *allowedChars);
+
+/* convert string to lowercase representation */
+void str_to_lower(char *buffer, int size, const char *string);
+
+/* convert string to uppercase representation */
+void str_to_upper(char *buffer, int size, const char *string);
+
+/* convert up to n chars of string to lowercase 
+    representation */
+void strn_to_lower(char *buffer, int size, const char *string, int n);
+
+/* convert up to n chars of string to uppercase 
+    representation */
+void strn_to_upper(char *buffer, int size, const char *string, int n);
+
+/* move chars from position endIdx till the end of string
+    to position startIdx */
+void shift_chars(char *buffer, int size, int startIdx, int endIdx);
 
 /* iterate over the list of strings and process each
     string with a callback */
@@ -115,5 +127,6 @@ int str_to_uint(const char *string);
 /* convert a number from an unsigned int to a string
     representation */
 int uint_to_str(char *buffer, int size, unsigned number);
+
 
 #endif

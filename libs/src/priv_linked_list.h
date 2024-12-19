@@ -1,10 +1,11 @@
 /* --INTERNAL HEADER--
    used for testing */
-
 #ifndef LINKED_LIST_H
 #define LINKED_LIST_H
 
-typedef int (*ComparatorFunc)(void *data1, void *data2);
+#include <stdbool.h>
+
+typedef bool (*ComparatorFunc)(void *data1, void *data2);
 typedef void (*DeleteDataFunc)(void *data);
 typedef void (*LinkedListFunc)(void *data, void *arg);
 
@@ -15,6 +16,7 @@ typedef struct Node {
 
 typedef struct LinkedList {
     Node *head;
+    Node *iterator;
     int count;
     ComparatorFunc comparatorFunc;
     DeleteDataFunc deleteDataFunc;
@@ -31,6 +33,8 @@ void append_node(LinkedList *linkedList, Node *node);
 int remove_node(LinkedList *linkedList, void *data);
 Node * find_node(LinkedList *linkedList, void *data);
 
+void reset_iterator(LinkedList *linkedList);
+Node * iterator_next(LinkedList *linkedList);
 void iterate_list(LinkedList *linkedList, LinkedListFunc iteratorFunc, void *arg);
 
 void * get_data(Node *node);

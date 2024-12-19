@@ -4,22 +4,17 @@
 #include "priv_user.h"
 #else
 #include "user.h"
+#include "../../libs/src/common.h"
 #endif
 
-#include "main.h"
-#include "../../libs/src/priv_message.h"
+#include "config.h"
 #include "../../libs/src/settings.h"
-#include "../../libs/src/string_utils.h"
+#include "../../libs/src/common.h"
 #include "../../libs/src/error_control.h"
 #include "../../libs/src/logger.h"
 
 #include <stdlib.h>
 #include <string.h>
-
-#define MAX_NICKNAME_LEN 9
-#define MAX_USERNAME_LEN 9
-#define MAX_HOSTNAME_LEN 63
-#define MAX_REALNAME_LEN 63
 
 #define MSG_QUEUE_LEN 20
 #define MAX_CHANNELS 20
@@ -29,37 +24,31 @@
 struct User {
     int fd;
     char nickname[MAX_NICKNAME_LEN + 1];
-    char username[MAX_USERNAME_LEN + 1];
-    char hostname[MAX_HOSTNAME_LEN + 1];
-    char realname[MAX_REALNAME_LEN + 1];
+    char username[MAX_CHARS + 1];
+    char hostname[MAX_CHARS + 1];
+    char realname[MAX_CHARS + 1];
     Queue *outQueue;
     pthread_rwlock_t userLock;
-    User *next;
 };
 
 #endif
 
-User * create_user(const char *nickname, const char *username, const char *hostname, const char *realname, int fd) {
+User * create_user(int fd, const char *nickname, const char *username, const char *hostname, const char *realname) {
 
     User *user = (User*) malloc(sizeof(User));
     if (user == NULL) {
-        FAILED(NO_ERRCODE, "Error allocating memory");
+        FAILED(ALLOC_ERROR, NULL);
     }
 
     user->fd = fd;
 
-    user->outQueue = create_queue(MSG_QUEUE_LEN, sizeof(RegMessage));
+    safe_copy(user->nickname, ARRAY_SIZE(user->nickname), nickname);
+    safe_copy(user->username, ARRAY_SIZE(user->username), username);
+    safe_copy(user->hostname, ARRAY_SIZE(user->hostname), hostname);
+    safe_copy(user->realname, ARRAY_SIZE(user->realname), realname);
 
-    if (is_valid_name(nickname, 0)) {
-
-        safe_copy(user->nickname, sizeof(user->nickname), nickname);
-    }
-    safe_copy(user->username, sizeof(user->username), username);
-    safe_copy(user->hostname, sizeof(user->hostname), hostname);
-    safe_copy(user->realname, sizeof(user->realname), realname);
+    user->outQueue = create_queue(MSG_QUEUE_LEN, MAX_CHARS + 1);
     pthread_rwlock_init(&user->userLock, NULL);
-
-    user->next = NULL; 
 
     return user;
 }
@@ -80,9 +69,7 @@ User * copy_user(User *user) {
         FAILED(ARG_ERROR, NULL);
     }
 
-    User *userCopy = create_user(user->nickname, user->username, user->hostname, user->realname, user->fd);
-
-    return userCopy;
+    return create_user(user->fd, user->nickname, user->username, user->hostname, user->realname);
 }
 
 void enqueue_to_user_queue(User *user, void *message) {
@@ -120,27 +107,31 @@ void * dequeue_from_user_queue(User *user) {
     return message; 
 }
 
-void set_user_data(User *user, const char *username, const char *hostname, const char *realname) {
+bool are_users_equal(void *user1, void *user2) {
 
-    if (user == NULL) {
-        FAILED(ARG_ERROR, NULL);
-    }
+    bool equal = 0;
 
-    safe_copy(user->username, sizeof(user->username), username);
-    safe_copy(user->hostname, sizeof(user->hostname), hostname);
-    safe_copy(user->realname, sizeof(user->realname), realname);
-}
+    User *u1 = (User*)user1;
+    User *u2 = (User*)user2;
 
-int are_users_equal(void *user1, void *user2) {
+    if (u1 != NULL && u1->nickname != NULL && \
+        u2 != NULL && u2->nickname != NULL) {
 
-    int equal = 0;
-
-    if (user1 != NULL && user2 != NULL) {
-        equal = strcmp(((User*)user1)->nickname, ((User*)user2)->nickname) == 0;
+        equal = strcmp(u1->nickname, u2->nickname) == 0;
     }
     return equal;
 }
 
+bool is_valid_user_name(const char *string) {
+
+    bool valid = 0;
+
+    if (is_valid_name(string, "-_\\[]{}|^~")) {
+        valid = 1;
+    };
+
+    return valid;
+}
 
 void add_nickname_to_list(void *user, void *arg) {
 
@@ -161,28 +152,34 @@ void add_nickname_to_list(void *user, void *arg) {
     }
 }
 
-void create_user_info(char *buffer, int size, void *user) {
+void create_user_info(char *buffer, int size, void *arg) {
 
-    if (buffer == NULL || user == NULL) {
+    if (buffer == NULL || arg == NULL) {
         FAILED(ARG_ERROR, NULL);
     }
 
-    const char *nickname = ((User*)user)->nickname;
-    const char *username = ((User*)user)->username;
-    const char *hostname = ((User*)user)->hostname;
+    User *user = arg;
 
-    const char *tokens[] = {nickname, "!", username, "@", hostname};  
+    const char *tokens[] = {user->nickname, "!", user->username, "@", user->hostname};  
     int userInfoLength = 0;
 
-    iterate_string_list(tokens, ARR_SIZE(tokens), add_string_length, &userInfoLength);
+    iterate_string_list(tokens, ARRAY_SIZE(tokens), add_string_length, &userInfoLength);
 
-    if (userInfoLength <= size) {
-        concat_tokens(buffer, size, tokens, ARR_SIZE(tokens), "");
+    if (userInfoLength < size) {
+        concat_tokens(buffer, size, tokens, ARRAY_SIZE(tokens), "");
     }
-    else {
-        LOG(ERROR, "Max message length exceeded");
-    }
+
 }
+
+int get_user_fd(User *user) {
+
+    if (user == NULL) {
+        FAILED(ARG_ERROR, NULL);
+    }
+
+    return user->fd;  
+}
+
 
 const char * get_user_nickname(User *user) {
 
@@ -199,13 +196,13 @@ void set_user_nickname(User *user, const char *nickname) {
         FAILED(ARG_ERROR, NULL);
     }
 
-    if (is_valid_name(nickname, 0)) {
+    if (is_valid_user_name(nickname)) {
 
-        safe_copy(user->nickname, sizeof(user->nickname), nickname);
+        safe_copy(user->nickname, ARRAY_SIZE(user->nickname),nickname);
     }
 }
 
-const char * get_username(User *user) {
+const char * get_user_username(User *user) {
 
     if (user == NULL) {
         FAILED(ARG_ERROR, NULL);
@@ -214,7 +211,7 @@ const char * get_username(User *user) {
     return user->username;
 }
 
-const char * get_hostname(User *user) {
+const char * get_user_hostname(User *user) {
 
     if (user == NULL) {
         FAILED(ARG_ERROR, NULL);
@@ -223,22 +220,13 @@ const char * get_hostname(User *user) {
     return user->hostname;
 }
 
-const char * get_realname(User *user) {
+const char * get_user_realname(User *user) {
 
     if (user == NULL) {
         FAILED(ARG_ERROR, NULL);
     }
 
     return user->realname;
-}
-
-int get_user_fd(User *user) {
-
-    if (user == NULL) {
-        FAILED(ARG_ERROR, NULL);
-    }
-
-    return user->fd;  
 }
 
 Queue * get_user_queue(User *user) {

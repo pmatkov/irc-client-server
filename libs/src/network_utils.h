@@ -2,23 +2,34 @@
 #define NETWORK_UTILS_H
 
 #include <arpa/inet.h>
+#include <stdbool.h>
+
+typedef enum {
+    HOSTNAME,
+    IP_ADDRESS,
+    UNKNOWN_HOST_IDENTIFIER,
+    HOST_IDENTIFIER_COUNT
+} HostIdentifierType;
 
 /* convert a hostname to an ip address */
-int hostname_to_ip(char *buffer, int size, const char *hostname);
+bool hostname_to_ip(char *buffer, int size, const char *hostname);
 
 /* convert an ip address to a hostname */
-int ip_to_hostname(char *buffer, int size, const char *ipv4Address);
+bool ip_to_hostname(char *buffer, int size, const char *ipv4Address);
 
 /* retrieve local address and port */
-int get_local_address(char *buffer, int size, int *port, int fd);
+bool get_local_address(char *buffer, int size, int *port, int fd);
 
 /* retrieve foreign address and port */
-int get_peer_address(char *buffer, int size, int *port, int fd);
+bool get_peer_address(char *buffer, int size, int *port, int fd);
+
+/* initialize socket address structure */
+void set_sockaddr(struct sockaddr_in *sockaddr, const char *address, int port);
 
 /* check if string is a valid ip address */
-int is_valid_ip(const char *string);
+bool is_valid_ip(const char *string);
 
 /* check if string is a valid port */
-int is_valid_port(unsigned port);
+bool is_valid_port(unsigned port);
 
 #endif

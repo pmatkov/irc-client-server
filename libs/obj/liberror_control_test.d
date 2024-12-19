@@ -1,2 +1,2 @@
 obj/liberror_control_test.o: src/liberror_control.c src/error_control.h \
- src/string_utils.h src/logger.h src/threads.h
+ src/common.h src/string_utils.h src/logger.h src/threads.h

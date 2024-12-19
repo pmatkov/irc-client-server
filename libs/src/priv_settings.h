@@ -1,11 +1,12 @@
 /* --INTERNAL HEADER--
    used for testing */
-
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
 #include "data_type.h"
-#include "string_utils.h"
+#include "common.h"
+
+#include <stdbool.h>
 
 typedef struct {
     DataType dataType;
@@ -35,13 +36,13 @@ void * get_option_value(int optionType);
 void set_option_value(int optionType, void *value);
 
 int get_int_option_value(int optionType);
-char * get_char_option_value(int optionType);
+const char * get_char_option_value(int optionType);
 
 DataType get_option_data_type(int optionType);
 const char * get_option_label(int optionType);
 
-int is_option_registered(int optionType);
-int is_valid_option_type(int optionType);
+bool is_option_registered(int optionType);
+bool is_valid_option_type(int optionType);
 
 void read_settings(const char *fileName);
 void write_settings(const char *fileName);

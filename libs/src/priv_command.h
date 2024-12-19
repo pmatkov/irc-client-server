@@ -1,10 +1,11 @@
 /* --INTERNAL HEADER--
    used for testing */
-
 #ifndef COMMAND_H
 #define COMMAND_H
 
-#include "string_utils.h"
+#include "common.h"
+
+#include <stdbool.h>
 
 #define MAX_TOKENS 5
 
@@ -19,7 +20,8 @@ typedef enum {
     PRIVMSG,
     ADDRESS,
     PORT,
-    QUIT, 
+    WHOIS,
+    QUIT,
     UNKNOWN_COMMAND_TYPE,
     COMMAND_TYPE_COUNT
 } CommandType;
@@ -40,8 +42,10 @@ typedef struct {
 } CommandTokens;
 
 typedef struct {
-    CommandType commandType;
-    CommandUser commandUser;     
+    CommandType cmdType;
+    CommandUser commandUser;
+    int minArgs;
+    int maxArgs;       
     const char *label;
     const char *syntax;
     const char * const description[MAX_TOKENS];
@@ -53,21 +57,17 @@ void delete_command_tokens(CommandTokens *cmdTokens);
 
 void reset_command_tokens(CommandTokens *cmdTokens);
 
-const char * command_type_to_string(CommandType commandType);
 CommandType string_to_command_type(const char *string);
 
-int is_valid_command(CommandType commandType);
+bool has_command_prefix(const char *string);
 
-int has_command_prefix(const char *string);
+const CommandInfo * get_cmd_info(CommandType cmdType);
+const CommandInfo ** get_cmd_infos(void);
 
-const CommandInfo * get_command_infos(void);
-const CommandInfo * get_command_info(CommandType commandType);
-int get_command_info_size(void);
-
-const char * get_command_info_label(const CommandInfo *commandInfo);
-const char * get_command_info_syntax(const CommandInfo *commandInfo);
-const char ** get_command_info_description(const CommandInfo *commandInfo);
-const char ** get_command_info_examples(const CommandInfo *commandInfo);
+const char * get_cmd_info_label(const CommandInfo *commandInfo);
+const char * get_cmd_info_syntax(const CommandInfo *commandInfo);
+const char ** get_cmd_info_description(const CommandInfo *commandInfo);
+const char ** get_cmd_info_examples(const CommandInfo *commandInfo);
 
 char * get_command_input(CommandTokens *cmdTokens);
 const char * get_command(CommandTokens *cmdTokens);

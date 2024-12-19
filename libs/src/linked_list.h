@@ -1,12 +1,13 @@
 #ifndef LINKED_LIST_H
 #define LINKED_LIST_H
 
-typedef int (*ComparatorFunc)(void *data1, void *data2);
+#include <stdbool.h>
+
+typedef bool (*ComparatorFunc)(void *data1, void *data2);
 typedef void (*DeleteDataFunc)(void *data);
 typedef void (*LinkedListFunc)(void *data, void *arg);
 
-/* a generic linked list that may be used with any data
-    type */
+/* a generic linked list that may use any data type */
 typedef struct Node Node;
 typedef struct LinkedList LinkedList;
 
@@ -21,6 +22,8 @@ void append_node(LinkedList *linkedList, Node *node);
 int remove_node(LinkedList *linkedList, void *data);
 Node * find_node(LinkedList *linkedList, void *data);
 
+void reset_iterator(LinkedList *linkedList);
+Node * iterator_next(LinkedList *linkedList);
 void iterate_list(LinkedList *linkedList, LinkedListFunc iteratorFunc, void *arg);
 
 void * get_data(Node *node);

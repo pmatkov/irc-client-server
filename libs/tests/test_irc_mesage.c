@@ -1,20 +1,9 @@
 #include "../src/irc_message.h"
+#include "../../libs/src/common.h"
 #include "../../libs/src/string_utils.h"
 #include "../../libs/src/response_code.h"
 
 #include <check.h>
-
-// START_TEST(test_create_irc_message) {
-
-//     char message[MAX_CHARS + 1] = {'\0'};
-
-//     const char *code = get_response_code(ERR_NICKNAMEINUSE);
-//     create_irc_message(message, MAX_CHARS, &(IRCMessageTokens){{"irc.example.com"}, {code, "john"}, {get_response_message(code)}, 1});
-
-//     ck_assert_str_eq(message, ":irc.example.com 433 john :Nickname is already in use");
-
-// }
-// END_TEST
 
 static void create_prefix(char *buffer, int size, void *arg) {
 

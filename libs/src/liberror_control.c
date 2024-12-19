@@ -1,4 +1,5 @@
 #include "error_control.h"
+#include "common.h"
 #include "string_utils.h"
 #include "logger.h"
 
@@ -12,15 +13,16 @@
 /* translation of error codes to strings */
 static const char *ERRCODE_STRINGS[] = {
     "No error",
+    "Memory allocation failed",
     "Invalid argument(s)",
     "Invalid range",
     "Input/ output error",
     "Unknown error"
 };
 
-static int stderrEnabled = 1;
+ASSERT_ARRAY_SIZE(ERRCODE_STRINGS, ERRCODE_COUNT)
 
-static_assert(ARR_SIZE(ERRCODE_STRINGS) == ERRCODE_COUNT, "Array size mismatch");
+static int stderrEnabled = 1;
 
 const char * get_error_code_string(ErrorCode errorCode) {
 
@@ -68,7 +70,7 @@ void failed(ErrorCode errorCode, const char *msg, const char *function, const ch
     exit(EXIT_FAILURE);
 }
 
-int is_stderr_enabled(void) {
+bool is_stderr_enabled(void) {
 
     return stderrEnabled;
 }

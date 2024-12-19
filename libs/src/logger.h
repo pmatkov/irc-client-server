@@ -6,10 +6,10 @@
 #include "error_control.h"
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <pthread.h>
 
-/* generate a log file name by adding a prefix to the
-    base name */
+/* create log file name from prefix and base name */
 #ifdef TEST
     #define LOG_FILE(str) APPEND_STRING_PREFIX(test_, str)
 #else
@@ -31,7 +31,7 @@ typedef enum {
 
 typedef void (*LogFunc)(void *arg);
 
-/* represents container for managing logging */
+/* containes members related to logging */
 typedef struct Logger Logger;
 
 Logger * create_logger(char *dirPath, char *identifier, LogLevel logLevel);
@@ -45,11 +45,9 @@ void log_message(LogLevel level, const char *msg, const char *function, const ch
 /* log error message */
 void log_error(ErrorCode errorCode, const char *msg, const char *function, const char *file, int line, int errnosv, ...);
 
-const char * log_level_to_string(LogLevel logLevel);
-LogLevel string_to_log_level(const char *string);
-int is_valid_log_level(LogLevel logLevel);
+const char ** get_log_level_strings(void);
 
-int is_stdout_enabled(void);
+bool is_stdout_enabled(void);
 
 /* enable or disable the display of log
     messages in the terminal */
