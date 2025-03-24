@@ -149,7 +149,6 @@ int client_connect(TCPClient *tcpClient, EventManager *eventManager, const char 
     return connStatus;
 }
 
-
 void client_disconnect(TCPClient *tcpClient, EventManager *eventManager) {
 
     if (tcpClient == NULL) {

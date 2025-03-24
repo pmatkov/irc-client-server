@@ -133,7 +133,13 @@ START_TEST(test_cmd_connect) {
 
     execute_command(get_command_function(CONNECT), "/CONNECT");
     char *message = dequeue_from_client_queue(tcpClient);
-    ck_assert_str_eq(message, "NICK pmatkov");
+
+    const char *tokens[2] = {"NICK", get_char_option_value(OT_NICKNAME)};  
+    char buffer[MAX_CHARS + 1] = {'\0'};
+
+    concat_tokens(buffer, MAX_CHARS, tokens, 2, " ");
+
+    ck_assert_str_eq(message, buffer);
 
     message = dequeue_from_client_queue(tcpClient);
     ck_assert_str_eq(message, "USER pmatkov 127.0.0.1 * :anonymous");

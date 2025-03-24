@@ -69,15 +69,20 @@ int main(int argc, char **argv)
 
     LOG(INFO, "Client started");
 
-    /* pipe is used to handle signals in conjuction
-        with poll() */
+    /*  a pipe is used to handle registered signals 
+        with poll(). signals interrupt poll() and
+        transfer control to the signal handler. inside
+        a registered handler, a message is written to 
+        the pipe. this message will then be detected 
+        with poll() as an input event on the pipe */
     appContext.streamPipe = create_pipe();
     set_client_pipe_fd(get_pipe_fd(appContext.streamPipe, WRITE_PIPE));
 
     /* poll manager tracks input activity on stdin, socket and 
-    pipe fd's */
+        pipe fd's */
     appContext.pollManager = create_poll_manager(POLL_FD_COUNT, POLLIN);
 
+    /* set fd for stdin and pipe */
     set_poll_fd(appContext.pollManager, STDIN_FILENO);
     set_poll_fd(appContext.pollManager, get_pipe_fd(appContext.streamPipe, READ_PIPE));
 
@@ -100,32 +105,28 @@ int main(int argc, char **argv)
     init_colors(get_int_option_value(OT_COLOR));
     init_ui(appContext.windowManager, get_int_option_value(OT_COLOR));
 
-    /* command tokens are used to store parsed commands */
+    /* command tokens store parsed commands */
     appContext.cmdTokens = create_command_tokens(1);
 
-    /* object required for event handlers */
     set_event_context(appContext.eventManager, appContext.windowManager, appContext.pollManager, appContext.tcpClient, appContext.cmdTokens);
 
     /* client uses event driven programming to handle I/O events.
-        the program performs the following actions in an endless loop:
+        the program workflow consists of the following actions:
 
-        1.  wait for input activity on stdin, socket and pipe fd's,
-        2.  after an event is detected, read data and add an event
-            to the queue,
-        3.  dispatch events from the queue to event handlers,
-        3.a if a local command is read, execute it, 
-        3.b if an IRC command is read, format it and add it to the 
-            outgoing message queue,
-        3.c  if a message is received from the socket, parse it 
-            and display it on screen */
+        1.  wait for input events on stdin, socket and pipe fd's,
+        2.  read data from stdin, socket or pipe fd's,
+        3.  create input events and add them to event queue,
+        4.  process events from the event queue and dispatch them to event handlers,
+        5.  send IRC messages to the server */
 
     while (1) {
 
-        /* the app uses I/O multiplexing with poll() to monitor
-        input activity on file descriptors */
+        /*  client uses I/O multiplexing with poll() to monitor stdin,
+            pipe and socket fd's for input events (readiness to read data) */
         int fdsReady = poll(get_poll_pfds(appContext.pollManager), get_poll_fd_count(appContext.pollManager), -1);
 
         if (fdsReady < 0) {
+
             /* restart poll() if it was interrupted by a signal */
             if (errno == EINTR) {
                 continue;

@@ -285,7 +285,13 @@ START_TEST(test_cmd_join) {
     ck_assert_str_eq(content, ":john!@ JOIN #linux");
     content = dequeue_from_user_queue(user);
     ck_assert_str_eq(content, ":irc.server.com 331 john #linux :No topic is set");
-      
+
+    content = dequeue_from_user_queue(user);
+    ck_assert_str_eq(content, ":irc.server.com 353 john #linux :john");
+
+    content = dequeue_from_user_queue(user);
+    ck_assert_str_eq(content, ":irc.server.com 366 john #linux :End of /NAMES list");
+
     cleanup_test();
 
 }

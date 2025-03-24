@@ -3,31 +3,17 @@
 
 #include "i_scroll_observer.h"
 
-/**
- * @brief Structure representing a scroll subject that maintains a list of observers.
- */
+/* structure representing a scroll subject that maintains a list of observers */
 typedef struct {
     IScrollObserver **observers;
     int count;
     int capacity;
 } ScrollSubject;
 
-/**
- * @brief Attaches an observer to the scroll subject.
- *
- * @param subject Pointer to the ScrollSubject.
- * @param observer Pointer to the IScrollObserver to be attached.
- * @return int 0 on success, non-zero on failure.
- */
+/* attaches an observer to the scroll subject */
 int attach_observer(ScrollSubject *subject, IScrollObserver *observer);
 
-/**
- * @brief Detaches an observer from the scroll subject.
- *
- * @param subject Pointer to the ScrollSubject.
- * @param observer Pointer to the IScrollObserver to be detached.
- * @return int 0 on success, non-zero on failure.
- */
+/* detaches an observer from the scroll subject */
 int detach_observer(ScrollSubject *subject, IScrollObserver *observer);
 
 #endif

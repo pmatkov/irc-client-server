@@ -231,7 +231,7 @@ void display_commands(WindowManager *windowManager, const CommandInfo **commandI
     print_tokens(mainBaseWindow, &(MessageTokens){1, NULL, NULL, NULL, 0});
     print_tokens(mainBaseWindow, &(MessageTokens){1, " ** ", NULL, "Commands:", COLOR_SEP(CYAN)});
 
-    while (*commandInfos != NULL) {
+    while (*commandInfos != NULL && count--) {
 
         print_tokens(mainBaseWindow, &(MessageTokens){1, SPACE, NULL, get_cmd_info_label(*commandInfos++), STYLE_CNT(DIM)});
     }
@@ -509,7 +509,7 @@ void resize_ui(WindowManager *windowManager, int useColors) {
     /* redraw window borders, reload the content from 
         the scrollback and display the last command */
     create_window_borders(windowManager, useColors);
-    restore_from_scrollback(mainBaseWindow);
+    reload_scrollback(mainBaseWindow);
 
     mvwaddstr(get_window(inputBaseWindow), 0, 0, PROMPT);
     display_current_command(inputBaseWindow);

@@ -160,7 +160,7 @@ STATIC void cmd_help(EventManager *eventManager, WindowManager *windowManager, T
     // HELP [command name]
     if (!get_command_argument_count(cmdTokens)) {
 
-        display_commands(windowManager, get_cmd_infos(), COMMAND_TYPE_COUNT);
+        display_commands(windowManager, get_cmd_infos(), COMMAND_TYPE_COUNT - 1);
     } 
     else if (get_command_argument_count(cmdTokens) == 1) {
 
@@ -204,11 +204,11 @@ STATIC void cmd_connect(EventManager *eventManager, WindowManager *windowManager
         InputWindow *inputWindow = get_input_window(windowManager);
 
         display_status(statusWindow, inputWindow, &(StatusParams){MAIN_STATUS, 0, 0, 0, {"", ""}, "[%s]  [%s]", 0}, get_char_option_value(OT_NICKNAME), get_server_identifier(tcpClient));
-        display_response(windowManager, "Connecting to server at %s:%d.", ipv4address, port);
+        display_response(windowManager, "Connecting to the server at %s:%d.", ipv4address, port);
 
     }
     else if (connStatus == -1) {
-        display_response(windowManager, "Unable to connect to server at %s:%d.", ipv4address, port);
+        display_response(windowManager, "Unable to connect to the server at %s:%d.", ipv4address, port);
     }
     else if (connStatus == -2) {
         display_response(windowManager, "Invalid address: %s.", ipv4address);
@@ -278,11 +278,11 @@ STATIC void register_connection(EventManager *eventManager, WindowManager *windo
      optional message */
 STATIC void cmd_disconnect(EventManager *eventManager, WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
-
     if (!is_allowed_state_command(get_client_session_states(), get_client_state_type(tcpClient), DISCONNECT)) {
         display_response(windowManager, "Command not allowed in current state.");
         return;
     }
+
     // DISCONNECT [:message]
     if (!get_command_argument_count(cmdTokens)) {
 
@@ -294,7 +294,6 @@ STATIC void cmd_disconnect(EventManager *eventManager, WindowManager *windowMana
         char notice[MAX_CHARS + CRLF_LEN + 1] = {'\0'};
 
         concat_tokens(notice, MAX_CHARS, get_command_arguments(cmdTokens), get_command_argument_count(cmdTokens), " ");
-
         create_irc_message(message, MAX_CHARS, &(IRCMessage){{"QUIT"}, {notice}, 1, NULL, NULL});
 
         enqueue_to_client_queue(tcpClient, message);
@@ -325,7 +324,6 @@ STATIC void cmd_nick(EventManager *eventManager, WindowManager *windowManager, T
     }
     else if (get_command_argument_count(cmdTokens) == 1) {
         set_nickname(windowManager, tcpClient, cmdTokens);
-
     }
 }
 
@@ -347,6 +345,16 @@ STATIC void set_nickname(WindowManager *windowManager, TCPClient *tcpClient, Com
     }
 
     set_option_value(OT_NICKNAME, (char*) get_command_argument(cmdTokens, 0));
+
+    BaseWindow *statusWindow = get_status_window(windowManager);
+    InputWindow *inputWindow = get_input_window(windowManager);
+
+    if (clientState == DISCONNECTED) {
+        display_status(statusWindow, inputWindow, &(StatusParams){MAIN_STATUS, 0, 0, 0, {"", ""}, "[%s]", 0}, get_char_option_value(OT_NICKNAME));
+    }
+    else {
+        display_status(statusWindow, inputWindow, &(StatusParams){MAIN_STATUS, 0, 0, 0, {"", ""}, "[%s]  [%s]", 0}, get_char_option_value(OT_NICKNAME), get_server_identifier(tcpClient));
+    }
 
     if (get_client_state_type(tcpClient) != START_REGISTRATION) {
         display_response(windowManager, "Nickname is set to: %s.", get_command_argument(cmdTokens, 0));
@@ -569,15 +577,19 @@ STATIC void cmd_whois(EventManager *eventManager, WindowManager *windowManager, 
 /* disconnect from the server and quit */
 STATIC void cmd_quit(EventManager *eventManager, WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {
 
-
     if (!is_allowed_state_command(get_client_session_states(), get_client_state_type(tcpClient), QUIT)) {
         display_response(windowManager, "Command not allowed in current state.");
         return;
     }
 
     cmd_disconnect(eventManager, windowManager, tcpClient, cmdTokens);
+
+    if (eventManager != NULL) {
+
+        push_event_to_queue(eventManager, &(Event){.eventType = NETWORK_EVENT, .subEventType = NE_CLIENT_DISCONNECT, .dataItem = (DataItem) {0}, .dataType = UNKNOWN_DATA_TYPE});
+        push_event_to_queue(eventManager, &(Event){.eventType = SYSTEM_EVENT, .subEventType = SE_EXIT, .dataItem = (DataItem) {0}, .dataType = UNKNOWN_DATA_TYPE});
+    }
     
-    exit(EXIT_SUCCESS);
 }
 
 STATIC void cmd_unknown(EventManager *eventManager, WindowManager *windowManager, TCPClient *tcpClient, CommandTokens *cmdTokens) {

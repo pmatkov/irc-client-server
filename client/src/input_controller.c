@@ -151,7 +151,7 @@ void add_char(BaseWindow *baseWindow, char ch) {
     }
 }
 
-void restore_from_scrollback(BaseWindow *baseWindow) {
+void reload_scrollback(BaseWindow *baseWindow) {
 
     if (baseWindow == NULL) {
         FAILED(ARG_ERROR, NULL);

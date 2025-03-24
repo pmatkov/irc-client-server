@@ -20,8 +20,8 @@ typedef enum {
 /* parse command line arguments */
 void get_command_line_args(int argc, char **argv);
 
-/* initialize default settings and/ or load 
-    settings from file */
+/* initialize default settings and/ or load
+    from file */
 void initialize_client_settings(void);
 
 #endif

@@ -151,19 +151,22 @@ void handle_ne_client_disconnect_event(Event *event) {
     Session *session = get_session(eventContext.tcpServer);
     User *user = find_user_in_hash_table(session, get_client_nickname(client));
 
-    // <:nickname!username@hostname> QUIT <:message>
-    char fwdMessage[MAX_CHARS + CRLF_LEN + 1] = {'\0'};
+    if (user != NULL) {
 
-    create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessage){{"QUIT"}, {NULL}, 0, create_user_info, user});
+        // <:nickname!username@hostname> QUIT <:message>
+        char fwdMessage[MAX_CHARS + CRLF_LEN + 1] = {'\0'};
 
-    leave_all_channels(get_session(eventContext.tcpServer), user, fwdMessage);
+        create_irc_message(fwdMessage, MAX_CHARS, &(IRCMessage){{"QUIT"}, {NULL}, 0, create_user_info, user});
 
-    ReadyList *readyList = get_ready_list(session);
-    remove_user_from_ready_list(get_ready_users(readyList), user);
+        leave_all_channels(get_session(eventContext.tcpServer), user, fwdMessage);
 
-    unregister_user(session, user);
+        ReadyList *readyList = get_ready_list(session);
+        remove_user_from_ready_list(get_ready_users(readyList), user);
+
+        unregister_user(session, user);
+    }
+
     remove_client(eventContext.tcpServer, eventContext.eventManager, get_client_fd(client));
-
 }
 
 void handle_ne_remove_poll_fd_event(Event *event) {
@@ -278,8 +281,8 @@ void send_socket_messages(EventManager *eventManager, TCPServer *tcpServer) {
 
     /* send messages from users' and channels' queues ( 
         users and channels have dedicated queues) */
-    iterate_list(get_ready_users(get_ready_list(session)), send_user_queue_messages, &data);
     iterate_list(get_ready_channels(get_ready_list(session)), send_channel_queue_messages, &data);
+    iterate_list(get_ready_users(get_ready_list(session)), send_user_queue_messages, &data);
 
     reset_linked_list(get_ready_users(get_ready_list(session)));
     reset_linked_list(get_ready_channels(get_ready_list(session)));

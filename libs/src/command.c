@@ -40,22 +40,13 @@ struct CommandInfo {
     int minArgs;
     int maxArgs;  
     const char *label;
+    const char *alias;
     const char *syntax;
     const char * const description[MAX_TOKENS];
     const char * const examples[MAX_TOKENS];
 };
 
 #endif
-
-static const char *COMMAND_TYPE_STRINGS[] = {
-    "help", "connect", "disconnect", 
-    "nick", "user", "join", 
-    "part", "msg", "address", 
-    "port", "whois", "quit",
-    "unknown"
-};
-
-ASSERT_ARRAY_SIZE(COMMAND_TYPE_STRINGS, COMMAND_TYPE_COUNT)
 
 /* a list of commands with their assigned properties.
     the last item in the array is NULL to enable 
@@ -65,13 +56,13 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         HELP, CLIENT_COMMAND, 
         0, 1,
-        "help", 
+        "help", NULL,
         NULL, {NULL}, {NULL}},
 
     &(CommandInfo){
         CONNECT, CLIENT_COMMAND, 
         0, 0, 
-        "connect", 
+        "connect", NULL,
         "connect [IP address | hostname] [port]", 
         {"connects to the server at the optional IP address (hostname) and port",
         "if no IP address is provided <127.0.0.1> will be used", 
@@ -82,7 +73,7 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         DISCONNECT, CLIENT_COMMAND,
         0, 1,
-        "disconnect", 
+        "disconnect", NULL,
         "disconnect [msg]",
         {"disconnects from the active server with an optional message", NULL},
         {"/disconnect bye", NULL}
@@ -91,7 +82,7 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         NICK, COMMON_COMMAND,
         1, 1, 
-        "nick", 
+        "nick", NULL,
         "nick <nickname>",
         {"sets user nickname", NULL},
         {"/nick j007", NULL}
@@ -100,7 +91,7 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         USER, COMMON_COMMAND, 
         1, 3,
-        "user", 
+        "user", NULL,
         "user [username] [hostname] <real name>",
         {"sets user username, hostname and real name",
          "if no username or hostname is provided default values will be used", NULL},
@@ -110,7 +101,7 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         JOIN, COMMON_COMMAND, 
         1, 1,
-        "join", 
+        "join", NULL,
         "join <channel>",
         {"joins the specified channel or creates a new one if it doesn't exist", NULL},
         {"/join #general", NULL}
@@ -119,7 +110,7 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         PART, COMMON_COMMAND, 
         1, 2,
-        "part", 
+        "part", NULL, 
         "part <channel> [msg]",
         {"leaves the channel with optional message", NULL},
         {"/part #general bye", NULL}
@@ -128,7 +119,7 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         PRIVMSG, COMMON_COMMAND, 
         2, 2,
-        "msg", 
+        "msg", "privmsg",
         "msg <channel | user> <message>",
         {"sends message to the channel", NULL},
         {"/msg #programming what is a double pointer?", 
@@ -138,7 +129,7 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         ADDRESS, CLIENT_COMMAND, 
         1, 1,
-        "address", 
+        "address", NULL,
         "address <address>",
         {"sets a default server address", NULL},
         {"/address 45.56.126.124", 
@@ -148,7 +139,7 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         PORT, CLIENT_COMMAND, 
         1, 1,
-        "port", 
+        "port", NULL,
         "port <port>",
         {"sets a default server port", NULL},
         {"/port 50100", NULL}
@@ -157,7 +148,7 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         WHOIS, COMMON_COMMAND, 
         1, 1,
-        "whois", 
+        "whois", NULL,
         "whois <user>",
         {"displays detailed information about a specific user", NULL}, 
         {"/whois john", NULL}
@@ -166,7 +157,7 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         QUIT, COMMON_COMMAND, 
         0, 1,
-        "quit", 
+        "quit", NULL,
         "quit [msg]",
         {"terminates the application with optional message", NULL}, 
         {"/quit done for today!", NULL}
@@ -175,7 +166,7 @@ static const CommandInfo *COMMAND_INFOS[] = {
     &(CommandInfo){
         UNKNOWN_COMMAND_TYPE, UNKNOWN_COMMAND_USER,
         0, 0,
-        "unknown", 
+        "unknown", NULL, 
         NULL, {NULL}, {NULL}},
 
     NULL
@@ -235,7 +226,8 @@ CommandType string_to_command_type(const char *string) {
 
     for (int i = 0; i < COMMAND_TYPE_COUNT; i++) {
 
-        if (strncmp(COMMAND_INFOS[i]->label, lcaseString, MAX_TOKEN_LEN) == 0) {
+        if (strncmp(COMMAND_INFOS[i]->label, lcaseString, MAX_TOKEN_LEN) == 0 || \
+            (COMMAND_INFOS[i]->alias != NULL && strncmp(COMMAND_INFOS[i]->alias, lcaseString, MAX_TOKEN_LEN) == 0)) {
             cmdType = COMMAND_INFOS[i]->cmdType;
             break;
         }

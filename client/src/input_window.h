@@ -6,9 +6,8 @@
 
 #define PROMPT_SIZE 2
 
-/**
- * @struct LineEditor
- * @brief Interface for managing user keyboard input in a line editor.
+/*
+ * Interface for managing user keyboard input in a line editor.
  *
  * This file contains the definitions and function declarations for a line editor
  * and an input window. The line editor tracks the character count, cursor position,
@@ -24,181 +23,52 @@
  */
 typedef struct LineEditor LineEditor;
 
-/**
- * @struct InputWindow
- * @brief A container for the base window and line editor.
- */
+/* a container for the base window and line editor */
 typedef struct InputWindow InputWindow;
 
-/**
- * @brief Create an input window.
- * 
- * @param rows Number of rows for the window.
- * @param cols Number of columns for the window.
- * @param startY Starting Y position for the window.
- * @param startX Starting X position for the window.
- * @param cmdHistoryCount Number of commands to store in history.
- * @return Pointer to the created InputWindow.
- */
 InputWindow * create_input_window(int rows, int cols, int startY, int startX, int cmdHistoryCount);
-
-/**
- * @brief Delete an input window.
- * 
- * @param inputWindow Pointer to the InputWindow to delete.
- */
 void delete_input_window(InputWindow *inputWindow);
 
-/**
- * @brief Create a line editor.
- * 
- * @param inputWidth Width of the input area.
- * @param cmdHistoryCount Number of commands to store in history.
- * @return Pointer to the created LineEditor.
- */
 LineEditor * create_line_editor(int inputWidth, int cmdHistoryCount);
-
-/**
- * @brief Delete a line editor.
- * 
- * @param lnEditor Pointer to the LineEditor to delete.
- */
 void delete_line_editor(LineEditor *lnEditor);
 
-/**
- * @brief Move the cursor to the left.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @return Status code (0 for success, non-zero for failure).
- */
 int move_le_cursor_left(LineEditor *lnEditor);
-
-/**
- * @brief Move the cursor to the right.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @return Status code (0 for success, non-zero for failure).
- */
 int move_le_cursor_right(LineEditor *lnEditor);
 
-/**
- * @brief Add a character to the line editor.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @param ch Character to add.
- * @return Status code (0 for success, non-zero for failure).
- */
+/* add a character to the line editor */
 int add_le_char(LineEditor *lnEditor, char ch);
 
-/**
- * @brief Use backspace to delete the previous character.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @return Status code (0 for success, non-zero for failure).
- */
+/* use backspace to delete the previous character 
+from line editor */
 int use_le_backspace(LineEditor *lnEditor);
 
-/**
- * @brief Use delete to delete the current character.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @return Status code (0 for success, non-zero for failure).
- */
+/* use delete to delete the current character 
+ * from line editor*/
 int use_le_delete(LineEditor *lnEditor);
 
-/**
- * @brief Move the cursor to the start of the line.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @return Status code (0 for success, non-zero for failure).
- */
 int use_le_home(LineEditor *lnEditor);
-
-/**
- * @brief Move the cursor to the end of the line.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @return Status code (0 for success, non-zero for failure).
- */
 int use_le_end(LineEditor *lnEditor);
 
-/**
- * @brief Check if there is space available to add more characters.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @return True if space is available, false otherwise.
- */
+/* check if there is space available to add more characters */
 bool can_add_char(LineEditor *lnEditor);
 
-/**
- * @brief Reload saved commands into the line editor.
- * 
- * @param lnEditor Pointer to the LineEditor.
- */
+/* reload saved commands into the line editor */
 void reload_saved_commands(LineEditor *lnEditor);
 
-/**
- * @brief Get the front command queue of the line editor.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @return Pointer to the front command queue.
- */
+/* get the front command queue of the line editor */
 Queue * get_le_front_cmd_queue(LineEditor *lnEditor);
 
-/**
- * @brief Get the back command queue of the line editor.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @return Pointer to the back command queue.
- */
+/* get the back command queue of the line editor */
 Queue * get_le_back_cmd_queue(LineEditor *lnEditor);
 
-/**
- * @brief Get the character count in the line editor.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @return Character count.
- */
+/* get/ set the character count in the line editor */
 int get_le_char_count(LineEditor *lnEditor);
-
-/**
- * @brief Set the character count in the line editor.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @param charCount Character count to set.
- */
 void set_le_char_count(LineEditor *lnEditor, int charCount);
 
-/**
- * @brief Get the cursor position in the line editor.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @return Cursor position.
- */
 int get_le_cursor(LineEditor *lnEditor);
-
-/**
- * @brief Set the cursor position in the line editor.
- * 
- * @param lnEditor Pointer to the LineEditor.
- * @param cursor Cursor position to set.
- */
 void set_le_cursor(LineEditor *lnEditor, int cursor);
 
-/**
- * @brief Get the base window from the input window.
- * 
- * @param inputWindow Pointer to the InputWindow.
- * @return Pointer to the BaseWindow.
- */
 BaseWindow * get_le_base_window(InputWindow *inputWindow);
-
-/**
- * @brief Get the line editor from the input window.
- * 
- * @param inputWindow Pointer to the InputWindow.
- * @return Pointer to the LineEditor.
- */
 LineEditor * get_line_editor(InputWindow *inputWindow);
 
 #endif

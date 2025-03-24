@@ -27,25 +27,11 @@ void print_string(WINDOW *window, const char *string, int y, int x);
 
 #ifdef TEST
 
-/**
- * @brief Moves the cursor to the specified position in the given window.
- * 
- * @param window The window in which to move the cursor.
- * @param y The y-coordinate to move the cursor to.
- * @param x The x-coordinate to move the cursor to.
- */
+/* moves the cursor to the specified position in the given window */
 void move_cursor(WINDOW *window, int y, int x);
 
-/**
- * @brief Concatenates message tokens into a buffer.
- * 
- * @param buffer The buffer to store the concatenated message.
- * @param size The size of the buffer.
- * @param messageTokens The message tokens to concatenate.
- * @return int Returns 0 on success, or a non-zero error code on failure.
- */
+/* concatenates message tokens into a buffer */
 int concat_msg_tokens(cchar_t *buffer, int size, MessageTokens *messageTokens);
-
 
 #endif
 

@@ -336,7 +336,6 @@ void remove_client(TCPServer *tcpServer, EventManager *eventManager, int fd) {
 
         tcpServer->count--;
     }
-
 }
 
 Client * find_client(TCPServer *tcpServer, const char *nickname) {
@@ -547,7 +546,6 @@ void send_channel_queue_messages(void *channel, void *arg) {
         Session *session = get_session(data->tcpServer);
 
         iterate_list(get_users_from_channel_users(find_channel_users(session, channel)), send_message_to_user, data);
-
     }
 }
 

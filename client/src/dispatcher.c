@@ -280,7 +280,6 @@ STATIC void execute_command(EventManager *eventManager, WindowManager *windowMan
     }
 }
 
-
 void send_socket_messages(EventManager *eventManager, TCPClient *tcpClient) {
 
     if (eventManager == NULL || tcpClient == NULL) {

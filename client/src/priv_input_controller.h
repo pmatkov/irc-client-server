@@ -24,7 +24,7 @@ WindowType code_to_window_type(int keyCode);
 int get_char(BaseWindow *baseWindow);
 void add_char(BaseWindow *baseWindow, char ch);
 
-void restore_from_scrollback(BaseWindow *baseWindow);
+void reload_scrollback(BaseWindow *baseWindow);
 
 void display_current_command(BaseWindow *baseWindow);
 

@@ -26,7 +26,6 @@ typedef struct {
     CommandTokens *cmdTokens;
 } AppContext;
 
-
 #ifndef TEST
 
 static AppContext appContext = {NULL};
@@ -50,7 +49,7 @@ int main(int argc, char **argv)
     /* parse command line arguments */
     get_command_line_args(argc, argv);
 
-    /* create logger */
+    /* create logger and set logging options */
     LogLevel logLevel = get_int_option_value(OT_SERVER_LOG_LEVEL);
     appContext.logger = create_logger(NULL, LOG_FILE(server), logLevel);
 
@@ -58,7 +57,7 @@ int main(int argc, char **argv)
 
     if (get_int_option_value(OT_DAEMON)) {
         daemonize();
-        LOG(INFO, "Started daemon process with PID: %d", getpid());
+        LOG(INFO, "Daemon process started (pid: %d)", getpid());
     }
     if (get_int_option_value(OT_ECHO)) {
         LOG(INFO, "Echo server enabled");
@@ -67,30 +66,27 @@ int main(int argc, char **argv)
         LOG(INFO, "Multithreading enabled");
     }
 
-    /* pipe is used to handle signals in conjuction
-        with poll() */
-    appContext.streamPipe = create_pipe();
-    set_server_pipe_fd(get_pipe_fd(appContext.streamPipe, WRITE_PIPE));
-
-    /* poll manager tracks input activity on socket and 
-    pipe fd's */
-    appContext.pollManager = create_poll_manager(get_int_option_value(OT_MAX_FDS), POLLIN);
-
-    /* provides networking functionality for 
-        the app */
-    appContext.tcpServer = create_server(get_int_option_value(OT_MAX_FDS));
-    int listenFd = init_server(appContext.tcpServer, NULL, get_int_option_value(OT_PORT));
-
-    /* set fd for the pipe and listening socket */
-    set_poll_fd(appContext.pollManager, get_pipe_fd(appContext.streamPipe, READ_PIPE));
-    set_poll_fd(appContext.pollManager, listenFd);
-
     /*  a pipe is used to handle registered signals 
         with poll(). signals interrupt poll() and
         transfer control to the signal handler. inside
         a registered handler, a message is written to 
         the pipe. this message will then be detected 
         with poll() as an input event on the pipe */
+    appContext.streamPipe = create_pipe();
+    set_server_pipe_fd(get_pipe_fd(appContext.streamPipe, WRITE_PIPE));
+
+    /* poll manager tracks input activity on socket and 
+        pipe fd's */
+    appContext.pollManager = create_poll_manager(get_int_option_value(OT_MAX_FDS), POLLIN);
+
+    /* tcpServer provides networking functionality for 
+        the app */
+    appContext.tcpServer = create_server(get_int_option_value(OT_MAX_FDS));
+    int listenFd = init_server(appContext.tcpServer, NULL, get_int_option_value(OT_PORT));
+
+    /* set fd for pipe and listening socket */
+    set_poll_fd(appContext.pollManager, get_pipe_fd(appContext.streamPipe, READ_PIPE));
+    set_poll_fd(appContext.pollManager, listenFd);
 
     /* set signal handlers */
     set_sigaction(handle_server_sigint, SIGINT, (int[]){SIGINT, SIGTERM, SIGHUP, SIGQUIT, 0});
@@ -102,10 +98,6 @@ int main(int argc, char **argv)
 
     set_event_context(appContext.eventManager, appContext.pollManager, appContext.tcpServer, appContext.cmdTokens);
 
-    /* the server can be run in single-threaded or 
-        multithreaded mode. performance improvements 
-        are expected in multithreaded mode with a 
-        large number of clients and high traffic */
     if (!get_int_option_value(OT_THREADS)) {
         run_standard_server();  
     }
@@ -115,25 +107,22 @@ int main(int argc, char **argv)
 /* a standard server runs on a single thread */
 static void run_standard_server(void) {
 
-  /* the core program logic consists of the following actions:
+  /* server uses event driven programming to handle I/O events.
+    the program workflow consists of the following actions:
 
-        1.a keep accepting connection requests from the clients 
-            as they arrive,
-        1.b read and parse clients messages,
-        2. if a message is a valid command, execute it,
-        3. send responses to the clients or forward messages
-            from the clients to other clients */
+        1. wait for input events on pipe and socket fd's,
+        2. read data from pipe and socket fd,
+        3. create input events and add them to event queue,
+        4.  process events from the event queue and dispatch them to event handlers,
+        5.  send IRC responses to clients */
 
     while (1) {
 
-        /*  the app uses I/O multiplexing with poll() to monitor
-            several communication channels. one of them is a
-            pipe which is used for handling signals in the context 
-            of poll(), the others are TCP sockets which are used 
-            for communication with clients. each of these channels
-            is represented by a file descriptor which is then 
-            added to the set of fd's monitored by poll() */
-
+        /*  server uses I/O multiplexing with poll() to monitor pipe and
+            socket fd's for input events (readiness to read data). 
+            pipe is used for handling signals with poll(). sockets are
+            used for accepting connection requests from clients and 
+            exchanging data with clients */
         int fdsReady = poll(get_poll_pfds(appContext.pollManager), get_poll_fd_count(appContext.pollManager), -1);
 
         if (fdsReady < 0) {
@@ -182,7 +171,9 @@ static void run_standard_server(void) {
 /* perform cleanup */
 static void cleanup(void) {
 
-    LOG(INFO, "Terminated");
+    if (!get_int_option_value(OT_DAEMON)) {
+        LOG(INFO, "Terminated");
+    }
 
     delete_command_tokens(appContext.cmdTokens);
     delete_poll_manager(appContext.pollManager);

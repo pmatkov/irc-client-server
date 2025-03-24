@@ -47,6 +47,7 @@ typedef struct {
     int minArgs;
     int maxArgs;       
     const char *label;
+    const char *alias;
     const char *syntax;
     const char * const description[MAX_TOKENS];
     const char * const examples[MAX_TOKENS];
