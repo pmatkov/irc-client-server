@@ -1,8 +1,8 @@
 ## IRC client and server
 
-![Screenshot from the app](buzz.png)
-
 These are IRC client and server apps written in C
+
+![Screenshot from the app](buzz.png)
 
 **Background:**
 
