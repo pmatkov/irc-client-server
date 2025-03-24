@@ -25,7 +25,7 @@ Both the client and server use event-driven programming and I/O multiplexing to 
 - command parsing and execution
 - display of command responses and server messages
 - supports IRC commands such as *NICK*, *JOIN*, *PART* and *PRIVMSG*, etc.
-- command line argumentss for start-up configuration and in-app settings
+- command line arguments for startup configuration and in-app settings
 
 **Server features:**
 
