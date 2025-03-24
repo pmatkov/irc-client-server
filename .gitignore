@@ -1,7 +1,7 @@
 .vscode/
-*.png
+
 *.log
 
-*/bin/
-*/obj/
-*/tests/bin/
+bin/
+obj/
+misc/
