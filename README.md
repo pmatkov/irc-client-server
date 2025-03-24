@@ -8,11 +8,11 @@ These are IRC client and server apps written in C
 
 IRC was once a popular protocol for online chat. Compared to modern protocols, it is relatively simple, offering only real-time text messaging in its basic version. This simplicity and widespread use were the main reasons I chose IRC for my final thesis project.
 
-To demonstrate online chat in an IRC network, I developed an IRC client and server. These are not fully featured IRC applications, as implementing all features would be too time-consuming. However, they support a limited set of IRC rules, sufficient to showcase the basic principles of online chat.
+To demonstrate online chat in an IRC network, I developed an IRC client and server. These are not fully featured IRC applications, as implementing all features would be too time-consuming. However, they support a limited set of IRC rules, sufficient to demonstrate the basic principles of online chat.
 
 The goal was to create a simple yet functional IRC network using a single server (IRC also supports multi-server networks) capable of handling up to 1000 clients.
 
-The applications were developed in C for Linux, utilizing several libraries. The client features a text-based UI, implemented with the *ncurses* library. Unit testing was performed using the *Check* library. Network communication was tested directly between the client and server, as well as through shell scripts. Additionally, a custom library of data structures and functions was created.
+The applications were developed in C for Linux, utilizing several libraries. The client features a text-based UI, implemented with the *ncurses* library. Unit testing was performed using the *Check* library. Network communication was tested directly between the client and server, as well as through *shell* scripts. Additionally, a custom library of data structures and functions was created.
 
 Both the client and server use event-driven programming and I/O multiplexing to efficiently handle network communication.
 
