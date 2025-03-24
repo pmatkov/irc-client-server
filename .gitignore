@@ -2,6 +2,6 @@
 
 *.log
 
-*/bin/
-*/obj/
+**/bin/
+**/obj/
 misc/
