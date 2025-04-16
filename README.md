@@ -12,7 +12,7 @@ To demonstrate online chat in an IRC network, I developed an IRC client and serv
 
 The goal was to create a simple yet functional IRC network using a single server (IRC also supports multi-server networks) capable of handling up to 1000 clients.
 
-The applications were developed in C for Linux, utilizing several libraries. The client features a text-based UI, implemented with the *ncurses* library. Unit testing was performed using the *Check* library. Network communication was tested directly between the client and server, as well as through *shell* scripts. Additionally, a custom library of data structures and functions was created.
+The applications were developed in C for Linux, utilizing several libraries. The client features a text-based UI, implemented with the *ncurses* library. Unit testing was performed using the *Check* library. Network communication was tested directly between the client and server, as well as through *shell* script. Additionally, a custom library of data structures and functions was created.
 
 Both the client and server use event-driven programming and I/O multiplexing to efficiently handle network communication.
 
@@ -24,7 +24,7 @@ Both the client and server use event-driven programming and I/O multiplexing to 
 - scrollback buffer for overflowing text (pgup, pgdown or ctrl + up/down arrow keys)
 - command parsing and execution
 - display of command responses and server messages
-- supports IRC commands such as *NICK*, *JOIN*, *PART* and *PRIVMSG*, etc.
+- supports IRC commands such as *NICK*, *JOIN*, *PART*, *PRIVMSG*, etc.
 - command line arguments for startup configuration and in-app settings
 
 **Server features:**
@@ -41,7 +41,7 @@ Both the client and server use event-driven programming and I/O multiplexing to 
 - to compile the binaries run `make` in the *client*, *server* and *libs* directories
 - to run unit tests use `make test`
 
-**Instructions:**
+**Usage instructions:**
 - client commands start with `/`; for example, to list available commands use `/help`
 - server may be started in echo mode with `-e` and run as a daemon with `-d` flag
   
